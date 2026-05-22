@@ -1,8 +1,5 @@
 Flask==2.3.2
-numpy>=1.26
-opencv_python==4.7.0.72
 paho_mqtt==1.6.1
 PyYAML>=6.0.2
-tflite_support==0.4.4
 requests==2.30.0
 Pillow==10.4.0

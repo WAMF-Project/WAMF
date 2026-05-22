@@ -27,3 +27,24 @@ docker-compose.dev.yml
 
 # MCP config (contains private token)
 .mcp.json
+
+# Development databases
+data/*.db
+
+# Local configs
+config/config.yml
+
+# Test images
+static/test-images/
+
+# VS Code
+.vscode/
+
+# Python env
+.venv/
+
+# Pytest cache
+.pytest_cache/
+
+# macOS/Linux junk
+.DS_Store

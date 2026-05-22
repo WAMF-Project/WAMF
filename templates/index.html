@@ -6,129 +6,233 @@
 
 {% block date_picker %}
 <form class="d-flex">
-  <input type="date" id="date-picker" class="form-control" value="{{ date }}" min="{{ earliest_date }}" max="{{ date }}" onchange="navigateToDailySummary(this)">
+  <input
+    type="date"
+    id="date-picker"
+    class="form-control"
+    value="{{ date }}"
+    min="{{ earliest_date }}"
+    max="{{ date }}"
+    onchange="navigateToDailySummary(this)">
 </form>
 {% endblock %}
 
 {% block content %}
+
 <section class="wamf-panel">
-  <h2 class="wamf-heading">Recent Detections <span class="live-badge" id="live-badge" title="Auto-updating">&#9679; Live</span></h2>
-  <div class="table-responsive">
-    <table class="table wamf-table">
-      <thead>
-      <tr>
-        <th scope="col">Detection Time</th>
-        <th scope="col">Common Name</th>
-        <th scope="col">Confidence</th>
-        <th scope="col">Thumbnail</th>
-      </tr>
-      </thead>
-      <tbody id="recent-detections-tbody">
-      {% for detection in recent_detections %}
-      <tr data-frigate-event="{{ detection.frigate_event }}" data-detection-time="{{ detection.detection_time }}">
-        <td>{{ detection.detection_time }}</td>
-        <td>{{ detection.common_name }}</td>
-        <td>{{ '%.2f'|format(detection.score) }}</td>
-        <td>
-          <img src="{{ url_for('frigate_thumbnail', frigate_event=detection.frigate_event) }}" alt="Thumbnail" class="thumbnail" onload="checkTransparentImage(this)" onclick="showSnapshot('{{ url_for('frigate_snapshot', frigate_event=detection.frigate_event) }}', '{{ url_for('frigate_clip', frigate_event=detection.frigate_event) }}', '{{ detection.frigate_event }}')">
-        </td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+  <h2 class="wamf-heading">
+    Recent Detections
+    <span class="live-badge" id="live-badge" title="Auto-updating">
+      &#9679; Live
+    </span>
+  </h2>
+
+  <div class="wamf-detection-grid" id="recent-detections-tbody">
+
+    {% for detection in recent_detections %}
+    <div
+      class="wamf-detection-card"
+      data-frigate-event="{{ detection.frigate_event }}"
+      data-detection-time="{{ detection.detection_time }}">
+
+      <img
+        src="{{ url_for('static', filename='test-images/pigeon1.jpg') }}"
+        alt="Thumbnail"
+        class="wamf-detection-image"
+        onload="checkTransparentImage(this)"
+        onclick="showSnapshot(
+          '{{ url_for('frigate_snapshot', frigate_event=detection.frigate_event) }}',
+          '{{ url_for('frigate_clip', frigate_event=detection.frigate_event) }}',
+          '{{ detection.frigate_event }}'
+        )">
+
+      <div class="wamf-detection-content">
+        <h3>{{ detection.common_name }}</h3>
+
+        <div class="wamf-confidence">
+          {{ (detection.score * 100)|round|int }}%
+        </div>
+
+        <div class="wamf-detection-time">
+          {{ detection.detection_time }}
+        </div>
+      </div>
+
+    </div>
+    {% endfor %}
+
   </div>
 </section>
 
 <section class="wamf-panel">
   <h2 class="wamf-heading">Detection Summary</h2>
+
   <div class="table-responsive">
     <table class="table wamf-table">
       <thead>
-      <tr>
-        <th scope="col">Common Name</th>
-        <th scope="col">Total</th>
-        {% for hour in range(current_hour + 1) %}
-        <th scope="col">
-          <a href="{{ url_for('show_detections_by_hour', date=date, hour=hour) }}" class="text-decoration-none text-reset">{{ hour }}</a>
-        </th>
-        {% endfor %}
-      </tr>
+        <tr>
+          <th scope="col">Common Name</th>
+          <th scope="col">Total</th>
+
+          {% for hour in range(current_hour + 1) %}
+          <th scope="col">
+            <a
+              href="{{ url_for('show_detections_by_hour', date=date, hour=hour) }}"
+              class="text-decoration-none text-reset">
+              {{ hour }}
+            </a>
+          </th>
+          {% endfor %}
+
+        </tr>
       </thead>
+
       <tbody>
-      {% for species in daily_summary.values() %}
-      <tr>
-        <td>
-          <a href="{{ url_for('show_detections_by_scientific_name', scientific_name=species.scientific_name, date=date, end_date=None) }}" class="text-decoration-none text-reset">{{ species.common_name }}</a>
-        </td>
-        <td>{{ species.total_detections }}</td>
-        {% for detections in species.hourly_detections[:current_hour + 1] %}
-        <td>{% if detections > 0 %}{{ detections }}{% endif %}</td>
+
+        {% for species in daily_summary.values() %}
+        <tr>
+
+          <td>
+            <a
+              href="{{ url_for(
+                'show_detections_by_scientific_name',
+                scientific_name=species.scientific_name,
+                date=date,
+                end_date=None
+              ) }}"
+              class="text-decoration-none text-reset">
+
+              {{ species.common_name }}
+
+            </a>
+          </td>
+
+          <td>{{ species.total_detections }}</td>
+
+          {% for detections in species.hourly_detections[:current_hour + 1] %}
+          <td>
+            {% if detections > 0 %}
+              {{ detections }}
+            {% endif %}
+          </td>
+          {% endfor %}
+
+        </tr>
         {% endfor %}
-      </tr>
-      {% endfor %}
+
       </tbody>
     </table>
   </div>
 </section>
 
 {% include 'modals_and_scripts.html' %}
+
 {% endblock %}
 
 {% block scripts %}
+
 <script>
-  function navigateToDailySummary(input) {
-    const selectedDate = input.value;
-    const params = new URLSearchParams(window.location.search);
-    const suffix = params.get('embed') === 'ha' ? '?embed=ha' : '';
-    window.location.href = `/daily_summary/${selectedDate}${suffix}`;
-  }
+function navigateToDailySummary(input) {
+  const selectedDate = input.value;
+  const params = new URLSearchParams(window.location.search);
+  const suffix = params.get('embed') === 'ha' ? '?embed=ha' : '';
+
+  window.location.href = `/daily_summary/${selectedDate}${suffix}`;
+}
 </script>
+
 <script>
 (function () {
+
   const POLL_MS = 15000;
   const LIMIT   = 5;
-  const tbody   = document.getElementById('recent-detections-tbody');
+
+  const tbody = document.getElementById('recent-detections-tbody');
 
   function knownEvents() {
     return new Set(
-      Array.from(tbody.querySelectorAll('tr[data-frigate-event]'))
-           .map(r => r.dataset.frigateEvent)
+      Array.from(
+        tbody.querySelectorAll('[data-frigate-event]')
+      ).map(el => el.dataset.frigateEvent)
     );
   }
 
   function buildRow(d) {
-    const thumbUrl   = `/frigate/${d.frigate_event}/thumbnail.jpg`;
-    const snapUrl    = `/frigate/${d.frigate_event}/snapshot.jpg`;
-    const clipUrl    = `/frigate/${d.frigate_event}/clip.mp4`;
-    const tr         = document.createElement('tr');
-    tr.dataset.frigateEvent  = d.frigate_event;
-    tr.dataset.detectionTime = d.detection_time;
-    tr.classList.add('new-detection');
-    tr.innerHTML = `
-      <td>${d.detection_time}</td>
-      <td>${d.common_name}</td>
-      <td>${d.score.toFixed(2)}</td>
-      <td><img src="${thumbUrl}" alt="Thumbnail" class="thumbnail"
-               onload="checkTransparentImage(this)"
-               onclick="showSnapshot('${snapUrl}','${clipUrl}','${d.frigate_event}')"/></td>`;
-    return tr;
+
+    const thumbUrl = `/frigate/${d.frigate_event}/thumbnail.jpg`;
+    const snapUrl  = `/frigate/${d.frigate_event}/snapshot.jpg`;
+    const clipUrl  = `/frigate/${d.frigate_event}/clip.mp4`;
+
+    const card = document.createElement('div');
+
+    card.dataset.frigateEvent  = d.frigate_event;
+    card.dataset.detectionTime = d.detection_time;
+
+    card.classList.add(
+      'wamf-detection-card',
+      'new-detection'
+    );
+
+    card.innerHTML = `
+      <img
+        src="${thumbUrl}"
+        alt="Thumbnail"
+        class="wamf-detection-image"
+        onload="checkTransparentImage(this)"
+        onclick="showSnapshot('${snapUrl}','${clipUrl}','${d.frigate_event}')">
+
+      <div class="wamf-detection-content">
+        <h3>${d.common_name}</h3>
+
+        <div class="wamf-confidence">
+          ${Math.round(d.score * 100)}%
+        </div>
+
+        <div class="wamf-detection-time">
+          ${d.detection_time}
+        </div>
+      </div>
+    `;
+
+    return card;
   }
 
   async function poll() {
+
     if (document.visibilityState === 'hidden') return;
+
     try {
-      const res  = await fetch(`/api/detections/recent?limit=${LIMIT}`);
+
+      const res = await fetch(`/api/detections/recent?limit=${LIMIT}`);
+
       if (!res.ok) return;
+
       const data = await res.json();
-      const seen  = knownEvents();
-      const fresh = data.filter(d => !seen.has(d.frigate_event));
+
+      const seen = knownEvents();
+
+      const fresh = data.filter(
+        d => !seen.has(d.frigate_event)
+      );
+
       if (fresh.length === 0) return;
-      [...fresh].reverse().forEach(d => tbody.prepend(buildRow(d)));
-      while (tbody.rows.length > LIMIT) tbody.deleteRow(tbody.rows.length - 1);
-    } catch (_) { /* silent — next poll will retry */ }
+
+      [...fresh]
+        .reverse()
+        .forEach(d => tbody.prepend(buildRow(d)));
+
+      while (tbody.children.length > LIMIT) {
+        tbody.removeChild(tbody.lastElementChild);
+      }
+
+    } catch (_) {
+      /* silent */
+    }
   }
 
   setInterval(poll, POLL_MS);
+
 })();
 </script>
+
 {% endblock %}

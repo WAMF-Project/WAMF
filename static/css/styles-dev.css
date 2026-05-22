@@ -1,0 +1,300 @@
+.wamf-body {
+  margin: 0;
+  background: #101820;
+  color: #f2f2f2;
+  font-family: Roboto, 'Segoe UI', Arial, sans-serif;
+}
+
+.wamf-navbar {
+  background: #ffffff;
+  border-bottom: 1px solid #d9dee7;
+  margin-bottom: 12px;
+}
+
+.wamf-navbar .navbar-brand,
+.wamf-navbar .navbar-title,
+.wamf-navbar .navbar-text,
+.wamf-navbar .form-control {
+  color: #1f2933;
+}
+
+.wamf-container {
+  padding-bottom: 12px;
+}
+
+.wamf-panel {
+  background: #ffffff;
+  border: 1px solid #e2e7ef;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.wamf-heading {
+  margin: 0 0 10px;
+  font-size: 2rem;
+  font-weight: 700;
+  color:#03a9f4;
+}
+
+.wamf-table {
+  margin-bottom: 0;
+}
+
+.wamf-table th,
+.wamf-table td {
+  vertical-align: middle;
+}
+
+.wamf-table thead th {
+  border-bottom-width: 1px;
+}
+
+.wamf-table a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.wamf-table a:hover {
+  text-decoration: underline;
+}
+
+
+
+.wamf-detection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.wamf-detection-card {
+  background: #ffffff;
+  color: #1f2933;
+  border: 1px solid #e2e7ef;
+  border-radius: 14px;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wamf-detection-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.wamf-detection-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.wamf-detection-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+}
+
+.wamf-detection-content {
+  padding: 14px;
+}
+
+.wamf-confidence {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #03a9f4;
+}
+
+.wamf-detection-time {
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+.thumbnail {
+  width: 100px;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid #d9dee7;
+  object-fit: cover;
+}
+
+.thumbnail:hover {
+  cursor: pointer;
+  opacity: 0.82;
+}
+
+body.ha-embed {
+  background: #111827;
+  color: #e5ecf6;
+  padding: 4px;
+}
+
+body.ha-embed .wamf-navbar {
+  background: #1b2534;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  min-height: 44px;
+}
+
+body.ha-embed .wamf-navbar .container-fluid {
+  padding: 6px 10px;
+}
+
+body.ha-embed .wamf-navbar .navbar-toggler {
+  display: none;
+}
+
+body.ha-embed .wamf-navbar .collapse.navbar-collapse {
+  display: flex;
+  justify-content: flex-end;
+}
+
+body.ha-embed .wamf-navbar .navbar-brand {
+  display: block;
+  color: #f0f5fc;
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin-right: 12px;
+}
+
+body.ha-embed .wamf-container {
+  padding: 0;
+}
+
+body.ha-embed .wamf-navbar .navbar-brand,
+body.ha-embed .wamf-navbar .navbar-title,
+body.ha-embed .wamf-navbar .navbar-text {
+  color: #f0f5fc;
+}
+
+body.ha-embed .wamf-navbar .form-control,
+body.ha-embed .wamf-navbar input[type='date'] {
+  background: #101827;
+  color: #e5ecf6;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  min-height: 34px;
+  padding: 4px 8px;
+  max-width: 160px;
+}
+
+body.ha-embed .wamf-panel {
+  background: #1b2534;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+}
+
+body.ha-embed .wamf-heading,
+body.ha-embed h1,
+body.ha-embed h2,
+body.ha-embed h3,
+body.ha-embed h4,
+body.ha-embed h5 {
+  color: #f0f5fc;
+  margin-bottom: 6px;
+  line-height: 1.15;
+}
+
+body.ha-embed .wamf-heading {
+  font-size: 1.9rem;
+}
+
+body.ha-embed .wamf-table,
+body.ha-embed .table,
+body.ha-embed .table-striped {
+  color: #d6deeb;
+  --bs-table-bg: transparent;
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.03);
+  --bs-table-striped-color: #d6deeb;
+  --bs-table-hover-bg: rgba(255, 255, 255, 0.05);
+  --bs-table-hover-color: #f0f5fc;
+  --bs-table-border-color: rgba(255, 255, 255, 0.12);
+}
+
+body.ha-embed .wamf-table thead th,
+body.ha-embed .table thead th {
+  color: #aab9cf;
+  font-weight: 600;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  font-size: 1.4rem;
+}
+
+body.ha-embed .wamf-table td,
+body.ha-embed .table td {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  font-size: 1.5rem;
+}
+
+body.ha-embed .wamf-table a,
+body.ha-embed .table a,
+body.ha-embed a.text-reset {
+  color: #f0f5fc !important;
+}
+
+body.ha-embed .wamf-table a:hover,
+body.ha-embed .table a:hover,
+body.ha-embed a.text-reset:hover {
+  color: #4fc3f7 !important;
+  text-decoration: none;
+}
+
+body.ha-embed .thumbnail {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #0f1726;
+  width: 96px;
+  border-radius: 6px;
+}
+
+body.ha-embed .modal-content {
+  background: #111a2a;
+  color: #e5ecf6;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+body.ha-embed .modal-header,
+body.ha-embed .modal-footer {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+body.ha-embed .btn-primary {
+  background-color: #03a9f4;
+  border-color: #03a9f4;
+}
+
+@media (max-width: 900px) {
+  .wamf-heading {
+    font-size: 1.5rem;
+  }
+
+  .thumbnail {
+    width: 84px;
+  }
+}
+
+/* Live indicator badge */
+.live-badge {
+  font-size: 0.75rem;
+  color: #4caf50;
+  margin-left: 8px;
+  vertical-align: middle;
+  user-select: none;
+}
+
+/* New row highlight — fades from green tint to transparent */
+@keyframes row-flash {
+  from { background-color: rgba(76, 175, 80, 0.25); }
+  to   { background-color: transparent; }
+}
+.new-detection {
+  animation: row-flash 2s ease-out forwards;
+}
+
+body {
+    background: #101820;
+    color: #f2f2f2;
+}
