@@ -1,10 +1,5 @@
-{% extends "base.html" %}
-
-{% block title %}
-  Recent Detections
-{% endblock %}
-
-{% block date_picker %}
+{% extends "base.html" %} {% block title %} Recent Detections {% endblock %} {%
+block date_picker %}
 <form class="d-flex">
   <input
     type="date"
@@ -13,11 +8,10 @@
     value="{{ date }}"
     min="{{ earliest_date }}"
     max="{{ date }}"
-    onchange="navigateToDailySummary(this)">
+    onchange="navigateToDailySummary(this)"
+  />
 </form>
-{% endblock %}
-
-{% block content %}
+{% endblock %} {% block content %}
 
 <section class="wamf-panel">
   <h2 class="wamf-heading">
@@ -28,13 +22,12 @@
   </h2>
 
   <div class="wamf-detection-grid" id="recent-detections-tbody">
-
     {% for detection in recent_detections %}
     <div
       class="wamf-detection-card"
       data-frigate-event="{{ detection.frigate_event }}"
-      data-detection-time="{{ detection.detection_time }}">
-
+      data-detection-time="{{ detection.detection_time }}"
+    >
       <img
         src="{{ url_for('static', filename='test-images/pigeon1.jpg') }}"
         alt="Thumbnail"
@@ -44,7 +37,8 @@
           '{{ url_for('frigate_snapshot', frigate_event=detection.frigate_event) }}',
           '{{ url_for('frigate_clip', frigate_event=detection.frigate_event) }}',
           '{{ detection.frigate_event }}'
-        )">
+        )"
+      />
 
       <div class="wamf-detection-content">
         <h3>{{ detection.common_name }}</h3>
@@ -54,126 +48,70 @@
         </div>
 
         <div class="wamf-detection-time">
-          {{ detection.detection_time }}
+          {{ detection.detection_time.split(' ')[1][:5] }}
         </div>
       </div>
-
     </div>
     {% endfor %}
-
   </div>
 </section>
 
 <section class="wamf-panel">
   <h2 class="wamf-heading">Detection Summary</h2>
 
-  <div class="table-responsive">
-    <table class="table wamf-table">
-      <thead>
-        <tr>
-          <th scope="col">Common Name</th>
-          <th scope="col">Total</th>
+  <div class="wamf-summary-grid">
+    {% for species in daily_summary.values() %}
+    <div class="wamf-summary-card">
+      <h3>{{ species.common_name }}</h3>
 
-          {% for hour in range(current_hour + 1) %}
-          <th scope="col">
-            <a
-              href="{{ url_for('show_detections_by_hour', date=date, hour=hour) }}"
-              class="text-decoration-none text-reset">
-              {{ hour }}
-            </a>
-          </th>
-          {% endfor %}
-
-        </tr>
-      </thead>
-
-      <tbody>
-
-        {% for species in daily_summary.values() %}
-        <tr>
-
-          <td>
-            <a
-              href="{{ url_for(
-                'show_detections_by_scientific_name',
-                scientific_name=species.scientific_name,
-                date=date,
-                end_date=None
-              ) }}"
-              class="text-decoration-none text-reset">
-
-              {{ species.common_name }}
-
-            </a>
-          </td>
-
-          <td>{{ species.total_detections }}</td>
-
-          {% for detections in species.hourly_detections[:current_hour + 1] %}
-          <td>
-            {% if detections > 0 %}
-              {{ detections }}
-            {% endif %}
-          </td>
-          {% endfor %}
-
-        </tr>
-        {% endfor %}
-
-      </tbody>
-    </table>
+      <div class="wamf-summary-total">
+        {{ species.total_detections }} detections
+      </div>
+    </div>
+    {% endfor %}
   </div>
 </section>
 
-{% include 'modals_and_scripts.html' %}
-
-{% endblock %}
-
-{% block scripts %}
+{% include 'modals_and_scripts.html' %} {% endblock %} {% block scripts %}
 
 <script>
-function navigateToDailySummary(input) {
-  const selectedDate = input.value;
-  const params = new URLSearchParams(window.location.search);
-  const suffix = params.get('embed') === 'ha' ? '?embed=ha' : '';
+  function navigateToDailySummary(input) {
+    const selectedDate = input.value;
+    const params = new URLSearchParams(window.location.search);
+    const suffix = params.get("embed") === "ha" ? "?embed=ha" : "";
 
-  window.location.href = `/daily_summary/${selectedDate}${suffix}`;
-}
+    window.location.href = `/daily_summary/${selectedDate}${suffix}`;
+  }
 </script>
 
 <script>
-(function () {
+  (function () {
+    const POLL_MS = 15000;
+    const LIMIT = 5;
 
-  const POLL_MS = 15000;
-  const LIMIT   = 5;
+    const tbody = document.getElementById("recent-detections-tbody");
 
-  const tbody = document.getElementById('recent-detections-tbody');
+    function knownEvents() {
+      return new Set(
+        Array.from(tbody.querySelectorAll("[data-frigate-event]")).map(
+          (el) => el.dataset.frigateEvent,
+        ),
+      );
+    }
 
-  function knownEvents() {
-    return new Set(
-      Array.from(
-        tbody.querySelectorAll('[data-frigate-event]')
-      ).map(el => el.dataset.frigateEvent)
-    );
-  }
+    function buildRow(d) {
+      const thumbUrl = `/frigate/${d.frigate_event}/thumbnail.jpg`;
+      const snapUrl = `/frigate/${d.frigate_event}/snapshot.jpg`;
+      const clipUrl = `/frigate/${d.frigate_event}/clip.mp4`;
 
-  function buildRow(d) {
+      const card = document.createElement("div");
 
-    const thumbUrl = `/frigate/${d.frigate_event}/thumbnail.jpg`;
-    const snapUrl  = `/frigate/${d.frigate_event}/snapshot.jpg`;
-    const clipUrl  = `/frigate/${d.frigate_event}/clip.mp4`;
+      card.dataset.frigateEvent = d.frigate_event;
+      card.dataset.detectionTime = d.detection_time;
 
-    const card = document.createElement('div');
+      card.classList.add("wamf-detection-card", "new-detection");
 
-    card.dataset.frigateEvent  = d.frigate_event;
-    card.dataset.detectionTime = d.detection_time;
-
-    card.classList.add(
-      'wamf-detection-card',
-      'new-detection'
-    );
-
-    card.innerHTML = `
+      card.innerHTML = `
       <img
         src="${thumbUrl}"
         alt="Thumbnail"
@@ -194,45 +132,37 @@ function navigateToDailySummary(input) {
       </div>
     `;
 
-    return card;
-  }
-
-  async function poll() {
-
-    if (document.visibilityState === 'hidden') return;
-
-    try {
-
-      const res = await fetch(`/api/detections/recent?limit=${LIMIT}`);
-
-      if (!res.ok) return;
-
-      const data = await res.json();
-
-      const seen = knownEvents();
-
-      const fresh = data.filter(
-        d => !seen.has(d.frigate_event)
-      );
-
-      if (fresh.length === 0) return;
-
-      [...fresh]
-        .reverse()
-        .forEach(d => tbody.prepend(buildRow(d)));
-
-      while (tbody.children.length > LIMIT) {
-        tbody.removeChild(tbody.lastElementChild);
-      }
-
-    } catch (_) {
-      /* silent */
+      return card;
     }
-  }
 
-  setInterval(poll, POLL_MS);
+    async function poll() {
+      if (document.visibilityState === "hidden") return;
 
-})();
+      try {
+        const res = await fetch(`/api/detections/recent?limit=${LIMIT}`);
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+
+        const seen = knownEvents();
+
+        const fresh = data.filter((d) => !seen.has(d.frigate_event));
+
+        if (fresh.length === 0) return;
+
+        [...fresh].reverse().forEach((d) => tbody.prepend(buildRow(d)));
+
+        while (tbody.children.length > LIMIT) {
+          tbody.removeChild(tbody.lastElementChild);
+        }
+      } catch (_) {
+        /* silent */
+      }
+    }
+
+    setInterval(poll, POLL_MS);
+  })();
 </script>
 
 {% endblock %}

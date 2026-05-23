@@ -1,21 +1,42 @@
 .wamf-body {
   margin: 0;
-  background: #101820;
+  background: #0b1220;
   color: #f2f2f2;
-  font-family: Roboto, 'Segoe UI', Arial, sans-serif;
+  font-family: Roboto, "Segoe UI", Arial, sans-serif;
 }
 
 .wamf-navbar {
-  background: #ffffff;
-  border-bottom: 1px solid #d9dee7;
+  background: linear-gradient(180deg, #111827 0%, #0f1726 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 10px 18px;
   margin-bottom: 12px;
+}
+
+.wamf-navbar .navbar-brand {
+  color: #f5f7fa;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.wamf-navbar .form-control {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f5f7fa;
+  border-radius: 12px;
+  padding: 8px 14px;
+}
+
+.wamf-navbar input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.7;
 }
 
 .wamf-navbar .navbar-brand,
 .wamf-navbar .navbar-title,
 .wamf-navbar .navbar-text,
 .wamf-navbar .form-control {
-  color: #1f2933;
+  color: #f5f7fa;
 }
 
 .wamf-container {
@@ -23,18 +44,18 @@
 }
 
 .wamf-panel {
-  background: #ffffff;
-  border: 1px solid #e2e7ef;
-  border-radius: 12px;
-  padding: 14px;
-  margin-bottom: 12px;
+  background: linear-gradient(180deg, #101827 0%, #0f1726 100%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  padding: 22px;
+  margin-bottom: 18px;
 }
 
 .wamf-heading {
   margin: 0 0 10px;
   font-size: 2rem;
   font-weight: 700;
-  color:#03a9f4;
+  color: #03a9f4;
 }
 
 .wamf-table {
@@ -59,8 +80,6 @@
   text-decoration: underline;
 }
 
-
-
 .wamf-detection-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -68,17 +87,19 @@
 }
 
 .wamf-detection-card {
-  background: #ffffff;
-  color: #1f2933;
-  border: 1px solid #e2e7ef;
-  border-radius: 14px;
+  background: #17212f;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
   overflow: hidden;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .wamf-detection-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
 }
 
 .wamf-detection-card h3 {
@@ -95,21 +116,70 @@
 }
 
 .wamf-detection-content {
-  padding: 14px;
+  padding: 16px;
+}
+
+.wamf-detection-content h3 {
+  margin: 0 0 12px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #f5f7fa;
+  margin-bottom: 8px;
+}
+
+.wamf-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 320px));
+  gap: 20px;
+  align-content: start;
+}
+
+.wamf-summary-card {
+  min-height: 120px;
+  height: auto;
+  background: #17212f;
+  border-radius: 18px;
+  padding: 16px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+
+.wamf-summary-card h3 {
+  margin: 0 0 12px;
+  font-size: 1.3rem;
+  color: #f5f7fa;
+}
+
+.wamf-summary-total {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #4fc3f7;
+  margin-bottom: 10px;
+}
+
+.wamf-summary-hours {
+  color: #a8b3c7;
+  font-size: 0.9rem;
 }
 
 .wamf-confidence {
-  font-size: 1.1rem;
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(79, 195, 247, 0.15);
+  color: #4fc3f7;
   font-weight: 700;
-  color: #03a9f4;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
 }
 
 .wamf-detection-time {
-  color: #6b7280;
-  font-size: 0.85rem;
-  margin-top: 8px;
+  font-size: 0.88rem;
+  color: #a8b3c7;
   line-height: 1.4;
 }
+
 .thumbnail {
   width: 100px;
   height: auto;
@@ -169,7 +239,7 @@ body.ha-embed .wamf-navbar .navbar-text {
 }
 
 body.ha-embed .wamf-navbar .form-control,
-body.ha-embed .wamf-navbar input[type='date'] {
+body.ha-embed .wamf-navbar input[type="date"] {
   background: #101827;
   color: #e5ecf6;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -287,14 +357,18 @@ body.ha-embed .btn-primary {
 
 /* New row highlight — fades from green tint to transparent */
 @keyframes row-flash {
-  from { background-color: rgba(76, 175, 80, 0.25); }
-  to   { background-color: transparent; }
+  from {
+    background-color: rgba(76, 175, 80, 0.25);
+  }
+  to {
+    background-color: transparent;
+  }
 }
 .new-detection {
   animation: row-flash 2s ease-out forwards;
 }
 
 body {
-    background: #101820;
-    color: #f2f2f2;
+  background: #101820;
+  color: #f2f2f2;
 }
