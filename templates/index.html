@@ -61,13 +61,25 @@ block date_picker %}
 
   <div class="wamf-summary-grid">
     {% for species in daily_summary.values() %}
-    <div class="wamf-summary-card">
-      <h3>{{ species.common_name }}</h3>
 
-      <div class="wamf-summary-total">
-        {{ species.total_detections }} detections
+    <a
+      href="{{ url_for(
+        'show_detections_by_scientific_name',
+        scientific_name=species.scientific_name,
+        date=date,
+        end_date=None
+      ) }}"
+      class="wamf-summary-card-link"
+    >
+      <div class="wamf-summary-card">
+        <h3>{{ species.common_name }}</h3>
+
+        <div class="wamf-summary-total">
+          {{ species.total_detections }} detections
+        </div>
       </div>
-    </div>
+    </a>
+
     {% endfor %}
   </div>
 </section>

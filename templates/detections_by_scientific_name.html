@@ -1,37 +1,39 @@
-{% extends "base.html" %}
-
-{% block title %}
-  Detections of {{ common_name }} on {{ date }}
-{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %} Detections of {{ common_name }} on
+{{ date }} {% endblock %} {% block content %}
 <section class="wamf-panel">
-  <h1 class="wamf-heading">Detections of {{ common_name }} on {{ date }}</h1>
-  <div class="table-responsive">
-    <table class="table table-striped wamf-table">
-      <thead>
-      <tr>
-        <th>Detection Time</th>
-        <th>Camera Name</th>
-        <th>Score</th>
-        <th>Thumbnail</th>
-      </tr>
-      </thead>
-      <tbody>
-      {% for record in records %}
-      <tr>
-        <td>{{ record['detection_time'] }}</td>
-        <td>{{ record['camera_name'] }}</td>
-        <td>{{ '%.2f'|format(record['score']) }}</td>
-        <td>
-          <img src="{{ url_for('frigate_thumbnail', frigate_event=record['frigate_event']) }}" alt="Thumbnail" class="thumbnail" onload="checkTransparentImage(this)" onclick="showSnapshot('{{ url_for('frigate_snapshot', frigate_event=record['frigate_event']) }}', '{{ url_for('frigate_clip', frigate_event=record['frigate_event']) }}', '{{ record['frigate_event'] }}')">
-        </td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+  <h1 class="wamf-heading">{{ common_name }}</h1>
+
+  <div class="wamf-subheading">
+    Sightings for {{ date }}
+  </div>
+
+  <div class="wamf-detection-grid">
+    {% for record in records %}
+    <div class="wamf-detection-card">
+      <img
+        src="{{ url_for('static', filename='test-images/pigeon1.jpg') }}"
+        alt="Thumbnail"
+        class="wamf-detection-image"
+        onload="checkTransparentImage(this)"
+        onclick="showSnapshot('{{ url_for("frigate_snapshot", frigate_event=record["frigate_event"]) }}', '{{ url_for("frigate_clip", frigate_event=record["frigate_event"]) }}', '{{ record["frigate_event"] }}')"
+      />
+
+      <div class="wamf-detection-content">
+        <h3>{{ common_name }}</h3>
+
+        <div class="wamf-confidence">
+          {{ (record['score'] * 100)|round|int }}%
+        </div>
+
+        <div class="wamf-detection-time">
+          {{ record['detection_time'].split(' ')[1][:5] }}
+        </div>
+
+        <div class="wamf-camera-name">{{ record['camera_name'] }}</div>
+      </div>
+    </div>
+    {% endfor %}
   </div>
 </section>
 
-{% include 'modals_and_scripts.html' %}
-{% endblock %}
+{% include 'modals_and_scripts.html' %} {% endblock %}
