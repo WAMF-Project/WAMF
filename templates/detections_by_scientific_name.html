@@ -1,11 +1,13 @@
 {% extends "base.html" %} {% block title %} Detections of {{ common_name }} on
 {{ date }} {% endblock %} {% block content %}
 <section class="wamf-panel">
-  <h1 class="wamf-heading">{{ common_name }}</h1>
+   <h1 class="wamf-heading">{{ common_name }}</h1>
 
-  <div class="wamf-subheading">
-    Sightings for {{ date }}
-  </div>
+   <div class="wamf-subheading">
+     {{ records|length }} sighting{% if records|length != 1 %}s{% endif %}
+     observed on
+     {{ date }}
+   </div>
 
   <div class="wamf-detection-grid">
     {% for record in records %}
@@ -21,15 +23,19 @@
       <div class="wamf-detection-content">
         <h3>{{ common_name }}</h3>
 
-        <div class="wamf-confidence">
-          {{ (record['score'] * 100)|round|int }}%
-        </div>
+<div class="wamf-confidence">
+  {{ (record['score'] * 100)|round|int }}% confidence
+</div>
 
-        <div class="wamf-detection-time">
-          {{ record['detection_time'].split(' ')[1][:5] }}
-        </div>
+<div class="wamf-meta">
+  <div class="wamf-meta-secondary">
+    Seen at {{ record['detection_time'].split(' ')[1][:5] }}
+  </div>
 
-        <div class="wamf-camera-name">{{ record['camera_name'] }}</div>
+  <div class="wamf-meta-secondary">
+    📷 {{ record['camera_name'] }}
+  </div>
+</div>    
       </div>
     </div>
     {% endfor %}

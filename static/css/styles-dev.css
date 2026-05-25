@@ -151,6 +151,29 @@
   color: #f5f7fa;
 }
 
+.wamf-summary-card-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.wamf-summary-card-link:hover {
+  text-decoration: none;
+  color: inherit;
+}
+
+.wamf-summary-card {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.wamf-summary-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(79, 195, 247, 0.35);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
 .wamf-summary-total {
   font-size: 1rem;
   font-weight: 600;
@@ -178,6 +201,32 @@
   font-size: 0.88rem;
   color: #a8b3c7;
   line-height: 1.4;
+}
+
+.wamf-camera-name {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #7f8ea3;
+}
+
+.wamf-subheading {
+  margin-top: -8px;
+  margin-bottom: 22px;
+  color: #8fa3bf;
+  font-size: 1rem;
+}
+
+.wamf-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.wamf-meta-secondary {
+  color: #8fa3bf;
+  font-size: 0.92rem;
+  line-height: 1.3;
 }
 
 .thumbnail {
