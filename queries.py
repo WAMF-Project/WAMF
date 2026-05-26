@@ -324,3 +324,60 @@ def get_species_peak_hours(date_str):
     conn.close()
 
     return rows
+
+def get_species_stats(scientific_name):
+
+    conn = sqlite3.connect(DBPATH)
+    conn.row_factory = sqlite3.Row
+
+    row = conn.execute("""
+
+        SELECT
+
+            COUNT(*) AS total_detections,
+
+            MIN(detection_time) AS first_seen,
+
+            MAX(detection_time) AS last_seen,
+
+            strftime(
+                '%H',
+                detection_time
+            ) AS peak_hour
+
+        FROM detections
+
+        WHERE display_name = ?
+
+    """, (scientific_name,)).fetchone()
+
+    conn.close()
+
+    return row
+
+def get_species_activity_by_hour(scientific_name):
+
+    conn = sqlite3.connect(DBPATH)
+    conn.row_factory = sqlite3.Row
+
+    rows = conn.execute("""
+
+        SELECT
+
+            strftime('%H', detection_time) AS hour,
+
+            COUNT(*) AS total
+
+        FROM detections
+
+        WHERE display_name = ?
+
+        GROUP BY hour
+
+        ORDER BY hour
+
+    """, (scientific_name,)).fetchall()
+
+    conn.close()
+
+    return rows

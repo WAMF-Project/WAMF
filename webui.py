@@ -8,7 +8,10 @@ import requests
 from io import BytesIO
 from queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
-from queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours
+from queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
+from queries import get_species_activity_by_hour
+from species_data import get_species_description
+
 
 app = Flask(__name__)
 config = None
@@ -126,8 +129,16 @@ def show_detections_by_scientific_name(scientific_name, date, end_date):
     if end_date is not None:
         return jsonify({"error": "Date range queries are not yet implemented."}), 501
     records = get_records_for_scientific_name_and_date(scientific_name, date)
+    species_stats = get_species_stats(scientific_name)
+    species_description = get_species_description(
+    scientific_name
+)
+    species_activity = get_species_activity_by_hour(
+    scientific_name
+)
     return render_template('detections_by_scientific_name.html', scientific_name=scientific_name, date=date,
-                           end_date=end_date, common_name=get_common_name(scientific_name), records=records)
+                           end_date=end_date, common_name=get_common_name(scientific_name), records=records, species_stats=species_stats, 
+                           species_activity=species_activity, species_description=species_description)
 
 
 @app.route('/api/detections/recent')
