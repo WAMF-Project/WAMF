@@ -93,27 +93,27 @@ Flask Observatory UI
 
 ## From k1n6b0b fork
 
-MQTT TLS support
-MQTT detection publish support
-MQTT new species alerts
-Frigate sub-label fallback support
-Python 3.11 base image
-GitHub Container Registry publishing
-CI pipeline improvements
+- MQTT TLS support
+- MQTT detection publish support
+- MQTT new species alerts
+- Frigate sub-label fallback support
+- Python 3.11 base image
+- GitHub Container Registry publishing
+- CI pipeline improvements
 
 ## Features Added In This Fork
 
-Observatory dashboard redesign
-Live recent detection feed
-Activity analytics page
-Species activity tracking
-Interactive species navigation
-Thumbnail abstraction system
-Modernised observatory UI
-Improved responsive layouts
-Development thumbnail support
-Fake detection seeding workflows
-Refactored analytics and summary views
+- Observatory dashboard redesign
+- Live recent detection feed
+- Activity analytics page
+- Species activity tracking
+- Interactive species navigation
+- Thumbnail abstraction system
+- Modernised observatory UI
+- Improved responsive layouts
+- Development thumbnail support
+- Fake detection seeding workflows (For development only)
+- Refactored analytics and summary views
 
 ---
 
@@ -125,20 +125,20 @@ TO BE ADDED SOON
 
 # Prerequisites
 
-A working Frigate installation
-An MQTT broker connected to Frigate
-Frigate configured to detect the bird object
-Snapshots enabled in Frigate
+- A working Frigate installation
+- An MQTT broker connected to Frigate
+- Frigate configured to detect the bird object
+- Snapshots enabled in Frigate
 
 ---
 
 # Frigate Configuration
 
-Frigate must be configured to:
+## Frigate must be configured to:
 
-detect birds
-generate snapshots
-publish MQTT events
+- detect birds
+- generate snapshots
+- publish MQTT events
 
 Example configuration:
 
@@ -313,12 +313,12 @@ pytest tests/ -v
 
 # Development Notes
 
-WAMF currently supports:
+## WAMF currently supports:
 
-Frigate-backed thumbnails
-Static development thumbnails
-Fake detection seeding for UI testing
-SQLite development workflows
+- Frigate-backed thumbnails
+- Static development thumbnails
+- Fake detection seeding for UI testing
+- SQLite development workflows
 
 This allows rapid UI and analytics development without requiring a live Frigate deployment during testing.
 
@@ -326,16 +326,16 @@ This allows rapid UI and analytics development without requiring a live Frigate 
 
 # Roadmap
 
-Planned and experimental observatory features include:
+## Planned and experimental observatory features include:
 
-Real-time Frigate event streaming
-Species heatmaps
-Dawn/dusk activity overlays
-Seasonal behaviour analysis
-Weather integration
-Multi-camera observatories
-Notification and alerting systems
-Long-term wildlife trend analysis
+- Real-time Frigate event streaming
+- Species heatmaps
+- Dawn/dusk activity overlays
+- Seasonal behaviour analysis
+- Weather integration
+- Multi-camera observatories
+- Notification and alerting systems
+- Long-term wildlife trend analysis
 
 ---
 
