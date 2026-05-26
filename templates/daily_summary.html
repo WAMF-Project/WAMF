@@ -1,55 +1,60 @@
-{% extends "base.html" %}
-
-{% block title %}
-  Daily Summary for {{ date }}
-{% endblock %}
-
-{% block date_picker %}
+{% extends "base.html" %} {% block title %} Daily Summary for {{ date }} {%
+endblock %} {% block date_picker %}
 <form class="d-flex">
-  <input type="date" id="date-picker" class="form-control" value="{{ date }}" min="{{ earliest_date }}" max="{{ today }}" onchange="navigateToDailySummary(this)">
+  <input
+    type="date"
+    id="date-picker"
+    class="form-control"
+    value="{{ date }}"
+    min="{{ earliest_date }}"
+    max="{{ today }}"
+    onchange="navigateToDailySummary(this)"
+  />
 </form>
-{% endblock %}
-
-{% block content %}
+{% endblock %} {% block content %}
 <section class="wamf-panel">
   <h2 class="wamf-heading">Daily Summary for {{ date }}</h2>
-  <div class="table-responsive">
-    <table class="table wamf-table">
-      <thead>
-      <tr>
-        <th scope="col">Common Name</th>
-        <th scope="col">Total</th>
-        {% for hour in range(24) %}
-        <th scope="col">
-          <a href="{{ url_for('show_detections_by_hour', date=date, hour=hour) }}" class="text-decoration-none text-reset">{{ hour }}</a>
-        </th>
+  <div class="wamf-summary-grid">
+    {% for species in daily_summary.values() %}
+    <div class="wamf-summary-card">
+      <a
+        href="{{ url_for('show_detections_by_scientific_name',
+      scientific_name=species.scientific_name,
+      date=date,
+      end_date=None) }}"
+        class="wamf-summary-link"
+      >
+        <h3>{{ species.common_name }}</h3>
+      </a>
+
+      <div class="wamf-summary-total">
+        {{ species.total_detections }} detections
+      </div>
+
+      <div class="wamf-hour-grid">
+        {% for hour in range(24) %} {% set count =
+        species.hourly_detections[hour] %}
+
+        <a
+          href="{{ url_for('show_detections_by_hour', date=date, hour=hour) }}"
+          class="wamf-hour-chip {% if count > 0 %}active{% endif %}"
+        >
+          {{ hour }} {% if count > 0 %}
+          <span>{{ count }}</span>
+          {% endif %}
+        </a>
         {% endfor %}
-      </tr>
-      </thead>
-      <tbody>
-      {% for species in daily_summary.values() %}
-      <tr>
-        <td>
-          <a href="{{ url_for('show_detections_by_scientific_name', scientific_name=species.scientific_name, date=date, end_date=None) }}" class="text-decoration-none text-reset">{{ species.common_name }}</a>
-        </td>
-        <td>{{ species.total_detections }}</td>
-        {% for detections in species.hourly_detections %}
-        <td>{% if detections > 0 %}{{ detections }}{% endif %}</td>
-        {% endfor %}
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+      </div>
+    </div>
+    {% endfor %}
   </div>
 </section>
-{% endblock %}
-
-{% block scripts %}
+{% endblock %} {% block scripts %}
 <script>
   function navigateToDailySummary(input) {
     const selectedDate = input.value;
     const params = new URLSearchParams(window.location.search);
-    const suffix = params.get('embed') === 'ha' ? '?embed=ha' : '';
+    const suffix = params.get("embed") === "ha" ? "?embed=ha" : "";
     window.location.href = `/daily_summary/${selectedDate}${suffix}`;
   }
 </script>

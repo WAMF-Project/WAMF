@@ -8,11 +8,23 @@ import requests
 from io import BytesIO
 from queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
+from queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours
 
 app = Flask(__name__)
 config = None
 DBPATH = './data/speciesid.db'
 NAMEDBPATH = './birdnames.db'
+
+FAKE_THUMBNAILS = {
+    "Cyanistes caeruleus": "species/blue_tit.jpg",
+    "Parus major": "species/great_tit.jpg",
+    "Passer domesticus": "species/house_sparrow.jpg",
+    "Sturnus vulgaris": "species/starling.jpg",
+    "Garrulus glandarius": "species/jay.jpg",
+    "Dendrocopos major": "species/woodpecker.jpg",
+    "Turdus migratorius": "species/robin.jpg",
+    "Cyanocitta cristata": "species/blue_jay.jpg"
+}
 
 
 def format_datetime(value, format='%B %d, %Y %H:%M:%S'):
@@ -28,10 +40,30 @@ def index():
     today = datetime.now()
     date_str = today.strftime('%Y-%m-%d')
     earliest_date = get_earliest_detection_date()
-    recent_records = recent_detections(5)
+    recent_records = recent_detections(3)
     daily_summary = get_daily_summary(today)
-    return render_template('index.html', recent_detections=recent_records, daily_summary=daily_summary,
-                           current_hour=today.hour, date=date_str, earliest_date=earliest_date)
+    activity_by_hour = get_activity_by_hour(date_str)
+    top_species = get_top_species(date_str)
+    latest_visitor = get_latest_visitor()
+    return render_template('index.html',recent_detections=recent_records,daily_summary=daily_summary,activity_by_hour=activity_by_hour,
+                           top_species=top_species,latest_visitor=latest_visitor,current_hour=today.hour,date=date_str,earliest_date=earliest_date)
+
+@app.route('/recent')
+def recent_feed():
+    today = datetime.now()
+    date_str = today.strftime('%Y-%m-%d')
+
+    earliest_date = get_earliest_detection_date()
+
+    recent_records = recent_detections(50)
+
+    return render_template(
+        'recent_feed.html',
+        recent_detections=recent_records,
+        current_hour=today.hour,
+        date=date_str,
+        earliest_date=earliest_date
+    )
 
 
 @app.route('/frigate/<frigate_event>/thumbnail.jpg')
@@ -154,6 +186,53 @@ def delete_detection(frigate_event):
         "frigate_event": frigate_event
     }), 200
 
+@app.route('/fake_thumbnail/<scientific_name>')
+def fake_thumbnail(scientific_name):
+
+    image = FAKE_THUMBNAILS.get(
+        scientific_name,
+        "species/default.jpg"
+    )
+
+    return redirect(
+        url_for('static', filename=image)
+    )
+
+@app.route('/activity')
+def activity():
+
+    today = datetime.now()
+    date_str = today.strftime('%Y-%m-%d')
+
+    activity_by_hour = get_activity_by_hour(date_str)
+
+    top_species = get_top_species(date_str)
+
+    species_peak_hours = get_species_peak_hours(date_str)
+
+    total_detections = sum(
+        item['total']
+        for item in activity_by_hour
+    )
+
+    busiest_hour = max(
+        activity_by_hour,
+        key=lambda x: x['total'],
+        default=None
+    )
+
+    species_count = len(top_species)
+
+    return render_template(
+        'activity.html',
+        activity_by_hour=activity_by_hour,
+        top_species=top_species,
+        total_detections=total_detections,
+        busiest_hour=busiest_hour,
+        species_count=species_count,
+        species_peak_hours=species_peak_hours,
+        date=date_str
+    )
 
 def load_config():
     global config

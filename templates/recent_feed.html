@@ -1,0 +1,60 @@
+{% extends "base.html" %} {% block title %} Recent Detections {% endblock %} {%
+block content %}
+
+<section class="wamf-panel">
+  <h1 class="wamf-heading">
+    Recent Detections
+    <span class="wamf-live-indicator">• Live</span>
+  </h1>
+
+  <div class="wamf-detection-grid">
+    {% for record in recent_detections %}
+
+    <a
+      href="{{ url_for(
+    'show_detections_by_scientific_name',
+    scientific_name=record.display_name,
+    date=date,
+    end_date=None
+  ) }}"
+      class="wamf-detection-card-link"
+    >
+      <div class="wamf-detection-card">
+        <img
+          src="{{ url_for('fake_thumbnail', scientific_name=record.display_name) }}"
+          alt="Thumbnail"
+          class="wamf-detection-image"
+          onload="checkTransparentImage(this)"
+          onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
+        '{{ url_for('frigate_snapshot', frigate_event=record.frigate_event) }}',
+        '{{ url_for('frigate_clip', frigate_event=record.frigate_event) }}',
+        '{{ record.frigate_event }}'
+      )"
+        />
+
+        <div class="wamf-detection-content">
+          <h3>{{ record.common_name }}</h3>
+
+          <div class="wamf-confidence">
+            {{ (record.score * 100)|round|int }}%
+          </div>
+
+          <div class="wamf-meta-secondary">
+            {{ record.detection_time[8:10] }} {% set month =
+            record.detection_time[5:7] %} {% if month == '01' %}Jan {% elif
+            month == '02' %}Feb {% elif month == '03' %}Mar {% elif month ==
+            '04' %}Apr {% elif month == '05' %}May {% elif month == '06' %}Jun
+            {% elif month == '07' %}Jul {% elif month == '08' %}Aug {% elif
+            month == '09' %}Sep {% elif month == '10' %}Oct {% elif month ==
+            '11' %}Nov {% elif month == '12' %}Dec {% endif %} · {{
+            record.detection_time[11:16] }}
+          </div>
+        </div>
+      </div>
+    </a>
+
+    {% endfor %}
+  </div>
+</section>
+
+{% endblock %}

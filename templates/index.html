@@ -23,37 +23,77 @@ block date_picker %}
 
   <div class="wamf-detection-grid" id="recent-detections-tbody">
     {% for detection in recent_detections %}
-    <div
-      class="wamf-detection-card"
-      data-frigate-event="{{ detection.frigate_event }}"
-      data-detection-time="{{ detection.detection_time }}"
+
+    <a
+      href="{{ url_for(
+    'show_detections_by_scientific_name',
+    scientific_name=detection.display_name,
+    date=date,
+    end_date=None
+  ) }}"
+      class="wamf-detection-card-link"
     >
-      <img
-        src="{{ url_for('static', filename='test-images/pigeon1.jpg') }}"
-        alt="Thumbnail"
-        class="wamf-detection-image"
-        onload="checkTransparentImage(this)"
-        onclick="showSnapshot(
-          '{{ url_for('frigate_snapshot', frigate_event=detection.frigate_event) }}',
-          '{{ url_for('frigate_clip', frigate_event=detection.frigate_event) }}',
-          '{{ detection.frigate_event }}'
-        )"
-      />
+      <div
+        class="wamf-detection-card"
+        data-frigate-event="{{ detection.frigate_event }}"
+        data-detection-time="{{ detection.detection_time }}"
+      >
+        <img
+          src="{{ url_for('fake_thumbnail', scientific_name=detection.display_name) }}"
+          alt="Thumbnail"
+          class="wamf-detection-image"
+          onload="checkTransparentImage(this)"
+          onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
+        '{{ url_for('frigate_snapshot', frigate_event=detection.frigate_event) }}',
+        '{{ url_for('frigate_clip', frigate_event=detection.frigate_event) }}',
+        '{{ detection.frigate_event }}'
+      )"
+        />
 
-      <div class="wamf-detection-content">
-        <h3>{{ detection.common_name }}</h3>
+        <div class="wamf-detection-content">
+          <h3>{{ detection.common_name }}</h3>
 
-        <div class="wamf-confidence">
-          {{ (detection.score * 100)|round|int }}%
-        </div>
+          <div class="wamf-confidence">
+            {{ (detection.score * 100)|round|int }}%
+          </div>
 
-        <div class="wamf-detection-time">
-          {{ detection.detection_time.split(' ')[1][:5] }}
+          <div class="wamf-detection-time">
+            {{ detection.detection_time.split(' ')[1][:5] }}
+          </div>
         </div>
       </div>
-    </div>
+    </a>
+
     {% endfor %}
   </div>
+</section>
+
+<section class="wamf-panel">
+  <h2 class="wamf-heading">Latest Visitor</h2>
+
+  <a
+  href="{{ url_for(
+    'show_detections_by_scientific_name',
+    scientific_name=latest_visitor.scientific_name,
+    date=date,
+    end_date=None
+  ) }}"
+  class="wamf-summary-card-link"
+>
+
+<div class="wamf-summary-card">
+    <h3>{{ latest_visitor.common_name }}</h3>
+
+    <div class="wamf-meta">
+      <div class="wamf-meta-secondary">
+        Seen at {{ latest_visitor.detection_time.split(' ')[1][:5] }}
+      </div>
+
+      <div class="wamf-meta-secondary">📷 {{ latest_visitor.camera_name }}</div>
+    </div>
+  </div>
+  </div>
+</a>
 </section>
 
 <section class="wamf-panel">
@@ -99,7 +139,7 @@ block date_picker %}
 <script>
   (function () {
     const POLL_MS = 15000;
-    const LIMIT = 5;
+    const LIMIT = 3;
 
     const tbody = document.getElementById("recent-detections-tbody");
 

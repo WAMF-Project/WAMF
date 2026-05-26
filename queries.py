@@ -183,3 +183,144 @@ def get_earliest_detection_date():
         return earliest_date
     else:
         return None
+
+
+def get_activity_by_hour(date_str):
+    conn = sqlite3.connect(DBPATH)
+    conn.row_factory = sqlite3.Row
+
+    rows = conn.execute("""
+        SELECT
+            strftime('%H', detection_time) as hour,
+            COUNT(*) as total
+        FROM detections
+        WHERE date(detection_time) = ?
+        GROUP BY hour
+        ORDER BY hour
+    """, (date_str,)).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+def get_top_species(date_str):
+    conn = sqlite3.connect(DBPATH)
+    conn.row_factory = sqlite3.Row
+
+    conn.execute("ATTACH DATABASE 'birdnames.db' AS birdnames_db")
+
+    rows = conn.execute("""
+        SELECT
+            detections.display_name AS scientific_name,            
+            COALESCE(
+                birdnames_db.birdnames.common_name,
+                detections.display_name
+            ) AS common_name,
+
+            COUNT(*) as total
+
+        FROM detections
+
+        LEFT JOIN birdnames_db.birdnames
+        ON detections.display_name =
+           birdnames_db.birdnames.scientific_name
+
+        WHERE detection_time LIKE ?
+
+        GROUP BY detections.display_name
+
+        ORDER BY total DESC
+
+        LIMIT 5
+    """, (f"{date_str}%",)).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+def get_latest_visitor():
+    conn = sqlite3.connect(DBPATH)
+    conn.row_factory = sqlite3.Row
+
+    conn.execute("ATTACH DATABASE 'birdnames.db' AS birdnames_db")
+
+    row = conn.execute("""
+        SELECT
+            detections.display_name AS scientific_name,           
+            detections.*,
+
+            COALESCE(
+                birdnames_db.birdnames.common_name,
+                detections.display_name
+            ) AS common_name
+
+        FROM detections
+
+        LEFT JOIN birdnames_db.birdnames
+        ON detections.display_name =
+           birdnames_db.birdnames.scientific_name
+
+        ORDER BY detection_time DESC
+
+        LIMIT 1
+    """).fetchone()
+
+    conn.close()
+
+    return row
+
+def get_species_peak_hours(date_str):
+
+    conn = sqlite3.connect(DBPATH)
+    conn.row_factory = sqlite3.Row
+
+    conn.execute("ATTACH DATABASE 'birdnames.db' AS birdnames_db")
+
+    rows = conn.execute("""
+
+        SELECT
+            common_name,
+            hour,
+            total
+
+        FROM (
+
+            SELECT
+
+                COALESCE(
+                    birdnames_db.birdnames.common_name,
+                    detections.display_name
+                ) AS common_name,
+
+                strftime('%H', detection_time) AS hour,
+
+                COUNT(*) AS total,
+
+                ROW_NUMBER() OVER (
+                    PARTITION BY detections.display_name
+                    ORDER BY COUNT(*) DESC
+                ) AS rn
+
+            FROM detections
+
+            LEFT JOIN birdnames_db.birdnames
+            ON detections.display_name =
+               birdnames_db.birdnames.scientific_name
+
+            WHERE detection_time LIKE ?
+
+            GROUP BY detections.display_name, hour
+
+        )
+
+        WHERE rn = 1
+
+        ORDER BY total DESC
+
+    """, (f"{date_str}%",)).fetchall()
+
+    conn.close()
+
+    return rows

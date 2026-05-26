@@ -1,0 +1,98 @@
+{% extends "base.html" %} {% block title %} Activity {% endblock %} {% block
+content %}
+
+<section class="wamf-panel">
+  <h1 class="wamf-heading">Observatory Activity</h1>
+
+  <div class="wamf-summary-grid">
+    <div class="wamf-summary-card">
+      <h3>Total Detections</h3>
+
+      <div class="wamf-summary-total">{{ total_detections }}</div>
+    </div>
+
+    <div class="wamf-summary-card">
+      <h3>Species Seen</h3>
+
+      <div class="wamf-summary-total">{{ species_count }}</div>
+    </div>
+
+    <div class="wamf-summary-card">
+      <h3>Busiest Hour</h3>
+
+      <div class="wamf-summary-total">
+        {% if busiest_hour %} {{ busiest_hour.hour }}:00 {% else %} — {% endif
+        %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="wamf-panel">
+  <h2 class="wamf-heading">Activity by Hour</h2>
+
+  <div class="wamf-activity-chart">
+    {% for item in activity_by_hour %}
+
+    <div
+      class="wamf-activity-bar-group {% if item.hour|int <= 5 %} wamf-hour-night {% elif item.hour|int <= 8 %} wamf-hour-dawn {% elif item.hour|int <= 17 %} wamf-hour-day {% elif item.hour|int <= 21 %} wamf-hour-dusk {% else %} wamf-hour-night {% endif %}"
+    >
+      {% set bar_height = item.total * 12 + 24 %}
+
+      <div
+        class="wamf-activity-bar{% if item.total > 0 %} wamf-activity-bar-active{% endif %}"
+        style="height: {{ bar_height }}px;"
+        title="{{ item.total }} detections at {{ item.hour }}:00"
+      ></div>
+      <div class="wamf-activity-label">{{ item.hour }}</div>
+    </div>
+
+    {% endfor %}
+  </div>
+</section>
+
+<section class="wamf-panel">
+  <h2 class="wamf-heading">Top Active Species</h2>
+
+  <div class="wamf-summary-grid">
+    {% for species in top_species %}
+
+    <a
+      href="{{ url_for(
+    'show_detections_by_scientific_name',
+    scientific_name=species.scientific_name,
+    date=date,
+    end_date=None
+  ) }}"
+      class="wamf-summary-card-link"
+    >
+      <div class="wamf-summary-card">
+        <h3>{{ species.common_name }}</h3>
+
+        <div class="wamf-summary-total">{{ species.total }}</div>
+      </div>
+    </a>
+
+    {% endfor %}
+  </div>
+</section>
+
+<section class="wamf-panel">
+  <h2 class="wamf-heading">Species Peak Activity</h2>
+
+  <div class="wamf-summary-grid">
+    {% for item in species_peak_hours %} {% if loop.index <= 8 %}
+
+    <div class="wamf-summary-card">
+      <h3>{{ item.common_name }}</h3>
+
+      <div class="wamf-summary-total">Peak Activity: {{ item.hour }}:00</div>
+
+      <div class="wamf-meta-secondary">{{ item.total }} detections</div>
+    </div>
+
+    {% endif %} {% endfor %}
+  </div>
+</section>
+
+{% endblock %}

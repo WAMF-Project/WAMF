@@ -6,30 +6,49 @@
 
 {% block content %}
 <section class="wamf-panel">
-  <h1 class="wamf-heading">Detections by Hour: {{ date }} {{ hour }}:00</h1>
-  <div class="table-responsive">
-    <table class="table table-striped wamf-table">
-      <thead>
-      <tr>
-        <th>Detection Time</th>
-        <th>Common Name</th>
-        <th>Camera Name</th>
-        <th>Thumbnail</th>
-      </tr>
-      </thead>
-      <tbody>
-      {% for record in records %}
-      <tr>
-        <td>{{ record['detection_time'] }}</td>
-        <td>{{ record['common_name'] }}</td>
-        <td>{{ record['camera_name'] }}</td>
-        <td>
-          <img src="{{ url_for('frigate_thumbnail', frigate_event=record['frigate_event']) }}" alt="Thumbnail" class="thumbnail" onload="checkTransparentImage(this)" onclick="showSnapshot('{{ url_for('frigate_snapshot', frigate_event=record['frigate_event']) }}', '{{ url_for('frigate_clip', frigate_event=record['frigate_event']) }}', '{{ record['frigate_event'] }}')">
-        </td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+  <h1 class="wamf-heading">
+    Activity at {{ hour }}:00
+  </h1>
+
+  <div class="wamf-subheading">
+    {{ records|length }} detection{% if records|length != 1 %}s{% endif %}
+    recorded on {{ date }}
+  </div>
+
+  <div class="wamf-detection-grid">
+    {% for record in records %}
+    <div class="wamf-detection-card">
+
+      <img
+        src="{{ url_for('fake_thumbnail',scientific_name=record['display_name']) }}"
+        alt="Thumbnail"
+        class="wamf-detection-image"
+        onload="checkTransparentImage(this)"
+        onclick="showSnapshot('{{ url_for("frigate_snapshot", frigate_event=record["frigate_event"]) }}', '{{ url_for("frigate_clip", frigate_event=record["frigate_event"]) }}', '{{ record["frigate_event"] }}')"
+      />
+
+      <div class="wamf-detection-content">
+
+        <h3>{{ record['common_name'] }}</h3>
+
+        <div class="wamf-confidence">
+          Detection recorded
+        </div>
+
+        <div class="wamf-meta">
+          <div class="wamf-meta-secondary">
+            Seen at {{ record['detection_time'].split(' ')[1][:5] }}
+          </div>
+
+          <div class="wamf-meta-secondary">
+            📷 {{ record['camera_name'] }}
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+    {% endfor %}
   </div>
 </section>
 

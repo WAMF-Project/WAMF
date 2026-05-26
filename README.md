@@ -1,50 +1,146 @@
-# Check out: [k1n6b0b/feederwatch-ai](https://github.com/k1n6b0b/feederwatch-ai)
+# Who's At My Feeder? (WAMF)
 
-> **This fork has been superseded.** Active development has moved to [k1n6b0b/feederwatch-ai](https://github.com/k1n6b0b/feederwatch-ai) — a ground-up rewrite as a native Home Assistant integration. If you're setting up bird detection for the first time, start there. You can even import your Who's At My Feeder database to the new platform :)
-
-
+> A wildlife observatory platform built around Frigate NVR, bird species identification, feeder activity analytics, and live wildlife monitoring.
 
 ---
-# Who's At My Feeder?
 
+## Project Background
 
-> **Fork notice:** This is a personal fork of [mmcc-xx/WhosAtMyFeeder](https://github.com/mmcc-xx/WhosAtMyFeeder). All original work and credit belongs to the original author. This fork adds deployment improvements and cherry-picked community contributions while the upstream project is inactive and contains no license. Due to this I *will likely not* be maintaing the code base.
+WAMF is a personal fork of:
 
-Who's At My Feeder? is a sidecar app for [Frigate NVR](https://frigate.video/) that automatically identifies bird species from Frigate detections. It uses a [Google AIY bird classifier model](https://tfhub.dev/google/lite-model/aiy/vision/classifier/birds_V1/3) to classify snapshots and stores the best-scoring identification per Frigate event.
+- https://github.com/k1n6b0b/whosatmyfeeder
 
-![screenshot](screenshot2.jpg)
+Which itself is a fork of the original project:
 
-## Features
+- https://github.com/mmcc-xx/WhosAtMyFeeder
 
-- Identifies bird species from Frigate snapshots using a TensorFlow Lite model
-- Stores one detection per Frigate event (best score wins)
-- Populates Frigate sub-labels with the identified species (first 20 characters)
-- Web UI showing recent detections, daily summaries, per-hour breakdowns, and video clips
-- Deletes detections via the UI or API
+All original work and credit belongs to the original authors and contributors.
 
-### This fork adds
+This fork has evolved beyond the original sidecar classifier concept and is now focused on building a modern wildlife observatory platform around:
 
-- **MQTT TLS support** — encrypted broker connections with optional certificate verification (cherry-picked from upstream [PR #30](https://github.com/mmcc-xx/WhosAtMyFeeder/pull/30) by [@Adminiuga](https://github.com/Adminiuga))
-- **MQTT detection publish** — publishes identified species to `whosatmyfeeder/detections` on each detection (cherry-picked from upstream [PR #46](https://github.com/mmcc-xx/WhosAtMyFeeder/pull/46) by [@rw377](https://github.com/rw377))
-- **MQTT new species alert** — publishes to a `whosatmyfeeder/new_species/*` topic hierarchy the first time a species is ever detected; ideal for Home Assistant automations. Topics: `common_name`, `scientific_name`, `score`, `camera`, `frigate_event` (all retained by broker)
-- **Frigate sub-label fallback** — when WAMF's classifier scores below threshold, falls back to Frigate's built-in bird classification (`sub_label`) so low-confidence sightings are still recorded; handles Frigate's 20-character truncation via prefix matching
-- Python 3.11 base image (upstream uses 3.8, which is EOL)
-- Image published to GitHub Container Registry (ghcr.io) with SHA-pinned deploys and automatic rollback support
-- CI pipeline with secret scanning (gitleaks), vulnerability scanning (Trivy), and automated tests
+- Frigate integration
+- Species analytics
+- Activity visualisation
+- Observatory-style UI/UX
+- Live detection feeds
+- Species exploration
+- Behaviour tracking
 
-## Prerequisites
+while remaining compatible with the original Frigate-based bird detection workflow.
 
-1. A working Frigate installation with at least one camera configured
-2. An MQTT broker that Frigate is connected to
-3. Frigate configured to detect and snapshot the `bird` object
+---
 
-### Frigate configuration
+# Observatory Features
 
-Frigate must be set up to detect the [`bird` object](https://docs.frigate.video/configuration/objects) and send [snapshots](https://docs.frigate.video/configuration/snapshots). See the full [Frigate configuration reference](https://docs.frigate.video/configuration/).
+## Detection Pipeline
 
-> **HAOS note:** If you run Frigate as a Home Assistant add-on and WhosAtMyFeeder on a separate machine, you need to explicitly expose port 5000 in the Frigate add-on network settings — it is only exposed internally by default.
+- Bird species classification from Frigate snapshots
+- SQLite-backed event storage
+- MQTT integration
+- Frigate sub-label support
+- Confidence scoring
+- Species taxonomy lookup database
 
-Example Frigate config (reference only — tune for your hardware):
+## Observatory UI
+
+- Live recent detections feed
+- Daily summaries
+- Hourly activity views
+- Species exploration pages
+- Activity analytics dashboard
+- Interactive navigation between detections and species
+- Mobile-friendly responsive interface
+- Thumbnail abstraction layer for Frigate or development media
+
+## Activity Analytics
+
+- Activity-by-hour visualisation
+- Species peak activity tracking
+- Detection timelines
+- Top visitor statistics
+- Behaviour-focused observatory views
+
+## Infrastructure
+
+- MQTT TLS support
+- GitHub Container Registry images
+- Automated CI pipeline
+- Vulnerability scanning
+- Python 3.11 environment
+- Modern Flask-based web UI
+
+---
+
+# Architecture
+
+WAMF combines Frigate detections, species classification, and observatory analytics into a unified wildlife monitoring platform.
+
+```text
+Frigate → MQTT/Event Detection
+        ↓
+Species Classification
+        ↓
+SQLite Detection Store
+        ↓
+birdnames.db Taxonomy Lookup
+        ↓
+Flask Observatory UI
+```
+
+---
+
+# Features Added In Previous Forks
+
+## From k1n6b0b fork
+
+MQTT TLS support
+MQTT detection publish support
+MQTT new species alerts
+Frigate sub-label fallback support
+Python 3.11 base image
+GitHub Container Registry publishing
+CI pipeline improvements
+
+## Features Added In This Fork
+
+Observatory dashboard redesign
+Live recent detection feed
+Activity analytics page
+Species activity tracking
+Interactive species navigation
+Thumbnail abstraction system
+Modernised observatory UI
+Improved responsive layouts
+Development thumbnail support
+Fake detection seeding workflows
+Refactored analytics and summary views
+
+---
+
+# Screenshots
+
+TO BE ADDED SOON
+
+---
+
+# Prerequisites
+
+A working Frigate installation
+An MQTT broker connected to Frigate
+Frigate configured to detect the bird object
+Snapshots enabled in Frigate
+
+---
+
+# Frigate Configuration
+
+Frigate must be configured to:
+
+detect birds
+generate snapshots
+publish MQTT events
+
+Example configuration:
 
 ```yaml
 mqtt:
@@ -53,135 +149,204 @@ mqtt:
   topic_prefix: frigate
   user: mqtt_username_here
   password: mqtt_password_here
-  stats_interval: 60
+
 detectors:
   coral:
     type: edgetpu
     device: usb
-ffmpeg:
-  global_args: -hide_banner -loglevel warning
-  hwaccel_args: preset-vaapi
-  input_args: preset-rtsp-generic
-  output_args:
-    detect: -threads 2 -f rawvideo -pix_fmt yuv420p
-    record: preset-record-generic
-detect:
-  width: 1920
-  height: 1080
+
 objects:
   track:
     - bird
+
 snapshots:
   enabled: true
+
 cameras:
   birdcam:
     record:
       enabled: true
       events:
-        pre_capture: 5
-        post_capture: 5
         objects:
           - bird
+
     ffmpeg:
-      hwaccel_args: preset-vaapi
       inputs:
-        - path: rtsp://<your-camera-ip>:8554/cam
+        - path: rtsp://<camera-ip>:8554/cam
           roles:
             - detect
             - record
-    mqtt:
-      enabled: true
-      bounding_box: false
-      timestamp: false
-      quality: 95
 ```
 
-## Setup
+---
 
-### 1. Directory structure
+# Setup
 
-Create a directory on your host and set it up as follows:
+## Directory Structure
 
-```
+```text
+
 /whosatmyfeeder/
 ├── docker-compose.yml
 ├── config/
 │   └── config.yml
 └── data/
+
 ```
 
-### 2. Configuration
+---
 
-Copy `config/config.yml.example` to `config/config.yml` and edit it for your environment:
+# Configuration
+
+Copy:
+
+```text
+
+config/config.yml.example
+
+```
+
+to:
+
+```text
+
+config/config.yml
+
+```
+
+# Example:
 
 ```yaml
 frigate:
-  frigate_url: http://<your-frigate-ip>:5000
-  mqtt_server: <your-mqtt-host>
+  frigate_url: http://<frigate-ip>:5000
+
+  mqtt_server: <mqtt-host>
   mqtt_auth: false
-  # mqtt_username: your-username
-  # mqtt_password: your-password
-  mqtt_port: 1883           # Optional, default: 1883
-  mqtt_use_tls: false       # Optional: enable TLS for broker connection
-  mqtt_tls_insecure: false  # Optional: skip broker certificate verification
-  # mqtt_tls_ca_certs: /path/to/ca.crt
+  mqtt_port: 1883
+
   main_topic: frigate
+
   camera:
-    - your-camera-name
+    - birdcam
+
   object: bird
+
 classification:
   model: model.tflite
-  threshold: 0.7            # Confidence threshold (0–1). Lower = more detections, less accurate.
+  threshold: 0.7
+
 webui:
   port: 7766
   host: 0.0.0.0
 ```
 
-### 3. docker-compose.yml
+# Docker Compose
 
 ```yaml
 version: "3.6"
+
 services:
   whosatmyfeeder:
     container_name: whosatmyfeeder
+
     restart: unless-stopped
+
     image: ghcr.io/k1n6b0b/whosatmyfeeder:latest
+
     volumes:
       - ./config:/config
       - ./data:/data
+
     ports:
       - 7766:7766
+
     environment:
-      - TZ=America/New_York
+      - TZ=Europe/London
 ```
 
-### 4. Run
+# Run
 
 ```bash
+
 docker compose up -d
-```
-
-The web UI is available at `http://<your-server>:7766`.
-
-## Docker image
-
-This fork's image is built automatically on every push to `main` and published to the GitHub Container Registry:
 
 ```
-ghcr.io/k1n6b0b/whosatmyfeeder:latest
+
+The observatory UI will be available at:
+
+```text
+
+http://<server-ip>:7766
+
 ```
 
-> **Note:** The original upstream image is on Docker Hub: `mmcc73/whosatmyfeeder`
+---
 
-## Development
+# Development
 
 ```bash
-# Install test dependencies
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-test.txt
 
-# Run tests
-.venv/bin/pytest tests/ -v
+python3 -m venv .venv
+
+source .venv/bin/activate
+
+pip install -r requirements.txt
+
 ```
 
-Tests cover all query functions and Flask routes. They use temporary SQLite databases and do not require a running Frigate instance or real config file.
+Run Flask:
+
+```bash
+
+python webui.py
+
+```
+
+Run tests:
+
+```bash
+pytest tests/ -v
+
+```
+
+---
+
+# Development Notes
+
+WAMF currently supports:
+
+Frigate-backed thumbnails
+Static development thumbnails
+Fake detection seeding for UI testing
+SQLite development workflows
+
+This allows rapid UI and analytics development without requiring a live Frigate deployment during testing.
+
+---
+
+# Roadmap
+
+Planned and experimental observatory features include:
+
+Real-time Frigate event streaming
+Species heatmaps
+Dawn/dusk activity overlays
+Seasonal behaviour analysis
+Weather integration
+Multi-camera observatories
+Notification and alerting systems
+Long-term wildlife trend analysis
+
+---
+
+# Attribution
+
+Original project:
+
+https://github.com/mmcc-xx/WhosAtMyFeeder
+
+Intermediate fork:
+
+https://github.com/k1n6b0b/whosatmyfeeder
+
+This repository continues to build upon both projects while evolving toward a broader wildlife observatory platform.

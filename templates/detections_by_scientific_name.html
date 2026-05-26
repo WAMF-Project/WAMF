@@ -13,7 +13,7 @@
     {% for record in records %}
     <div class="wamf-detection-card">
       <img
-        src="{{ url_for('static', filename='test-images/pigeon1.jpg') }}"
+        src="{{ url_for('fake_thumbnail',scientific_name=record['display_name']) }}"
         alt="Thumbnail"
         class="wamf-detection-image"
         onload="checkTransparentImage(this)"
