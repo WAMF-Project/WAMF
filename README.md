@@ -350,3 +350,8 @@ Intermediate fork:
 https://github.com/k1n6b0b/whosatmyfeeder
 
 This repository continues to build upon both projects while evolving toward a broader wildlife observatory platform.
+
+## License
+
+This project is licensed under the MIT License.  
+See the LICENSE file for details.
