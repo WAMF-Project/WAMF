@@ -39,7 +39,7 @@ block date_picker %}
         data-detection-time="{{ detection.detection_time }}"
       >
         <img
-          src="{{ url_for('fake_thumbnail', scientific_name=detection.display_name) }}"
+          src="{{ url_for('frigate_thumbnail', frigate_event=detection.frigate_event) }}"
           alt="Thumbnail"
           class="wamf-detection-image"
           onload="checkTransparentImage(this)"

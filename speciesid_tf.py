@@ -1,9 +1,11 @@
 import sqlite3
 
 import numpy as np
-import tensorflow as tf
-
 from PIL import Image
+
+from tflite_support.task import core
+from tflite_support.task import processor
+from tflite_support.task import vision
 
 
 MODEL_PATH = "model.tflite"
@@ -12,21 +14,32 @@ DB_PATH = "birdnames.db"
 
 
 # ---------------------------------------------------
-# LOAD MODEL
+# INITIALIZE CLASSIFIER
 # ---------------------------------------------------
 
-print("Loading model...")
-
-interpreter = tf.lite.Interpreter(
-    model_path=MODEL_PATH
+base_options = core.BaseOptions(
+    file_name=MODEL_PATH,
+    use_coral=False,
+    num_threads=4
 )
 
-interpreter.allocate_tensors()
+classification_options = processor.ClassificationOptions(
+    max_results=10,
+    score_threshold=0
+)
 
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
+options = vision.ImageClassifierOptions(
+    base_options=base_options,
+    classification_options=classification_options
+)
 
-print("Model loaded!")
+classifier = vision.ImageClassifier.create_from_options(
+    options
+)
+
+print("Classifier loaded!")
+print()
+
 
 # ---------------------------------------------------
 # LOAD IMAGE
@@ -34,100 +47,63 @@ print("Model loaded!")
 
 image = Image.open(IMAGE_PATH).convert("RGB")
 
-# Match original WAMF behavior
 image = image.resize((224, 224))
 
-# Convert directly to uint8
-input_data = np.array(
+image_np = np.array(
     image,
     dtype=np.uint8
 )
 
-# Add batch dimension
-input_data = np.expand_dims(
-    input_data,
-    axis=0
+image_np = np.ascontiguousarray(image_np)
+
+tensor_image = vision.TensorImage.create_from_array(
+    image_np
 )
 
 # ---------------------------------------------------
 # RUN INFERENCE
 # ---------------------------------------------------
 
-print("Running inference...")
-
-interpreter.set_tensor(
-    input_details[0]['index'],
-    input_data
+result = classifier.classify(
+    tensor_image
 )
 
-interpreter.invoke()
+categories = result.classifications[0].categories
 
-output_data = interpreter.get_tensor(
-    output_details[0]['index']
-)
-
-scores = output_data[0]
 
 # ---------------------------------------------------
-# OUTPUT QUANTIZATION
-# ---------------------------------------------------
-
-output_scale, output_zero_point = (
-    output_details[0]['quantization']
-)
-
-# ---------------------------------------------------
-# GET TOP 10 RESULTS
-# ---------------------------------------------------
-
-top_indices = np.argsort(scores)[-10:][::-1]
-
-# ---------------------------------------------------
-# OPEN DATABASE
+# DATABASE LOOKUP
 # ---------------------------------------------------
 
 conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
-print("\nTOP 10 PREDICTIONS\n")
+print("TOP PREDICTIONS\n")
 
-for idx in top_indices:
+for category in categories:
 
-    raw_score = scores[idx]
-
-    confidence = (
-        raw_score - output_zero_point
-    ) * output_scale
-
-    # ---------------------------------------------------
-    # EXPERIMENTAL LABEL LOOKUP
-    # ---------------------------------------------------
-
-    # We ASSUME model index maps to SQLite rowid
-    # but this may be incorrect.
-    rowid = int(idx) + 1
+    scientific_name = category.display_name
+    score = category.score
 
     cursor.execute(
         """
-        SELECT scientific_name, common_name
+        SELECT common_name
         FROM birdnames
-        WHERE rowid = ?
+        WHERE scientific_name = ?
         """,
-        (rowid,)
+        (scientific_name,)
     )
 
-    result = cursor.fetchone()
+    row = cursor.fetchone()
 
-    if result:
-        scientific_name, common_name = result
+    if row:
+        common_name = row[0]
     else:
-        scientific_name = "Unknown"
         common_name = "Unknown"
 
     print(
-        f"Index: {idx:<4} "
-        f"Confidence: {confidence:.3f}   "
-        f"{common_name} "
+        f"{common_name:30} "
+        f"{score:.3f} "
         f"({scientific_name})"
     )
 

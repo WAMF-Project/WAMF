@@ -21,15 +21,15 @@ block content %}
     >
       <div class="wamf-detection-card">
         <img
-          src="{{ url_for('fake_thumbnail', scientific_name=record.display_name) }}"
+          src="{{ url_for('frigate_thumbnail', frigate_event=record.frigate_event) }}"
           alt="Thumbnail"
           class="wamf-detection-image"
           onload="checkTransparentImage(this)"
           onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
-        '{{ url_for('frigate_snapshot', frigate_event=record.frigate_event) }}',
-        '{{ url_for('frigate_clip', frigate_event=record.frigate_event) }}',
-        '{{ record.frigate_event }}'
-      )"
+    '{{ url_for('frigate_snapshot', frigate_event=record.frigate_event) }}',
+    '{{ url_for('frigate_clip', frigate_event=record.frigate_event) }}',
+    '{{ record.frigate_event }}'
+  )"
         />
 
         <div class="wamf-detection-content">
@@ -57,4 +57,4 @@ block content %}
   </div>
 </section>
 
-{% endblock %}
+{% include "modals_and_scripts.html" %} {% endblock %}

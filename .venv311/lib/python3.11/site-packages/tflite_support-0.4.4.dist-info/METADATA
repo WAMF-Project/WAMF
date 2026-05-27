@@ -1,0 +1,50 @@
+Metadata-Version: 2.1
+Name: tflite-support
+Version: 0.4.4
+Summary: TFLite Support is a toolkit that helps users to develop ML and deploy TFLite models onto mobile devices.
+Home-page: https://www.tensorflow.org/
+Download-URL: https://github.com/tensorflow/tflite-support/tags
+Author: Google, LLC.
+Author-email: packages@tensorflow.org
+License: Apache 2.0
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Education
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Software Development
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: absl-py (>=0.7.0)
+Requires-Dist: numpy (>=1.20.0)
+Requires-Dist: flatbuffers (>=2.0)
+Requires-Dist: protobuf (<4,>=3.18.0)
+Requires-Dist: sounddevice (>=0.4.4)
+Requires-Dist: pybind11 (>=2.6.0)
+
+TFLite Support is a toolkit that helps users to develop ML and deploy TFLite models onto mobile devices.
+
+This PyPI package includes the Python bindings for following features:
+
+ - Task Library: a set of powerful and easy-to-use task-specific libraries to
+ integrate TFLite models onto various platforms. See the [Task Library
+ documentation](https://www.tensorflow.org/lite/inference_with_metadata/task_library/overview)
+ for more information.
+ - Metadata schemas: wraps TFLite model schema and metadata schema in Python.
+ - Metadata writer and displayer: can be used to populate the metadata and
+ associated files into the model, as well as converting the populated metadata
+ into the json format. See the [Metadata
+ documentation](https://www.tensorflow.org/lite/convert/metadata) for more
+ information.
+ - Android Codegen tool: generates the Java model interface used in Android for
+ a particular model. See the [Codegen tool
+ documentation](https://www.tensorflow.org/lite/inference_with_metadata/codegen)
+ for more information.

@@ -20,11 +20,13 @@
     <div class="wamf-detection-card">
 
       <img
-        src="{{ url_for('fake_thumbnail',scientific_name=record['display_name']) }}"
+       src="{{ url_for('frigate_thumbnail', frigate_event=detection.frigate_event) }}"
         alt="Thumbnail"
         class="wamf-detection-image"
         onload="checkTransparentImage(this)"
-        onclick="showSnapshot('{{ url_for("frigate_snapshot", frigate_event=record["frigate_event"]) }}', '{{ url_for("frigate_clip", frigate_event=record["frigate_event"]) }}', '{{ record["frigate_event"] }}')"
+        onclick="showSnapshot('{{ url_for("frigate_snapshot", frigate_event=record["frigate_event"]) }}', 
+        '{{ url_for("frigate_clip", frigate_event=record["frigate_event"]) }}', 
+        '{{ record["frigate_event"] }}')"
       />
 
       <div class="wamf-detection-content">

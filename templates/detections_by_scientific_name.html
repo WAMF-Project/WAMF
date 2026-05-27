@@ -6,7 +6,7 @@
   <div class="wamf-species-hero-image">
 
     <img
-      src="{{ url_for('fake_thumbnail', scientific_name=scientific_name) }}"
+      src="{{ url_for('frigate_thumbnail', frigate_event=records[0].frigate_event) }}"
       alt="{{ common_name }}"
     >
 
@@ -112,12 +112,12 @@
 
 </div>
 
-  <div class="wamf-detection-grid">
+  
     <div class="wamf-detections-grid">
     {% for record in records %}
     <div class="wamf-detection-card">
       <img
-        src="{{ url_for('fake_thumbnail',scientific_name=record['display_name']) }}"
+        src="{{ url_for('frigate_thumbnail', frigate_event=record['frigate_event']) }}"
         alt="Thumbnail"
         class="wamf-detection-image"
         onload="checkTransparentImage(this)"
@@ -144,7 +144,7 @@
     </div>
     {% endfor %}
     </div>
-  </div>
+  
 </section>
 
 {% include 'modals_and_scripts.html' %} {% endblock %}
