@@ -41,6 +41,25 @@ def get_system_health():
 
         health["frigate_online"] = False
 
+    # Frigate media storage
+    try:
+
+        total, used, free = shutil.disk_usage(
+            "/media/frigate"
+        )
+
+        frigate_used_percent = round(
+            (used / total) * 100,
+            1
+        )
+
+        health["frigate_disk_percent"] = (
+            frigate_used_percent
+        )
+
+    except Exception:
+
+        health["frigate_disk_percent"] = None
         # MQTT connectivity
     try:
 
@@ -74,6 +93,8 @@ def get_system_health():
     except Exception:
 
         health["database_healthy"] = False
+
+    
 
         # Disk usage
     total, used, free = shutil.disk_usage("/")

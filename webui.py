@@ -9,9 +9,10 @@ from io import BytesIO
 from queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
-from queries import get_species_activity_by_hour, get_admin_stats
+from queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events
 from species_data import get_species_description
 from health import get_system_health
+
 
 app = Flask(__name__)
 config = None
@@ -252,10 +253,13 @@ def admin_dashboard():
 
     health = get_system_health()
 
+    events = get_recent_system_events()
+
     return render_template(
         'admin.html',
         stats=stats,
-        health=health
+        health=health,
+        events=events
     )
 
 def load_config():

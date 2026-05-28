@@ -2,7 +2,7 @@ from pathlib import Path
 import time
 
 import requests
-
+from system_events import log_system_event
 
 WAMF_SNAPSHOT_DIR = Path("media/wamf/snapshots")
 WAMF_CLIP_DIR = Path("media/wamf/clips")
@@ -90,6 +90,14 @@ def archive_clip(
                 f"(attempt {attempt + 1})"
             )
 
+            log_system_event(
+                "WARN",
+                "ARCHIVE",
+                f"Clip not ready yet "
+                f"(attempt {attempt + 1}) "
+                f"for event {frigate_event}"
+            )
+
             time.sleep(2)
 
         else:
@@ -97,6 +105,13 @@ def archive_clip(
             print(
                 f"Clip download failed: "
                 f"{response.status_code}"
+            )
+
+            log_system_event(
+                "ERROR",
+                "ARCHIVE",
+                f"Clip archive failed "
+                f"for event {frigate_event}"
             )
 
             return None
@@ -112,6 +127,13 @@ def archive_clip(
 
         print(
             f"Archived clip: {destination}"
+        )
+
+        log_system_event(
+            "INFO",
+            "ARCHIVE",
+            f"Archived clip successfully "
+            f"for event {frigate_event}"
         )
 
         return str(destination)

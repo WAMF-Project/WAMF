@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from pathlib import Path
-
+from system_events import log_system_event
 import sqlite3
 import yaml
 
@@ -36,6 +36,12 @@ def get_retention_days(
 
 
 def dry_run_retention():
+
+    log_system_event(
+        "INFO",
+        "RETENTION",
+        "Retention scan started"
+    )
 
     config = load_config()
 
@@ -157,6 +163,12 @@ def scan_for_orphans():
                     f"[ORPHAN] {file_str}"
                 )
 
+                log_system_event(
+                    "WARN",
+                    "RETENTION",
+                    f"Orphan detected: {file_str}"
+                )
+
                 orphan_count += 1
 
     for file_path in referenced_files:
@@ -172,6 +184,15 @@ def scan_for_orphans():
     print("\nOrphan scan complete")
     print(f"Orphans found: {orphan_count}")
     print(f"Missing files: {missing_count}")
+
+    log_system_event(
+        "INFO",
+        "RETENTION",
+        f"Retention scan complete. "
+        f"Scanned {len(rows)} rows. "
+        f"Orphans found: {orphan_count}. "
+        f"Missing files: {missing_count}"
+    )
 
     conn.close()
 

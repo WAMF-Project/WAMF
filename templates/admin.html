@@ -64,7 +64,7 @@
   </div>
 
   <div class="stat-card">
-    <h2>Disk Usage</h2>
+    <h2>System Disk</h2>
 
     <p>
       {% if health.disk_used_percent < 75 %} 🟢 {% elif health.disk_used_percent
@@ -72,5 +72,25 @@
     </p>
   </div>
 </div>
+<h2 class="admin-section-title">Recent System Activity</h2>
 
+<div class="event-list">
+  {% for event in events %}
+
+  <div class="event-card">
+    <div class="event-header">
+      <span class="event-severity severity-{{ event.severity|lower }}">
+        {{ event.severity }}
+      </span>
+
+      <span class="event-type"> {{ event.event_type }} </span>
+
+      <span class="event-time"> {{ event.timestamp }} </span>
+    </div>
+
+    <div class="event-message">{{ event.message }}</div>
+  </div>
+
+  {% endfor %}
+</div>
 {% endblock %}

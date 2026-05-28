@@ -436,3 +436,47 @@ def get_admin_stats():
         "archived_clips": archived_clips,
         "archive_size_mb": archive_size_mb
     }
+
+def get_recent_system_events(limit=10):
+
+    conn = sqlite3.connect(DBPATH)
+    conn.row_factory = sqlite3.Row
+
+    conn.row_factory = sqlite3.Row
+
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            timestamp,
+            severity,
+            event_type,
+            message
+        FROM system_events
+        ORDER BY id DESC
+        LIMIT ?
+    """, (limit,))
+
+    rows = cursor.fetchall()
+
+    formatted_rows = []
+
+    for row in rows:
+
+        row = dict(row)
+
+        dt = datetime.fromisoformat(
+            row["timestamp"]
+        )
+
+        row["timestamp"] = dt.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+        formatted_rows.append(row)
+
+    conn.close()
+
+    return formatted_rows
+
+   
