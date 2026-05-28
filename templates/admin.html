@@ -1,0 +1,76 @@
+{% extends "admin_base.html" %} {% block content %}
+
+<div class="page-header">
+  <h1>Admin Dashboard</h1>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <h2>Total Detections</h2>
+    <p>{{ stats.total_detections }}</p>
+  </div>
+
+  <div class="stat-card">
+    <h2>Archived Snapshots</h2>
+    <p>{{ stats.archived_snapshots }}</p>
+  </div>
+
+  <div class="stat-card">
+    <h2>Archived Clips</h2>
+    <p>{{ stats.archived_clips }}</p>
+  </div>
+
+  <div class="stat-card">
+    <h2>Archive Size</h2>
+    <p>{{ stats.archive_size_mb }} MB</p>
+  </div>
+</div>
+
+<h2 class="admin-section-title">System Health</h2>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <h2>Frigate</h2>
+
+    <p>
+      {% if health.frigate_online %} 🟢 Online {% else %} 🔴 Offline {% endif %}
+    </p>
+  </div>
+
+  <div class="stat-card">
+    <h2>Database</h2>
+
+    <p>
+      {% if health.database_healthy %} 🟢 Healthy {% else %} 🔴 Error {% endif
+      %}
+    </p>
+  </div>
+
+  <div class="stat-card">
+    <h2>Archive Storage</h2>
+
+    <p>
+      {% if health.archive_writable %} 🟢 Writable {% else %} 🔴 Problem {%
+      endif %}
+    </p>
+  </div>
+
+  <div class="stat-card">
+    <h2>MQTT</h2>
+
+    <p>
+      {% if health.mqtt_online %} 🟢 Online {% else %} 🔴 Offline {% endif %}
+    </p>
+  </div>
+
+  <div class="stat-card">
+    <h2>Disk Usage</h2>
+
+    <p>
+      {% if health.disk_used_percent < 75 %} 🟢 {% elif health.disk_used_percent
+      < 90 %} 🟡 {% else %} 🔴 {% endif %} {{ health.disk_used_percent }}%
+    </p>
+  </div>
+</div>
+
+{% endblock %}

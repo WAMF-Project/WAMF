@@ -16,6 +16,11 @@ import requests
 from PIL import Image, ImageOps
 from io import BytesIO
 from queries import get_common_name, get_scientific_name
+from archive_media import (
+    archive_snapshot,
+    archive_clip
+)
+
 
 classifier = None
 config = None
@@ -395,6 +400,18 @@ def _on_message_inner(client, userdata, message):
                                 flush=True
                             )
 
+                            
+
+                            wamf_snapshot_path = archive_snapshot(
+                                frigate_url,
+                                frigate_event
+                            )
+
+                            wamf_clip_path = archive_clip(
+                                frigate_url,
+                                frigate_event
+                            )
+
                             cursor.execute(
                                 """
                                 INSERT INTO detections
@@ -405,9 +422,11 @@ def _on_message_inner(client, userdata, message):
                                     display_name,
                                     category_name,
                                     frigate_event,
-                                    camera_name
+                                    camera_name,
+                                    wamf_snapshot_path,
+                                    wamf_clip_path
                                 )
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """,
                                 (
                                     formatted_start_time,
@@ -416,7 +435,9 @@ def _on_message_inner(client, userdata, message):
                                     display_name,
                                     category_name,
                                     frigate_event,
-                                    after_data['camera']
+                                    after_data['camera'],
+                                    wamf_snapshot_path,
+                                    wamf_clip_path
                                 )
                             )
 

@@ -1,6 +1,8 @@
 import sqlite3
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
+
 
 DBPATH = './data/speciesid.db'
 NAMEDBPATH = './birdnames.db'
@@ -381,3 +383,56 @@ def get_species_activity_by_hour(scientific_name):
     conn.close()
 
     return rows
+
+def get_admin_stats():
+
+    conn = sqlite3.connect(DBPATH)
+    conn.row_factory = sqlite3.Row
+    
+    total_detections = conn.execute("""
+        SELECT COUNT(*) AS count
+        FROM detections
+    """).fetchone()["count"]
+
+    archived_snapshots = conn.execute("""
+        SELECT COUNT(*) AS count
+        FROM detections
+        WHERE wamf_snapshot_path IS NOT NULL
+    """).fetchone()["count"]
+
+    archived_clips = conn.execute("""
+        SELECT COUNT(*) AS count
+        FROM detections
+        WHERE wamf_clip_path IS NOT NULL
+    """).fetchone()["count"]
+
+    conn.close()
+
+    archive_dirs = [
+        Path("media/wamf/snapshots"),
+        Path("media/wamf/clips")
+    ]
+
+    total_size = 0
+
+    for archive_dir in archive_dirs:
+
+        if archive_dir.exists():
+
+            total_size += sum(
+                f.stat().st_size
+                for f in archive_dir.glob("**/*")
+                if f.is_file()
+            )
+
+    archive_size_mb = round(
+        total_size / (1024 * 1024),
+        2
+    )
+
+    return {
+        "total_detections": total_detections,
+        "archived_snapshots": archived_snapshots,
+        "archived_clips": archived_clips,
+        "archive_size_mb": archive_size_mb
+    }
