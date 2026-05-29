@@ -9,9 +9,12 @@ from io import BytesIO
 from queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
-from queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events
+from queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events, get_retention_status
 from species_data import get_species_description
 from health import get_system_health
+from flask import jsonify, request
+from version import VERSION
+
 
 
 app = Flask(__name__)
@@ -38,6 +41,14 @@ def format_datetime(value, format='%B %d, %Y %H:%M:%S'):
 
 app.jinja_env.filters['datetime'] = format_datetime
 
+@app.context_processor
+def inject_admin_status():
+
+    return {
+        "health": get_system_health(),
+        "retention_status": get_retention_status(),
+        "version": VERSION
+    }
 
 @app.route('/')
 def index():
@@ -255,12 +266,63 @@ def admin_dashboard():
 
     events = get_recent_system_events()
 
+    retention_status = get_retention_status()
+
     return render_template(
         'admin.html',
         stats=stats,
         health=health,
-        events=events
+        events=events,
+        retention_status=retention_status
     )
+
+@app.route('/admin/logs')
+def admin_logs():
+
+    event_type = request.args.get("filter")
+
+    logs = get_recent_system_events(
+        100,
+        event_type
+    )
+
+    return render_template(
+        'admin_logs.html',
+        logs=logs,
+        current_filter=event_type
+    )
+
+@app.route("/admin/api/health")
+def admin_health():
+
+    health = get_system_health()
+
+    retention = get_retention_status()
+
+    return jsonify({
+        "version": VERSION,
+
+        "frigate": health["frigate_online"],
+        "mqtt": health["mqtt_online"],
+        "database": health["database_healthy"],
+        "archive_storage": health["archive_writable"],
+        "disk_used_percent": health["disk_used_percent"],
+
+        "last_retention_run": (
+            retention["last_run"]
+            if retention else None
+        ),
+
+        "orphan_count": (
+            retention["orphan_count"]
+            if retention else None
+        ),
+
+        "missing_count": (
+            retention["missing_count"]
+            if retention else None
+        )
+    })
 
 def load_config():
     global config

@@ -1,0 +1,61 @@
+{% extends "admin_base.html" %} {% block content %}
+
+<div class="log-filters">
+  <a
+    href="{{ url_for('admin_logs') }}"
+    class="log-filter-btn {% if not current_filter %}active{% endif %}"
+  >
+    All
+  </a>
+
+  <a
+    href="{{ url_for('admin_logs', filter='SYSTEM') }}"
+    class="log-filter-btn {% if current_filter == 'SYSTEM' %}active{% endif %}"
+  >
+    System
+  </a>
+
+  <a
+    href="{{ url_for('admin_logs', filter='RETENTION') }}"
+    class="log-filter-btn {% if current_filter == 'RETENTION' %}active{% endif %}"
+  >
+    Retention
+  </a>
+
+  <a
+    href="{{ url_for('admin_logs', filter='MQTT') }}"
+    class="log-filter-btn {% if current_filter == 'MQTT' %}active{% endif %}"
+  >
+    MQTT
+  </a>
+</div>
+
+<h1>System Logs</h1>
+<div class="admin-card">
+  <table class="log-table">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Timestamp</th>
+        <th>Component</th>
+        <th>Message</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td>
+          <span class="log-badge log-{{ log.severity|lower }}">
+            {{ log.severity }}
+          </span>
+        </td>
+        <td>{{ log.timestamp }}</td>
+        <td>{{ log.event_type }}</td>
+        <td>{{ log.message }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

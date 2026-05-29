@@ -20,7 +20,8 @@ from archive_media import (
     archive_snapshot,
     archive_clip
 )
-
+from system_events import log_system_event
+from version import VERSION
 
 classifier = None
 config = None
@@ -29,6 +30,7 @@ firstmessage = True
 DBPATH = './data/speciesid.db'
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_INSECURE_TLS = False
+
 
 
 def classify(image):
@@ -50,6 +52,12 @@ def classify(image):
 
 def on_connect(client, userdata, flags, rc):
     print("MQTT Connected", flush=True)
+
+    log_system_event(
+        event_type="MQTT",
+        severity="INFO",
+        message="MQTT connected"
+    )
 
     # we are going subscribe to frigate/events and look for bird detections there
     client.subscribe(config['frigate']['main_topic'] + "/events")
@@ -845,6 +853,16 @@ def main():
     current_time = now.strftime(
         '%Y-%m-%d %H:%M:%S.%f'
     )[:-3]
+
+    
+
+    log_system_event(
+        event_type="SYSTEM",
+        severity="INFO",
+        message=f"WAMF {VERSION} started"
+    )
+
+    ...
 
     print(
         "Time: " + current_time,

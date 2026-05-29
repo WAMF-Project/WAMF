@@ -194,6 +194,27 @@ def scan_for_orphans():
         f"Missing files: {missing_count}"
     )
 
+    cursor.execute("""
+    DELETE FROM retention_status
+""")
+
+    cursor.execute("""
+        INSERT INTO retention_status (
+            last_run,
+            rows_scanned,
+            orphan_count,
+            missing_count
+        )
+        VALUES (?, ?, ?, ?)
+    """, (
+        datetime.now().isoformat(),
+        len(rows),
+        orphan_count,
+        missing_count
+    ))
+
+    conn.commit()
+
     conn.close()
 
 if __name__ == "__main__":

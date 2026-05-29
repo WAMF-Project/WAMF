@@ -491,6 +491,42 @@
   margin-bottom: 1.5rem;
 }
 
+.admin-card {
+  background: #121b45;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 1.5rem;
+  margin-top: 1rem;
+}
+.log-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.log-filter-btn {
+  background: #121b45;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.log-filter-btn:hover {
+  background: #1a275f;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.log-filter-btn.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
 .event-list {
   display: flex;
   flex-direction: column;
@@ -571,6 +607,98 @@
 
   line-height: 1.4;
 }
+
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.log-table th {
+  text-align: left;
+}
+
+.log-table td,
+.log-table th {
+  padding: 0.75rem;
+}
+
+.log-table tbody tr {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.log-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.log-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.log-info {
+  background: #1d4ed8;
+}
+
+.log-warn {
+  background: #d97706;
+}
+
+.log-error {
+  background: #dc2626;
+}
+
+.retention-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.retention-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.retention-label {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.4rem;
+}
+
+.retention-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: white;
+}
+
+.retention-warning {
+  color: #f59e0b;
+}
+
+.admin-status-bar {
+  position: sticky;
+  bottom: 0;
+
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+
+  padding: 0.75rem 1rem;
+
+  background: rgba(10, 15, 35, 0.98);
+
+  border-top: 1px solid rgba(80, 120, 255, 0.15);
+
+  z-index: 100;
+}
+
+.footer-version {
+  margin-left: auto;
+  opacity: 0.8;
+}
+
 .thumbnail {
   width: 100px;
   height: auto;

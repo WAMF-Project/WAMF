@@ -19,9 +19,38 @@
         <a href="{{ url_for('index') }}"> ← Back to WAMF </a>
 
         <a href="{{ url_for('admin_dashboard') }}"> Dashboard </a>
+
+        <a href="{{ url_for('admin_logs') }}">Logs</a>
       </nav>
     </header>
 
     <main class="admin-main">{% block content %}{% endblock %}</main>
+    <footer class="admin-status-bar">
+      <span>
+        {% if health.frigate_online %} 🟢 Frigate {% else %} 🔴 Frigate {% endif
+        %}
+      </span>
+
+      <span>
+        {% if health.mqtt_online %} 🟢 MQTT {% else %} 🔴 MQTT {% endif %}
+      </span>
+
+      <span>
+        {% if health.database_healthy %} 🟢 Database {% else %} 🔴 Database {%
+        endif %}
+      </span>
+
+      <span>
+        {% if health.archive_writable %} 🟢 Archive {% else %} 🔴 Archive {%
+        endif %}
+      </span>
+
+      <span>
+        {% if retention_status and retention_status.orphan_count > 0 %} 🟡
+        Retention {% else %} 🟢 Retention {% endif %}
+      </span>
+
+      <span class="footer-version"> WAMF {{ version }} </span>
+    </footer>
   </body>
 </html>

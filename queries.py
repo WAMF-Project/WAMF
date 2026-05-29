@@ -437,7 +437,7 @@ def get_admin_stats():
         "archive_size_mb": archive_size_mb
     }
 
-def get_recent_system_events(limit=10):
+def get_recent_system_events(limit=100, event_type=None):
 
     conn = sqlite3.connect(DBPATH)
     conn.row_factory = sqlite3.Row
@@ -446,16 +446,37 @@ def get_recent_system_events(limit=10):
 
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT
-            timestamp,
-            severity,
+    if event_type:
+
+        cursor.execute("""
+            SELECT
+                timestamp,
+                severity,
+                event_type,
+                message
+            FROM system_events
+            WHERE event_type = ?
+            ORDER BY id DESC
+            LIMIT ?
+        """, (
             event_type,
-            message
-        FROM system_events
-        ORDER BY id DESC
-        LIMIT ?
-    """, (limit,))
+            limit
+        ))
+
+    else:
+
+        cursor.execute("""
+            SELECT
+                timestamp,
+                severity,
+                event_type,
+                message
+            FROM system_events
+            ORDER BY id DESC
+            LIMIT ?
+        """, (
+            limit,
+        ))
 
     rows = cursor.fetchall()
 
@@ -479,4 +500,38 @@ def get_recent_system_events(limit=10):
 
     return formatted_rows
 
+from datetime import datetime
+
+def get_retention_status():
+
+    conn = sqlite3.connect(DBPATH)
+    conn.row_factory = sqlite3.Row
+
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT *
+        FROM retention_status
+        LIMIT 1
+    """)
+
+    row = cursor.fetchone()
+
+    conn.close()
+
+    if row:
+
+        row = dict(row)
+
+        dt = datetime.fromisoformat(
+            row["last_run"]
+        )
+
+        row["last_run"] = dt.strftime(
+            "%d %b %Y %H:%M"
+        )
+
+        return row
+
+    return None
    

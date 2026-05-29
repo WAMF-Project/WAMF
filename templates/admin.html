@@ -72,25 +72,47 @@
     </p>
   </div>
 </div>
-<h2 class="admin-section-title">Recent System Activity</h2>
+<h2 class="admin-section-title">Archive Retention</h2>
 
-<div class="event-list">
-  {% for event in events %}
+<div class="stat-card retention-card">
+  
+    {% if retention_status %}
 
-  <div class="event-card">
-    <div class="event-header">
-      <span class="event-severity severity-{{ event.severity|lower }}">
-        {{ event.severity }}
-      </span>
+    <div class="retention-grid">
+      <div class="retention-item">
+        <span class="retention-label">Last Run</span>
+        <span class="retention-value"> {{ retention_status.last_run }} </span>
+      </div>
 
-      <span class="event-type"> {{ event.event_type }} </span>
+      <div class="retention-item">
+        <span class="retention-label">Rows Scanned</span>
+        <span class="retention-value">
+          {{ retention_status.rows_scanned }}
+        </span>
+      </div>
 
-      <span class="event-time"> {{ event.timestamp }} </span>
+      <div class="retention-item">
+        <span class="retention-label">Orphans Found</span>
+        <span
+          class="retention-value {% if retention_status.orphan_count > 0 %} retention-warning {% endif %}"
+        >
+          {{ retention_status.orphan_count }}
+        </span>
+      </div>
+
+      <div class="retention-item">
+        <span class="retention-label">Missing Files</span>
+        <span class="retention-value">
+          {{ retention_status.missing_count }}
+        </span>
+      </div>
     </div>
 
-    <div class="event-message">{{ event.message }}</div>
-  </div>
+    {% else %}
 
-  {% endfor %}
+    <p>No retention data available</p>
+
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
