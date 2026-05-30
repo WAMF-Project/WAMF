@@ -48,6 +48,111 @@ def get_common_name(scientific_name):
         print(f"No common name for: {scientific_name}", flush=True)
         return None
 
+def save_species_info(
+    scientific_name,
+    common_name=None,
+    description=None,
+    wikipedia_url=None,
+    ebird_url=None,
+    inaturalist_url=None,
+    gbif_url=None
+):
+
+    conn = sqlite3.connect(
+        DBPATH
+    )
+
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        INSERT OR REPLACE INTO species_info (
+            scientific_name,
+            common_name,
+            description,
+            wikipedia_url,
+            ebird_url,
+            inaturalist_url,
+            gbif_url,
+            last_updated
+        )
+        VALUES (
+            ?, ?, ?, ?, ?, ?, ?, datetime('now')
+        )
+        """,
+        (
+            scientific_name,
+            common_name,
+            description,
+            wikipedia_url,
+            ebird_url,
+            inaturalist_url,
+            gbif_url
+        )
+    )
+
+    conn.commit()
+
+    conn.close()
+
+def get_species_info(
+    scientific_name
+):
+
+    conn = sqlite3.connect(
+        DBPATH
+    )
+
+    conn.row_factory = sqlite3.Row
+
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM species_info
+        WHERE scientific_name = ?
+        """,
+        (
+            scientific_name,
+        )
+    )
+
+    result = cursor.fetchone()
+
+    conn.close()
+
+    if result:
+        return dict(result)
+
+    return None
+
+def get_all_species_info():
+
+    conn = sqlite3.connect(
+        DBPATH
+    )
+
+    conn.row_factory = sqlite3.Row
+
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM species_info
+        ORDER BY common_name
+        """
+    )
+
+    results = cursor.fetchall()
+
+    conn.close()
+
+    return [
+        dict(row)
+        for row in results
+    ]
 
 def recent_detections(num_detections):
 

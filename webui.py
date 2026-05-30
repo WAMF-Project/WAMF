@@ -10,11 +10,11 @@ from queries import recent_detections, get_daily_summary, get_common_name, get_r
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
 from queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events, get_retention_status
-
+from queries import get_species_info, save_species_info
 from health import get_system_health
 from flask import jsonify, request, send_file
 from version import VERSION
-
+from species_metadata import fetch_species_metadata
 
 
 app = Flask(__name__)
@@ -151,13 +151,35 @@ def show_detections_by_scientific_name(scientific_name, date, end_date):
     print(f"scientific_name = [{scientific_name}]")
     print(f"date = [{date}]")
     species_stats = get_species_stats(scientific_name)
+    species_info = get_species_info(
+        scientific_name
+    )
+
+    if not species_info:
+
+        metadata = fetch_species_metadata(
+            scientific_name
+        )
+
+        save_species_info(
+            scientific_name=scientific_name,
+            common_name=get_common_name(
+                scientific_name
+            ),
+            description=metadata["description"],
+            wikipedia_url=metadata["wikipedia_url"]
+        )
+
+        species_info = get_species_info(
+            scientific_name
+        )
     
     species_activity = get_species_activity_by_hour(
-    scientific_name
-)
+        scientific_name
+    )
     return render_template('detections_by_scientific_name.html', scientific_name=scientific_name, date=date,
                            end_date=end_date, common_name=get_common_name(scientific_name), records=records, species_stats=species_stats, 
-                           species_activity=species_activity)
+                           species_activity=species_activity, species_info=species_info)
 
 
 @app.route('/api/detections/recent')

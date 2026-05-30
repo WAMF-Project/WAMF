@@ -21,7 +21,19 @@
 
       <div class="wamf-species-scientific">{{ scientific_name }}</div>
 
-      <div class="wamf-species-description"></div>
+      <div class="wamf-species-description"> 
+
+        {% if species_info and species_info.wikipedia_url %}
+<a
+    href="{{ species_info.wikipedia_url }}"
+    target="_blank"
+    rel="noopener noreferrer"
+>
+    Wikipedia
+</a>
+{% endif %}
+
+      </div>
     </div>
   </div>
   <div class="wamf-summary-grid">
