@@ -38,17 +38,22 @@ block date_picker %}
         data-frigate-event="{{ detection.frigate_event }}"
         data-detection-time="{{ detection.detection_time }}"
       >
-        <img
-          src="{{ url_for('frigate_thumbnail', frigate_event=detection.frigate_event) }}"
-          alt="Thumbnail"
-          class="wamf-detection-image"
-          onload="checkTransparentImage(this)"
-          onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
-        '{{ url_for('frigate_snapshot', frigate_event=detection.frigate_event) }}',
-        '{{ url_for('frigate_clip', frigate_event=detection.frigate_event) }}',
-        '{{ detection.frigate_event }}'
-      )"
-        />
+       {% if detection.snapshot_file %}
+<img
+  src="{{ url_for(
+      'wamf_snapshot',
+      filename=detection.snapshot_file
+  ) }}"
+  alt="Thumbnail"
+  class="wamf-detection-image"
+  onload="checkTransparentImage(this)"
+  onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
+    '{{ url_for('wamf_snapshot', filename=detection.snapshot_file) }}',
+    '{{ url_for('wamf_clip', filename=detection.clip_file) if detection.clip_file else '' }}',
+    '{{ detection.frigate_event }}'
+  )"
+/>
+{% endif %}
 
         <div class="wamf-detection-content">
           <h3>{{ detection.common_name }}</h3>

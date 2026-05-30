@@ -50,16 +50,28 @@ def get_common_name(scientific_name):
 
 
 def recent_detections(num_detections):
+
     conn = sqlite3.connect(DBPATH)
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM detections ORDER BY detection_time DESC LIMIT ?", (num_detections,))
+    cursor.execute(
+        """
+        SELECT *
+        FROM detections
+        ORDER BY detection_time DESC
+        LIMIT ?
+        """,
+        (num_detections,)
+    )
+
     results = cursor.fetchall()
 
     conn.close()
 
     formatted_results = []
+
     for result in results:
+
         detection = {
             'id': result[0],
             'detection_time': result[1],
@@ -69,12 +81,32 @@ def recent_detections(num_detections):
             'category_name': result[5],
             'frigate_event': result[6],
             'camera_name': result[7],
-            'common_name': get_common_name(result[4])
+
+            'wamf_snapshot_path': result[8],
+            'wamf_clip_path': result[9],
+
+            'snapshot_file': (
+                Path(result[8]).name
+                if result[8]
+                else None
+            ),
+
+            'clip_file': (
+                Path(result[9]).name
+                if result[9]
+                else None
+            ),
+
+            'common_name': get_common_name(
+                result[4]
+            )
         }
-        formatted_results.append(detection)
+
+        formatted_results.append(
+            detection
+        )
 
     return formatted_results
-
 
 def get_daily_summary(date):
     date_str = date.strftime('%Y-%m-%d')
@@ -146,29 +178,65 @@ def get_records_for_date_hour(date, hour):
     return result
 
 
-def get_records_for_scientific_name_and_date(scientific_name, date):
+def get_records_for_scientific_name_and_date(
+    scientific_name,
+    date
+):
+
     conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row  # Set the row factory to sqlite3.Row
+    conn.row_factory = sqlite3.Row
+
     cursor = conn.cursor()
 
-    # The SQL query to fetch records for the given display_name and date, sorted by detection_time
-    query = '''    
-        SELECT *    
-        FROM detections    
-        WHERE display_name = ? AND strftime('%Y-%m-%d', detection_time) = ?    
-        ORDER BY detection_time    
-    '''
+    query = """
+        SELECT *
+        FROM detections
+        WHERE display_name = ?
+        AND strftime('%Y-%m-%d', detection_time) = ?
+        ORDER BY detection_time DESC
+    """
 
-    cursor.execute(query, (scientific_name, date))
+    cursor.execute(
+        query,
+        (
+            scientific_name,
+            date
+        )
+    )
+
     records = cursor.fetchall()
 
-    # Append the common name for each record
     result = []
+
     for record in records:
-        common_name = get_common_name(record['display_name'])  # Access the field by name
-        record_dict = dict(record)  # Convert the record to a dictionary
-        record_dict['common_name'] = common_name  # Add the 'common_name' key to the record dictionary
-        result.append(record_dict)
+
+        record_dict = dict(record)
+
+        record_dict['common_name'] = (
+            get_common_name(
+                record['display_name']
+            )
+        )
+
+        record_dict['snapshot_file'] = (
+            Path(
+                record['wamf_snapshot_path']
+            ).name
+            if record['wamf_snapshot_path']
+            else None
+        )
+
+        record_dict['clip_file'] = (
+            Path(
+                record['wamf_clip_path']
+            ).name
+            if record['wamf_clip_path']
+            else None
+        )
+
+        result.append(
+            record_dict
+        )
 
     conn.close()
 

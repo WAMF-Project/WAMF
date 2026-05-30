@@ -10,9 +10,9 @@ from queries import recent_detections, get_daily_summary, get_common_name, get_r
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
 from queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events, get_retention_status
-from species_data import get_species_description
+
 from health import get_system_health
-from flask import jsonify, request
+from flask import jsonify, request, send_file
 from version import VERSION
 
 
@@ -22,16 +22,7 @@ config = None
 DBPATH = './data/speciesid.db'
 NAMEDBPATH = './birdnames.db'
 
-FAKE_THUMBNAILS = {
-    "Cyanistes caeruleus": "species/blue_tit.jpg",
-    "Parus major": "species/great_tit.jpg",
-    "Passer domesticus": "species/house_sparrow.jpg",
-    "Sturnus vulgaris": "species/starling.jpg",
-    "Garrulus glandarius": "species/jay.jpg",
-    "Dendrocopos major": "species/woodpecker.jpg",
-    "Turdus migratorius": "species/robin.jpg",
-    "Cyanocitta cristata": "species/blue_jay.jpg"
-}
+
 
 
 def format_datetime(value, format='%B %d, %Y %H:%M:%S'):
@@ -55,7 +46,7 @@ def index():
     today = datetime.now()
     date_str = today.strftime('%Y-%m-%d')
     earliest_date = get_earliest_detection_date()
-    recent_records = recent_detections(3)
+    recent_records = recent_detections(4)
     daily_summary = get_daily_summary(today)
     activity_by_hour = get_activity_by_hour(date_str)
     top_species = get_top_species(date_str)
@@ -128,6 +119,19 @@ def frigate_clip(frigate_event):
         print(f"Error fetching clip from frigate: {e}", flush=True)
         return send_from_directory('static/images', '1x1.png', mimetype='image/png')
 
+@app.route('/wamf/snapshot/<path:filename>')
+def wamf_snapshot(filename):
+
+    return send_file(
+        f"media/wamf/snapshots/{filename}"
+    )
+
+@app.route('/wamf/clip/<path:filename>')
+def wamf_clip(filename):
+
+    return send_file(
+        f"media/wamf/clips/{filename}"
+    )
 
 @app.route('/detections/by_hour/<date>/<int:hour>')
 def show_detections_by_hour(date, hour):
@@ -138,19 +142,22 @@ def show_detections_by_hour(date, hour):
 @app.route('/detections/by_scientific_name/<scientific_name>/<date>', defaults={'end_date': None})
 @app.route('/detections/by_scientific_name/<scientific_name>/<date>/<end_date>')
 def show_detections_by_scientific_name(scientific_name, date, end_date):
+    print(f"scientific_name = [{scientific_name}]")
+    print(f"date = [{date}]")
+
     if end_date is not None:
         return jsonify({"error": "Date range queries are not yet implemented."}), 501
     records = get_records_for_scientific_name_and_date(scientific_name, date)
+    print(f"scientific_name = [{scientific_name}]")
+    print(f"date = [{date}]")
     species_stats = get_species_stats(scientific_name)
-    species_description = get_species_description(
-    scientific_name
-)
+    
     species_activity = get_species_activity_by_hour(
     scientific_name
 )
     return render_template('detections_by_scientific_name.html', scientific_name=scientific_name, date=date,
                            end_date=end_date, common_name=get_common_name(scientific_name), records=records, species_stats=species_stats, 
-                           species_activity=species_activity, species_description=species_description)
+                           species_activity=species_activity)
 
 
 @app.route('/api/detections/recent')
@@ -209,17 +216,6 @@ def delete_detection(frigate_event):
         "frigate_event": frigate_event
     }), 200
 
-@app.route('/fake_thumbnail/<scientific_name>')
-def fake_thumbnail(scientific_name):
-
-    image = FAKE_THUMBNAILS.get(
-        scientific_name,
-        "species/default.jpg"
-    )
-
-    return redirect(
-        url_for('static', filename=image)
-    )
 
 @app.route('/activity')
 def activity():
@@ -255,6 +251,12 @@ def activity():
         species_count=species_count,
         species_peak_hours=species_peak_hours,
         date=date_str
+    )
+
+@app.route('/live')
+def live_view():
+    return render_template(
+        'live_view.html'
     )
 
 @app.route('/admin')
@@ -323,6 +325,10 @@ def admin_health():
             if retention else None
         )
     })
+
+
+
+    
 
 def load_config():
     global config

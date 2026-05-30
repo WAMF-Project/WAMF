@@ -14,23 +14,23 @@ block content %}
       href="{{ url_for(
     'show_detections_by_scientific_name',
     scientific_name=record.display_name,
-    date=date,
+    date=record.detection_time[:10],
     end_date=None
   ) }}"
       class="wamf-detection-card-link"
     >
       <div class="wamf-detection-card">
+        {% if record.snapshot_file %}
         <img
-          src="{{ url_for('frigate_thumbnail', frigate_event=record.frigate_event) }}"
-          alt="Thumbnail"
+          src="{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}"
           class="wamf-detection-image"
-          onload="checkTransparentImage(this)"
           onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
-    '{{ url_for('frigate_snapshot', frigate_event=record.frigate_event) }}',
-    '{{ url_for('frigate_clip', frigate_event=record.frigate_event) }}',
+    '{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}',
+    '{{ url_for('wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
     '{{ record.frigate_event }}'
   )"
         />
+        {% endif %}
 
         <div class="wamf-detection-content">
           <h3>{{ record.common_name }}</h3>

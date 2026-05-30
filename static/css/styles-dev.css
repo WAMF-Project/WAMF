@@ -391,6 +391,18 @@
   margin-top: 2rem;
 }
 
+.live-view-card {
+  background: rgba(20, 30, 60, 0.85);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.live-view-card iframe {
+  width: 100%;
+  height: 70vh;
+  border: none;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 320px));

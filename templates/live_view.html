@@ -1,0 +1,16 @@
+{% extends "base.html" %} {% block content %}
+
+<div class="page-header">
+  <h1>Live Birdcam</h1>
+  <p class="page-subtitle">Live view of the feeder</p>
+</div>
+
+<div class="live-view-card">
+  <iframe
+    src="http://192.168.1.81:1984/stream.html?src=birdcam"
+    allowfullscreen
+  >
+  </iframe>
+</div>
+
+{% endblock %}

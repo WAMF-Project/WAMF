@@ -713,15 +713,49 @@ def setupdb():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS detections (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            detection_time TIMESTAMP NOT NULL,
-            detection_index INTEGER NOT NULL,
-            score REAL NOT NULL,
-            display_name TEXT NOT NULL,
-            category_name TEXT NOT NULL,
-            frigate_event TEXT NOT NULL UNIQUE,
-            camera_name TEXT NOT NULL
+            detection_time TEXT NOT NULL,
+            detection_index INTEGER,
+            score REAL,
+            display_name TEXT,
+            category_name TEXT,
+            frigate_event TEXT,
+            camera_name TEXT,
+            wamf_snapshot_path TEXT,
+            wamf_clip_path TEXT
         )
-    """)
+""")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS system_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            message TEXT NOT NULL
+        )
+""")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS species_info (
+            scientific_name TEXT PRIMARY KEY,
+            common_name TEXT,
+            description TEXT,
+            wikipedia_url TEXT,
+            ebird_url TEXT,
+            inaturalist_url TEXT,
+            gbif_url TEXT,
+            last_updated TEXT
+        ) 
+""")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS retention_status (
+            last_run TEXT,
+            rows_scanned INTEGER,
+            orphan_count INTEGER,
+            missing_count INTEGER
+        )
+""")
 
     conn.commit()
 

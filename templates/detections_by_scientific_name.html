@@ -1,150 +1,121 @@
 {% extends "base.html" %} {% block title %} Detections of {{ common_name }} on
 {{ date }} {% endblock %} {% block content %}
 <section class="wamf-panel">
-   <div class="wamf-species-hero">
+ 
+<div class="wamf-species-hero-image">
 
-  <div class="wamf-species-hero-image">
-
-    <img
-      src="{{ url_for('frigate_thumbnail', frigate_event=records[0].frigate_event) }}"
-      alt="{{ common_name }}"
-    >
-
-  </div>
-
-  <div class="wamf-species-hero-content">
-
-    <h1 class="wamf-heading">
-      {{ common_name }}
-    </h1>
-
-    <div class="wamf-species-scientific">
-      {{ scientific_name }}
-    </div>
-
-    <div class="wamf-species-description">
-
-      {{ species_description }}
-
-    </div>
-
-  </div>
+{% if records and records[0]['snapshot_file'] %}
+<img
+  src="{{ url_for(
+      'wamf_snapshot',
+      filename=records[0]['snapshot_file']
+  ) }}"
+  alt="{{ common_name }}"
+>
+{% endif %}
 
 </div>
-<div class="wamf-summary-grid">
 
-  <div class="wamf-summary-card">
+    <div class="wamf-species-hero-content">
+      <h1 class="wamf-heading">{{ common_name }}</h1>
 
-    <h3>Total Detections</h3>
+      <div class="wamf-species-scientific">{{ scientific_name }}</div>
 
-    <div class="wamf-summary-total">
-      {{ species_stats.total_detections }}
+      <div class="wamf-species-description"></div>
+    </div>
+  </div>
+  <div class="wamf-summary-grid">
+    <div class="wamf-summary-card">
+      <h3>Total Detections</h3>
+
+      <div class="wamf-summary-total">{{ species_stats.total_detections }}</div>
     </div>
 
-  </div>
+    <div class="wamf-summary-card">
+      <h3>First Seen</h3>
 
-  <div class="wamf-summary-card">
-
-    <h3>First Seen</h3>
-
-    <div class="wamf-meta-secondary">
-      {{ species_stats.first_seen[:10] }}
-      <br>
-      {{ species_stats.first_seen[11:16] }}
+      <div class="wamf-meta-secondary">
+        {{ species_stats.first_seen[:10] }}
+        <br />
+        {{ species_stats.first_seen[11:16] }}
+      </div>
     </div>
 
-  </div>
+    <div class="wamf-summary-card">
+      <h3>Last Seen</h3>
 
-  
-
-  <div class="wamf-summary-card">
-
-    <h3>Last Seen</h3>
-
-    <div class="wamf-meta-secondary">
-      {{ species_stats.last_seen[:10] }}
-     <br>
-      {{ species_stats.last_seen[11:16] }}
+      <div class="wamf-meta-secondary">
+        {{ species_stats.last_seen[:10] }}
+        <br />
+        {{ species_stats.last_seen[11:16] }}
+      </div>
     </div>
 
-  </div>
+    <div class="wamf-summary-card">
+      <h3>Peak Hour</h3>
 
-  <div class="wamf-summary-card">
-
-    <h3>Peak Hour</h3>
-
-    <div class="wamf-summary-total">
-      {{ species_stats.peak_hour }}:00
+      <div class="wamf-summary-total">{{ species_stats.peak_hour }}:00</div>
     </div>
-
   </div>
-
-</div>
   <div class="wamf-panel">
+    <h2 class="wamf-subheading">Activity By Hour</h2>
 
-  <h2 class="wamf-subheading">
-    Activity By Hour
-  </h2>
-
-  <div class="wamf-activity-chart">
-
-    {% for item in species_activity %}
-
-      {% set bar_height = item.total * 18 + 24 %}
+    <div class="wamf-activity-chart">
+      {% for item in species_activity %} {% set bar_height = item.total * 18 +
+      24 %}
 
       <div class="wamf-activity-bar-group">
-
         <div
           class="wamf-activity-bar"
           style="height: {{ bar_height }}px;"
           title="{{ item.total }} detections at {{ item.hour }}:00"
         ></div>
 
-        <div class="wamf-activity-label">
-          {{ item.hour }}
-        </div>
-
+        <div class="wamf-activity-label">{{ item.hour }}</div>
       </div>
 
-    {% endfor %}
-
+      {% endfor %}
+    </div>
   </div>
 
-</div>
-
-  
-    <div class="wamf-detections-grid">
+  <div class="wamf-detection-grid">
     {% for record in records %}
     <div class="wamf-detection-card">
+      {% if record.snapshot_file %}
       <img
-        src="{{ url_for('frigate_thumbnail', frigate_event=record['frigate_event']) }}"
+        src="{{ url_for(
+      'wamf_snapshot',
+      filename=record.snapshot_file
+  ) }}"
         alt="Thumbnail"
         class="wamf-detection-image"
         onload="checkTransparentImage(this)"
-        onclick="showSnapshot('{{ url_for("frigate_snapshot", frigate_event=record["frigate_event"]) }}', '{{ url_for("frigate_clip", frigate_event=record["frigate_event"]) }}', '{{ record["frigate_event"] }}')"
+        onclick="showSnapshot(
+    '{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}',
+    '{{ url_for('wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
+    '{{ record['frigate_event'] }}'
+  )"
       />
+      {% endif %}
 
       <div class="wamf-detection-content">
         <h3>{{ common_name }}</h3>
 
-<div class="wamf-confidence">
-  {{ (record['score'] * 100)|round|int }}% confidence
-</div>
+        <div class="wamf-confidence">
+          {{ (record['score'] * 100)|round|int }}% confidence
+        </div>
 
-<div class="wamf-meta">
-  <div class="wamf-meta-secondary">
-    Seen at {{ record['detection_time'].split(' ')[1][:5] }}
-  </div>
+        <div class="wamf-meta">
+          <div class="wamf-meta-secondary">
+            Seen at {{ record['detection_time'].split(' ')[1][:5] }}
+          </div>
 
-  <div class="wamf-meta-secondary">
-    📷 {{ record['camera_name'] }}
-  </div>
-</div>    
+          <div class="wamf-meta-secondary">📷 {{ record['camera_name'] }}</div>
+        </div>
       </div>
     </div>
     {% endfor %}
-    </div>
-  
+  </div>
 </section>
 
 {% include 'modals_and_scripts.html' %} {% endblock %}
