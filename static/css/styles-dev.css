@@ -380,7 +380,31 @@
 .wamf-species-description {
   line-height: 1.7;
   opacity: 0.88;
-  max-width: 60ch;
+  max-width: none;
+}
+
+.wamf-species-links {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.wamf-species-link-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  transition: transform 0.15s ease;
+}
+
+.wamf-species-link-icon:hover {
+  transform: scale(1.08);
+}
+
+.wamf-species-reference-image {
+  max-width: 320px;
+  width: 100%;
+  border-radius: 12px;
 }
 
 .wamf-detections-grid {

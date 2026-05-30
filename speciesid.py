@@ -744,7 +744,8 @@ def setupdb():
             ebird_url TEXT,
             inaturalist_url TEXT,
             gbif_url TEXT,
-            last_updated TEXT
+            last_updated TEXT,
+            thumbnail_url TEXT       
         ) 
 """)
     

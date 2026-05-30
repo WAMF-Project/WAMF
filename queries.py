@@ -55,7 +55,8 @@ def save_species_info(
     wikipedia_url=None,
     ebird_url=None,
     inaturalist_url=None,
-    gbif_url=None
+    gbif_url=None,
+    thumbnail_url=None
 ):
 
     conn = sqlite3.connect(
@@ -74,10 +75,11 @@ def save_species_info(
             ebird_url,
             inaturalist_url,
             gbif_url,
-            last_updated
+            last_updated,
+            thumbnail_url
         )
         VALUES (
-            ?, ?, ?, ?, ?, ?, ?, datetime('now')
+            ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?
         )
         """,
         (
@@ -87,7 +89,8 @@ def save_species_info(
             wikipedia_url,
             ebird_url,
             inaturalist_url,
-            gbif_url
+            gbif_url,
+            thumbnail_url
         )
     )
 

@@ -30,8 +30,15 @@ def fetch_species_metadata(
 )
 
 
+    thumbnail_url = (
+        summary_data["thumbnail"]["source"]
+        if "thumbnail" in summary_data
+        else None
+    )
+
     return {
         "scientific_name": scientific_name,
         "description": summary_data["extract"],
-        "wikipedia_url": wikipedia_url
+        "wikipedia_url": wikipedia_url,
+        "thumbnail_url": thumbnail_url
     }

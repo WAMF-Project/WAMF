@@ -155,7 +155,11 @@ def show_detections_by_scientific_name(scientific_name, date, end_date):
         scientific_name
     )
 
-    if not species_info:
+    if (
+        not species_info
+        or not species_info["description"]
+        or not species_info["thumbnail_url"]
+    ):
 
         metadata = fetch_species_metadata(
             scientific_name
@@ -167,7 +171,8 @@ def show_detections_by_scientific_name(scientific_name, date, end_date):
                 scientific_name
             ),
             description=metadata["description"],
-            wikipedia_url=metadata["wikipedia_url"]
+            wikipedia_url=metadata["wikipedia_url"],
+            thumbnail_url=metadata["thumbnail_url"]
         )
 
         species_info = get_species_info(
