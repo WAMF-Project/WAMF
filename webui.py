@@ -10,7 +10,7 @@ from queries import recent_detections, get_daily_summary, get_common_name, get_r
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
 from queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events, get_retention_status
-from queries import get_species_info, save_species_info
+from queries import get_species_info, save_species_info, get_all_species_info
 from health import get_system_health
 from flask import jsonify, request, send_file
 from version import VERSION
@@ -319,6 +319,58 @@ def admin_logs():
         'admin_logs.html',
         logs=logs,
         current_filter=event_type
+    )
+
+@app.route('/admin/species')
+def admin_species():
+
+    species = get_all_species_info()
+
+    species_count = len(species)
+
+    missing_description = sum(
+        1
+        for s in species
+        if not s["description"]
+    )
+
+    missing_thumbnail = sum(
+        1
+        for s in species
+        if not s["thumbnail_url"]
+    )
+
+    return render_template(
+        'admin_species.html',
+        species=species,
+        species_count=species_count,
+        missing_description=missing_description,
+        missing_thumbnail=missing_thumbnail
+    )
+    
+@app.route(
+    '/admin/species/refresh/<path:scientific_name>'
+)
+def refresh_species(scientific_name):
+
+    metadata = fetch_species_metadata(
+        scientific_name
+    )
+
+    save_species_info(
+        scientific_name=scientific_name,
+        common_name=get_common_name(
+            scientific_name
+        ),
+        description=metadata["description"],
+        wikipedia_url=metadata["wikipedia_url"],
+        thumbnail_url=metadata["thumbnail_url"]
+    )
+
+    return redirect(
+        url_for(
+            'admin_species'
+        )
     )
 
 @app.route("/admin/api/health")

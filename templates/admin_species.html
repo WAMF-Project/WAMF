@@ -1,0 +1,59 @@
+{% extends "admin_base.html" %} {% block content %}
+
+<h1 class="wamf-heading">Species Metadata</h1>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <h2>Total Species Cached</h2>
+    <p>{{ species_count }}</p>
+  </div>
+
+  <div class="stat-card">
+    <h2>Missing Descriptions</h2>
+    <p>{{ missing_description }}</p>
+  </div>
+
+  <div class="stat-card">
+    <h2>Missing Thumbnails</h2>
+    <p>{{ missing_thumbnail }}</p>
+  </div>
+  <div class="stat-card">
+    <h2>Last Metadata Refresh</h2>
+    <p>{{ latest_update }}</p>
+  </div>
+</div>
+<div class="wamf-species-metadata-container">
+  <table class="wamf-species-metadata-table">
+    <tr>
+      <th>Common Name</th>
+      <th>Scientific Name</th>
+      <th>Desctription</th>
+      <th>Thumbnail</th>
+      <th>Last Updated</th>
+      <th>Actions</th>
+    </tr>
+
+    {% for item in species %}
+
+    <tr>
+      <td>{{ item.common_name }}</td>
+      <td>{{ item.scientific_name }}</td>
+      <td>{% if item.description %} ✅ {% else %} ❌ {% endif %}</td>
+      <td>{% if item.thumbnail_url %} ✅ {% else %} ❌ {% endif %}</td>
+      <td>{{ item.last_updated }}</td>
+      <td>
+        <a
+          href="{{ url_for(
+        'refresh_species',
+        scientific_name=item.scientific_name
+    ) }}"
+        >
+          Refresh
+        </a>
+      </td>
+    </tr>
+
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
