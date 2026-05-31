@@ -1,0 +1,15 @@
+{% extends "admin_base.html" %} {% block content %}
+
+<h1 class="wamf-heading">Configuration</h1>
+
+<div class="wamf-panel">
+  <h2 class="wamf-subheading">Configuration File</h2>
+
+  <div class="wamf-meta-secondary">{{ config_path }}</div>
+</div>
+
+<div class="wamf-panel">
+  <pre>{{ config_content }}</pre>
+</div>
+
+{% endblock %}

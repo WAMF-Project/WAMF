@@ -482,9 +482,41 @@ def admin_health():
         )
     })
 
+def get_config_path():
 
+    return os.environ.get(
+        'WHOSATMYFEEDER_CONFIG',
+        './config/config.yml'
+    )
 
-    
+def load_config():
+
+    global config
+
+    with open(
+        get_config_path(),
+        'r'
+    ) as config_file:
+
+        config = yaml.safe_load(
+            config_file
+        )
+
+@app.route('/admin/config')
+def admin_config():
+
+    with open(
+        get_config_path(),
+        'r'
+    ) as config_file:
+
+        config_content = config_file.read()
+
+    return render_template(
+        'admin_config.html',
+        config_content=config_content,
+        config_path=get_config_path()
+    )   
 
 def load_config():
     global config
