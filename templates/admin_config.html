@@ -1,15 +1,198 @@
 {% extends "admin_base.html" %} {% block content %}
 
 <h1 class="wamf-heading">Configuration</h1>
-
 <div class="wamf-panel">
-  <h2 class="wamf-subheading">Configuration File</h2>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <h2>Configuration File</h2>
+      <div class="wamf-meta-secondary">{{ config_path }}</div>
+    </div>
 
-  <div class="wamf-meta-secondary">{{ config_path }}</div>
+    <div class="stat-card">
+      <h2>File Size</h2>
+      <p>{{ file_size }} bytes</p>
+    </div>
+
+    <div class="stat-card">
+      <h2>Last Modified</h2>
+      <p>{{ last_modified }}</p>
+    </div>
+
+    <div class="stat-card">
+      <h2>Backups</h2>
+      <p>{{ backup_count }}</p>
+    </div>
+  </div>
 </div>
 
 <div class="wamf-panel">
-  <pre>{{ config_content }}</pre>
+  <h2 class="wamf-subheading">Configuration Actions</h2>
+  <div id="config-message" class="config-message" style="display: none"></div>
+  <div class="wamf-header-actions">
+    <button id="save-config-btn" class="log-filter-btn">
+      Save Configuration
+    </button>
+
+    <button id="copy-config-btn" class="log-filter-btn">Copy Config</button>
+    <button
+      id="restart-btn"
+      class="log-filter-btn"
+      disabled
+      title="Available when restart management is implemented"
+    >
+      Restart WAMF
+    </button>
+    <button
+      id="restart-btn"
+      class="log-filter-btn"
+      disabled
+      title="Available when restart management is implemented"
+    >
+      Save & Restart
+    </button>
+  </div>
+</div>
+<div class="wamf-panel">
+  <h2 class="wamf-subheading">Configuration Editor</h2>
+
+  <div id="editor"></div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+
+<script>
+          function showMessage(
+            message,
+            type
+        ) {
+
+            const messageBox =
+                document.getElementById(
+                    'config-message'
+                );
+
+            messageBox.className =
+                'config-message ' + type;
+
+            messageBox.textContent =
+                message;
+
+            messageBox.style.display =
+                'block';
+
+            setTimeout(
+                function () {
+
+                    messageBox.style.display =
+                        'none';
+
+                },
+                5000
+            );
+
+        }
+          let editor;
+
+          require.config({
+              paths: {
+                  vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs'
+              }
+          });
+
+          require(['vs/editor/editor.main'], function () {
+
+              editor = monaco.editor.create(
+                  document.getElementById('editor'),
+                  {
+                      value: {{ config_content|tojson }},
+                      language: 'yaml',
+                      theme: 'vs-dark',
+                      automaticLayout: true,
+                      minimap: {
+                          enabled: false
+                      }
+                  }
+              );
+
+              document
+                  .getElementById('save-config-btn')
+                  .addEventListener(
+                      'click',
+                      async function () {
+
+                          const response =
+                              await fetch(
+                                  '/admin/config/save',
+                                  {
+                                      method: 'POST',
+                                      headers: {
+                                          'Content-Type': 'application/json'
+                                      },
+                                      body: JSON.stringify({
+                                          config_content: editor.getValue()
+                                      })
+                                  }
+                              );
+
+                          const result =
+                              await response.json();
+
+                          if (result.success) {
+
+                              showMessage(
+          result.message,
+          'success'
+      );
+
+                          }
+                          else {
+
+                              showMessage(
+        result.error,
+        'error'
+    );
+
+                          }
+
+                      }
+                  );
+
+          document
+              .getElementById('copy-config-btn')
+              .addEventListener(
+                  'click',
+                  function () {
+
+                      const textarea =
+                          document.createElement(
+                              'textarea'
+                          );
+
+                      textarea.value =
+                          editor.getValue();
+
+                      document.body.appendChild(
+                          textarea
+                      );
+
+                      textarea.select();
+
+                      document.execCommand(
+                          'copy'
+                      );
+
+                      document.body.removeChild(
+                          textarea
+                      );
+
+                      showMessage(
+      'Configuration copied to clipboard',
+      'success'
+  );
+
+                  }
+              );
+
+          });
+</script>
 {% endblock %}

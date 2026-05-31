@@ -34,6 +34,12 @@
   >
     Species
   </a>
+  <a
+    href="{{ url_for('admin_logs', filter='CONFIG') }}"
+    class="log-filter-btn {% if current_filter == 'CONFIG' %}active{% endif %}"
+  >
+    Config
+  </a>
 </div>
 
 <h1>System Logs</h1>

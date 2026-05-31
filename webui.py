@@ -16,6 +16,8 @@ from flask import jsonify, request, send_file
 from version import VERSION
 from species_metadata import fetch_species_metadata
 from system_events import log_system_event
+import shutil
+import glob
 
 app = Flask(__name__)
 config = None
@@ -512,11 +514,90 @@ def admin_config():
 
         config_content = config_file.read()
 
+        file_size = os.path.getsize(
+        get_config_path()
+    )
+
+    last_modified = datetime.fromtimestamp(
+        os.path.getmtime(
+            get_config_path()
+        )
+    ).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    backup_count = len(
+    glob.glob(
+        f"{get_config_path()}.*.bak"
+    )
+)
+
     return render_template(
         'admin_config.html',
         config_content=config_content,
-        config_path=get_config_path()
+        config_path=get_config_path(),
+        file_size=file_size,
+        last_modified=last_modified,
+        backup_count=backup_count
     )   
+
+@app.route(
+    '/admin/config/save',
+    methods=['POST']
+)
+def save_config():
+
+    data = request.get_json()
+
+    config_content = data.get(
+        'config_content',
+        ''
+    )
+
+    try:
+
+        yaml.safe_load(
+            config_content
+        )
+        backup_path = (
+            f"{get_config_path()}."
+            f"{datetime.now().strftime('%Y%m%d-%H%M%S')}.bak"
+        )
+
+        shutil.copy2(
+            get_config_path(),
+            backup_path
+        )
+
+        with open(
+            get_config_path(),
+            'w'
+        ) as config_file:
+
+            config_file.write(
+                config_content
+            )
+        load_config()
+
+        log_system_event(
+            "INFO",
+            "CONFIG",
+            "Configuration updated via admin editor"
+        )
+        
+        return {
+            "success": True,
+            "message": "Configuration updated"
+        }
+
+    except yaml.YAMLError as e:
+
+        return {
+            "success": False,
+            "error": str(e)
+        }
+    
+        
 
 def load_config():
     global config

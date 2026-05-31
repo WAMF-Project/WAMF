@@ -16,12 +16,37 @@
       <div class="admin-title">WAMF Admin</div>
 
       <nav class="admin-nav">
-        <a href="{{ url_for('index') }}"> ← Back to WAMF </a>
+        <a href="{{ url_for('index') }}" class="admin-nav-btn">
+          ← Back to WAMF
+        </a>
 
-        <a href="{{ url_for('admin_dashboard') }}"> Dashboard </a>
-        <a href="{{ url_for('admin_species') }}">Species Metadata</a>
-        <a href="{{ url_for('admin_logs') }}">Logs</a>
-        <a href="{{ url_for('admin_config') }}"> Configuration </a>
+        <a
+          href="{{ url_for('admin_dashboard') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin_dashboard' %}active{% endif %}"
+        >
+          Dashboard
+        </a>
+
+        <a
+          href="{{ url_for('admin_species') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin_species' %}active{% endif %}"
+        >
+          Species
+        </a>
+
+        <a
+          href="{{ url_for('admin_logs') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin_logs' %}active{% endif %}"
+        >
+          Logs
+        </a>
+
+        <a
+          href="{{ url_for('admin_config') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin_config' %}active{% endif %}"
+        >
+          Configuration
+        </a>
       </nav>
     </header>
 
