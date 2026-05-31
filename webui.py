@@ -15,7 +15,7 @@ from health import get_system_health
 from flask import jsonify, request, send_file
 from version import VERSION
 from species_metadata import fetch_species_metadata
-
+from system_events import log_system_event
 
 app = Flask(__name__)
 config = None
@@ -340,18 +340,26 @@ def admin_species():
         if not s["thumbnail_url"]
     )
 
+    latest_update = None
+
+    if species:
+
+        latest_update = max(
+            s["last_updated"]
+            for s in species
+            if s["last_updated"]
+        )
+
     return render_template(
         'admin_species.html',
         species=species,
         species_count=species_count,
         missing_description=missing_description,
-        missing_thumbnail=missing_thumbnail
+        missing_thumbnail=missing_thumbnail,
+        latest_update=latest_update
     )
-    
-@app.route(
-    '/admin/species/refresh/<path:scientific_name>'
-)
-def refresh_species(scientific_name):
+
+def refresh_species_metadata(scientific_name):
 
     metadata = fetch_species_metadata(
         scientific_name
@@ -365,6 +373,75 @@ def refresh_species(scientific_name):
         description=metadata["description"],
         wikipedia_url=metadata["wikipedia_url"],
         thumbnail_url=metadata["thumbnail_url"]
+    ) 
+
+@app.route('/admin/species/refresh/<path:scientific_name>')
+
+def refresh_species(scientific_name):
+
+    refresh_species_metadata(
+        scientific_name
+    )
+
+    log_system_event(
+        "INFO",
+        "SPECIES",
+        f"Refreshed metadata for {scientific_name}"
+    )
+
+    return redirect(
+        url_for(
+            'admin_species'
+        )
+    )
+
+@app.route('/admin/species/refresh-missing')
+def refresh_missing_species():
+
+    species = get_all_species_info()
+
+    refreshed = 0
+
+    for item in species:
+
+        if (
+            not item["description"]
+            or not item["thumbnail_url"]
+        ):
+
+            refresh_species_metadata(
+                item["scientific_name"]
+            )
+
+            refreshed += 1
+
+    log_system_event(
+        "INFO",
+        "SPECIES",
+        f"Refreshed metadata for {refreshed} species with missing data"
+    )
+
+    return redirect(
+        url_for(
+            'admin_species'
+        )
+    )
+
+@app.route('/admin/species/refresh-all')
+def refresh_all_species():
+
+    species = get_all_species_info()
+
+    for item in species:
+
+        refresh_species_metadata(
+            item["scientific_name"]
+        )
+
+    log_system_event(
+        "INFO",
+        "SPECIES",
+        f"Refreshed metadata for {len(species)} species"
     )
 
     return redirect(

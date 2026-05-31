@@ -28,6 +28,12 @@
   >
     MQTT
   </a>
+  <a
+    href="{{ url_for('admin_logs', filter='SPECIES') }}"
+    class="log-filter-btn {% if current_filter == 'SPECIES' %}active{% endif %}"
+  >
+    Species
+  </a>
 </div>
 
 <h1>System Logs</h1>

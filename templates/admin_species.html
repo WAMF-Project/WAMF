@@ -1,6 +1,15 @@
 {% extends "admin_base.html" %} {% block content %}
 
-<h1 class="wamf-heading">Species Metadata</h1>
+<div class="wamf-header-actions">
+  <h1 class="wamf-heading">Species Metadata</h1>
+
+  <a href="{{ url_for('refresh_missing_species') }}" class="log-filter-btn">
+    Refresh Missing Metadata
+  </a>
+  <a href="{{ url_for('refresh_all_species') }}" class="log-filter-btn">
+    Refresh All Metadata
+  </a>
+</div>
 
 <div class="stats-grid">
   <div class="stat-card">
@@ -27,7 +36,7 @@
     <tr>
       <th>Common Name</th>
       <th>Scientific Name</th>
-      <th>Desctription</th>
+      <th>Description</th>
       <th>Thumbnail</th>
       <th>Last Updated</th>
       <th>Actions</th>
@@ -43,9 +52,10 @@
       <td>{{ item.last_updated }}</td>
       <td>
         <a
+          class="log-filter-btn"
           href="{{ url_for(
-        'refresh_species',
-        scientific_name=item.scientific_name
+      'refresh_species',
+      scientific_name=item.scientific_name
     ) }}"
         >
           Refresh
