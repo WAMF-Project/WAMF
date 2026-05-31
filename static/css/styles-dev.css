@@ -39,6 +39,27 @@
   color: #f5f7fa;
 }
 
+.wamf-nav-btn {
+  background: #121b45;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.5rem 1rem !important;
+  margin: 0 0.25rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.wamf-nav-btn:hover {
+  background: #1b2a63;
+  color: #ffffff !important;
+}
+
+.wamf-nav-btn.active {
+  background: #03a9f4;
+  color: #ffffff !important;
+}
+
 .wamf-container {
   padding-bottom: 12px;
 }

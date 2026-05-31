@@ -65,7 +65,7 @@
   {% endif %}
   <div class="wamf-summary-grid">
     <div class="wamf-summary-card">
-      <h3>Total Detections</h3>
+      <h3>Detections on {{ date }}</h3>
 
       <div class="wamf-summary-total">{{ species_stats.total_detections }}</div>
     </div>
@@ -135,6 +135,15 @@
     '{{ record['frigate_event'] }}'
   )"
       />
+
+      {% else %}
+
+      <img
+        src="{{ url_for('static', filename='images/default-bird.jpg') }}"
+        alt="No snapshot available"
+        class="wamf-detection-image"
+      />
+
       {% endif %}
 
       <div class="wamf-detection-content">
@@ -156,5 +165,43 @@
     {% endfor %}
   </div>
 </section>
+<div class="wamf-panel">
+  <div class="wamf-header-actions">
+    {% if page > 1 %}
 
+    <a
+      href="{{ url_for(
+      'show_detections_by_scientific_name',
+      scientific_name=scientific_name,
+      date=date,
+      end_date=end_date
+    ) }}?page={{ page - 1 }}"
+      class="log-filter-btn"
+    >
+      ← Previous
+    </a>
+
+    {% endif %}
+
+    <span class="wamf-meta-secondary">
+      Page {{ page }} of {{ total_pages }} ({{ total_records }} detections)
+    </span>
+
+    {% if page < total_pages %}
+
+    <a
+      href="{{ url_for(
+      'show_detections_by_scientific_name',
+      scientific_name=scientific_name,
+      date=date,
+      end_date=end_date
+    ) }}?page={{ page + 1 }}"
+      class="log-filter-btn"
+    >
+      Next →
+    </a>
+
+    {% endif %}
+  </div>
+</div>
 {% include 'modals_and_scripts.html' %} {% endblock %}

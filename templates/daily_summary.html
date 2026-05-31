@@ -13,7 +13,7 @@ endblock %} {% block date_picker %}
 </form>
 {% endblock %} {% block content %}
 <section class="wamf-panel">
-  <h2 class="wamf-heading">Daily Summary for {{ date }}</h2>
+  <h1 class="wamf-heading">Daily Summary for {{ date }}</h1>
   <div class="wamf-summary-grid">
     {% for species in daily_summary.values() %}
     <div class="wamf-summary-card">

@@ -21,14 +21,23 @@ block content %}
     >
       <div class="wamf-detection-card">
         {% if record.snapshot_file %}
+
         <img
           src="{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}"
           class="wamf-detection-image"
           onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
-    '{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}',
-    '{{ url_for('wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
-    '{{ record.frigate_event }}'
-  )"
+        '{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}',
+        '{{ url_for('wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
+        '{{ record.frigate_event }}'
+      )"
+        />
+
+        {% else %}
+
+        <img
+          src="{{ url_for('static', filename='images/default-bird.jpg') }}"
+          class="wamf-detection-image"
+          alt="No snapshot available"
         />
         {% endif %}
 

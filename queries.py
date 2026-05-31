@@ -267,19 +267,41 @@ def get_records_for_date_hour(date, hour):
         SELECT *    
         FROM detections    
         WHERE strftime('%Y-%m-%d', detection_time) = ? AND strftime('%H', detection_time) = ?    
-        ORDER BY detection_time    
+        ORDER BY detection_time   
     '''
 
     cursor.execute(query, (date, str(hour).zfill(2)))
     records = cursor.fetchall()
-
+   
     # Append the common name for each record
     result = []
     for record in records:
         common_name = get_common_name(record['display_name'])  # Access the field by name
-        record_dict = dict(record)  # Convert the record to a dictionary
-        record_dict['common_name'] = common_name  # Add the 'common_name' key to the record dictionary
-        result.append(record_dict)
+        record_dict = dict(record)
+
+        record_dict['common_name'] = common_name
+
+        if record_dict.get(
+            'wamf_snapshot_path'
+        ):
+            record_dict['snapshot_file'] = (
+                record_dict[
+                    'wamf_snapshot_path'
+                ].split('/')[-1]
+            )
+
+        if record_dict.get(
+            'wamf_clip_path'
+        ):
+            record_dict['clip_file'] = (
+                record_dict[
+                    'wamf_clip_path'
+                ].split('/')[-1]
+         )
+
+        result.append(
+            record_dict
+        )
 
     conn.close()
 
@@ -288,7 +310,9 @@ def get_records_for_date_hour(date, hour):
 
 def get_records_for_scientific_name_and_date(
     scientific_name,
-    date
+    date,
+    page,
+    per_page
 ):
 
     conn = sqlite3.connect(DBPATH)
@@ -296,19 +320,27 @@ def get_records_for_scientific_name_and_date(
 
     cursor = conn.cursor()
 
+    offset = (
+        page - 1
+    ) * per_page
+
     query = """
         SELECT *
         FROM detections
         WHERE display_name = ?
         AND strftime('%Y-%m-%d', detection_time) = ?
         ORDER BY detection_time DESC
+        LIMIT ?
+        OFFSET ?
     """
 
     cursor.execute(
         query,
         (
             scientific_name,
-            date
+            date,
+            per_page,
+            offset
         )
     )
 
@@ -350,6 +382,35 @@ def get_records_for_scientific_name_and_date(
 
     return result
 
+def get_detection_count_for_scientific_name_and_date(
+    scientific_name,
+    date
+):
+
+    conn = sqlite3.connect(
+        DBPATH
+    )
+
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT COUNT(*)
+        FROM detections
+        WHERE display_name = ?
+        AND strftime('%Y-%m-%d', detection_time) = ?
+        """,
+        (
+            scientific_name,
+            date
+        )
+    )
+
+    count = cursor.fetchone()[0]
+
+    conn.close()
+
+    return count
 
 def get_earliest_detection_date():
     conn = sqlite3.connect(DBPATH)
@@ -528,6 +589,52 @@ def get_species_stats(scientific_name):
         WHERE display_name = ?
 
     """, (scientific_name,)).fetchone()
+
+    conn.close()
+
+    return row
+
+def get_species_stats_for_date(
+    scientific_name,
+    date
+):
+
+    conn = sqlite3.connect(
+        DBPATH
+    )
+
+    conn.row_factory = sqlite3.Row
+
+    row = conn.execute(
+        """
+
+        SELECT
+
+            COUNT(*) AS total_detections,
+
+            MIN(detection_time) AS first_seen,
+
+            MAX(detection_time) AS last_seen,
+
+            strftime(
+                '%H',
+                detection_time
+            ) AS peak_hour
+
+        FROM detections
+
+        WHERE display_name = ?
+        AND strftime(
+            '%Y-%m-%d',
+            detection_time
+        ) = ?
+
+    """,
+        (
+            scientific_name,
+            date
+        )
+    ).fetchone()
 
     conn.close()
 

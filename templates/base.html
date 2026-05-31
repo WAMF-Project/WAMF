@@ -56,29 +56,46 @@
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <ul class="navbar-nav mb-2 mb-lg-0">
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('index') }}"> Overview </a>
+              <a
+                class="nav-link wamf-nav-btn {% if request.endpoint == 'index' %}active{% endif %}"
+                href="{{ url_for('index') }}"
+              >
+                Overview
+              </a>
             </li>
 
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('recent_feed') }}">
+              <a
+                class="nav-link wamf-nav-btn {% if request.endpoint == 'recent_feed' %}active{% endif %}"
+                href="{{ url_for('recent_feed') }}"
+              >
                 Recent Feed
               </a>
             </li>
 
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('activity') }}">
+              <a
+                class="nav-link wamf-nav-btn {% if request.endpoint == 'activity' %}active{% endif %}"
+                href="{{ url_for('activity') }}"
+              >
                 Activity
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('live_view') }}">
+              <a
+                class="nav-link wamf-nav-btn {% if request.endpoint == 'live_view' %}active{% endif %}"
+                href="{{ url_for('live_view') }}"
+              >
                 Live View
               </a>
             </li>
           </ul>
           <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+              <a
+                class="nav-link wamf-nav-btn"
+                href="{{ url_for('admin_dashboard') }}"
+              >
                 Admin
               </a>
             </li>
