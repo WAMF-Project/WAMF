@@ -41,8 +41,9 @@ static/test-images/
 media/wamf/clips/
 media/wamf/snapshots/
 
-#logs
+# Runtime logs
 logs/
+*.log
 
 # VS Code
 .vscode/
