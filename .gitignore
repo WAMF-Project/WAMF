@@ -37,6 +37,13 @@ config/config.yml
 # Test images
 static/test-images/
 
+# WAMF generated media
+media/wamf/clips/
+media/wamf/snapshots/
+
+#logs
+logs/
+
 # VS Code
 .vscode/
 
