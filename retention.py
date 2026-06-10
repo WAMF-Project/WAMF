@@ -37,13 +37,26 @@ def get_retention_days(
 
 def dry_run_retention():
 
+    config = load_config()
+
+    if not config["retention"].get("enabled", True):
+
+        log_system_event(
+            "INFO",
+            "RETENTION",
+            "Retention disabled"
+        )
+
+        return
+
+
     log_system_event(
         "INFO",
         "RETENTION",
         "Retention scan started"
     )
 
-    config = load_config()
+    
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -63,6 +76,11 @@ def dry_run_retention():
     rows = cursor.fetchall()
 
     now = datetime.now()
+
+    delete_media = (
+    config["retention"]
+    .get("delete_media", False)
+)
 
     for row in rows:
 
@@ -93,24 +111,79 @@ def dry_run_retention():
             and age_days > snapshot_retention
         ):
 
-            print(
-                f"[DRY RUN] Would delete snapshot: "
-                f"{row['wamf_snapshot_path']}"
-            )
+            path = Path(row["wamf_snapshot_path"])
+
+            if delete_media:
+
+                if path.exists():
+
+                    path.unlink()
+
+                    log_system_event(
+                        "INFO",
+                        "RETENTION",
+                        f"Deleted snapshot: {path}"
+                 )
+
+                cursor.execute(
+                    """
+                    UPDATE detections
+                    SET wamf_snapshot_path = NULL
+                    WHERE id = ?
+                    """,
+                    (row["id"],)
+                )
+
+            else:
+
+                print(
+               f"[DRY RUN] Would delete snapshot: {path}"
+                )
+
+                log_system_event(
+                    "INFO",
+                    "RETENTION",
+                    f"Deleted snapshot: {path}"
+                )
+
+            
 
         if (
             row["wamf_clip_path"]
             and age_days > clip_retention
         ):
 
-            print(
-                f"[DRY RUN] Would delete clip: "
-                f"{row['wamf_clip_path']}"
-            )
+            path = Path(row["wamf_clip_path"])
+
+            if delete_media and path.exists():
+
+                path.unlink()
+
+                cursor.execute(
+                   """
+                   UPDATE detections
+                   SET wamf_clip_path = NULL
+                   WHERE id = ?
+                   """,
+                   (row["id"],)
+                )
+
+                log_system_event(
+                    "INFO",
+                    "RETENTION",
+                    f"Deleted clip: {path}"
+                )
+
+            else:
+
+                print(
+                    f"[DRY RUN] Would delete clip: {path}"
+                )
 
     print("\nRetention scan complete")
     print(f"Scanned rows: {len(rows)}")
 
+    conn.commit()
     conn.close()
 
 def scan_for_orphans():

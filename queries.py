@@ -185,6 +185,7 @@ def recent_detections(num_detections):
             'detection_time': result[1],
             'detection_index': result[2],
             'score': result[3],
+            'confidence_percent': int(result[3] * 100),
             'display_name': result[4],
             'category_name': result[5],
             'frigate_event': result[6],

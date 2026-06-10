@@ -22,48 +22,55 @@ block date_picker %}
   </h2>
 
   <div class="wamf-detection-grid" id="recent-detections-tbody">
-    {% for detection in recent_detections %}
+    {% for record in recent_detections %}
 
     <a
       href="{{ url_for(
     'show_detections_by_scientific_name',
-    scientific_name=detection.display_name,
-    date=date,
+    scientific_name=record.display_name,
+    date=record.detection_time[:10],
     end_date=None
   ) }}"
       class="wamf-detection-card-link"
     >
       <div
         class="wamf-detection-card"
-        data-frigate-event="{{ detection.frigate_event }}"
-        data-detection-time="{{ detection.detection_time }}"
+        data-frigate-event="{{ record.frigate_event }}"
+        data-detection-time="{{ record.detection_time }}"
       >
-       {% if detection.snapshot_file %}
+       {% if record.snapshot_file %}
 <img
   src="{{ url_for(
       'wamf_snapshot',
-      filename=detection.snapshot_file
+      filename=record.snapshot_file
   ) }}"
   alt="Thumbnail"
   class="wamf-detection-image"
   onload="checkTransparentImage(this)"
   onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
-    '{{ url_for('wamf_snapshot', filename=detection.snapshot_file) }}',
-    '{{ url_for('wamf_clip', filename=detection.clip_file) if detection.clip_file else '' }}',
-    '{{ detection.frigate_event }}'
+    '{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}',
+    '{{ url_for('wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
+    '{{ record.frigate_event }}'
   )"
 />
 {% endif %}
 
         <div class="wamf-detection-content">
-          <h3>{{ detection.common_name }}</h3>
+          <h3>{{ record.common_name }}</h3>
 
           <div class="wamf-confidence">
-            {{ (detection.score * 100)|round|int }}%
+            {{ (record.score * 100)|round|int }}%
           </div>
 
           <div class="wamf-detection-time">
-            {{ detection.detection_time.split(' ')[1][:5] }}
+             {{ record.detection_time[8:10] }} {% set month =
+            record.detection_time[5:7] %} {% if month == '01' %}Jan {% elif
+            month == '02' %}Feb {% elif month == '03' %}Mar {% elif month ==
+            '04' %}Apr {% elif month == '05' %}May {% elif month == '06' %}Jun
+            {% elif month == '07' %}Jul {% elif month == '08' %}Aug {% elif
+            month == '09' %}Sep {% elif month == '10' %}Oct {% elif month ==
+            '11' %}Nov {% elif month == '12' %}Dec {% endif %} · {{
+            record.detection_time[11:16] }}
           </div>
         </div>
       </div>
@@ -91,7 +98,15 @@ block date_picker %}
 
     <div class="wamf-meta">
       <div class="wamf-meta-secondary">
-        Seen at {{ latest_visitor.detection_time.split(' ')[1][:5] }}
+        Seen at 
+         {{ latest_visitor.detection_time[8:10] }} {% set month =
+            latest_visitor.detection_time[5:7] %} {% if month == '01' %}Jan {% elif
+            month == '02' %}Feb {% elif month == '03' %}Mar {% elif month ==
+            '04' %}Apr {% elif month == '05' %}May {% elif month == '06' %}Jun
+            {% elif month == '07' %}Jul {% elif month == '08' %}Aug {% elif
+            month == '09' %}Sep {% elif month == '10' %}Oct {% elif month ==
+            '11' %}Nov {% elif month == '12' %}Dec {% endif %} · {{
+            latest_visitor.detection_time[11:16] }}
       </div>
 
       <div class="wamf-meta-secondary">📷 {{ latest_visitor.camera_name }}</div>
