@@ -83,7 +83,10 @@
 
         try {
             const response = await fetch(`/detections/${encodeURIComponent(currentFrigateEvent)}`, {
-                method: "DELETE"
+                method: "DELETE",
+                headers: {
+                    "X-CSRFToken": {{ csrf_token|tojson }}
+                }
             });
 
             if (!response.ok) {

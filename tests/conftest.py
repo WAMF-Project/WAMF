@@ -7,10 +7,18 @@ modules so tests never touch the real on-disk databases.
 """
 import os
 import sqlite3
-import tempfile
-
 import pytest
 import yaml
+
+
+def _ensure_werkzeug_version_attr():
+    """Flask 2.3's test client expects this; Werkzeug 3 removed it."""
+    import importlib.metadata
+    import werkzeug
+
+    if not hasattr(werkzeug, "__version__"):
+        werkzeug.__version__ = importlib.metadata.version("werkzeug")
+
 
 
 # ---------------------------------------------------------------------------
@@ -29,16 +37,48 @@ def _create_det_db(path: str) -> None:
             display_name TEXT,
             category_name TEXT,
             frigate_event TEXT,
-            camera_name TEXT
+            camera_name TEXT,
+            wamf_snapshot_path TEXT,
+            wamf_clip_path TEXT
         )
     """)
     conn.execute("""
         INSERT INTO detections
-            (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name)
+            (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name, wamf_snapshot_path, wamf_clip_path)
         VALUES
-            ('2024-06-01 08:30:00.000000', 1, 0.92, 'Turdus migratorius', 'bird', 'evt-001', 'birdcam'),
-            ('2024-06-01 09:15:00.000000', 2, 0.85, 'Cyanocitta cristata',  'bird', 'evt-002', 'birdcam'),
-            ('2024-06-01 09:45:00.000000', 3, 0.78, 'Turdus migratorius', 'bird', 'evt-003', 'birdcam')
+            ('2024-06-01 08:30:00.000000', 1, 0.92, 'Turdus migratorius', 'bird', 'evt-001', 'birdcam', NULL, NULL),
+            ('2024-06-01 09:15:00.000000', 2, 0.85, 'Cyanocitta cristata',  'bird', 'evt-002', 'birdcam', NULL, NULL),
+            ('2024-06-01 09:45:00.000000', 3, 0.78, 'Turdus migratorius', 'bird', 'evt-003', 'birdcam', NULL, NULL)
+    """)
+    conn.execute("""
+        CREATE TABLE system_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            message TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE species_info (
+            scientific_name TEXT PRIMARY KEY,
+            common_name TEXT,
+            description TEXT,
+            wikipedia_url TEXT,
+            ebird_url TEXT,
+            inaturalist_url TEXT,
+            gbif_url TEXT,
+            last_updated TEXT,
+            thumbnail_url TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE retention_status (
+            last_run TEXT,
+            rows_scanned INTEGER,
+            orphan_count INTEGER,
+            missing_count INTEGER
+        )
     """)
     conn.commit()
     conn.close()
@@ -125,11 +165,14 @@ def flask_client(tmp_dbs, patched_queries):
     """
     import os
     os.environ['WHOSATMYFEEDER_CONFIG'] = tmp_dbs["config"]
+    _ensure_werkzeug_version_attr()
 
     import webui
+    webui.load_config()
     webui.DBPATH = tmp_dbs["det_db"]
     webui.NAMEDBPATH = tmp_dbs["name_db"]
 
     webui.app.config["TESTING"] = True
+    webui.app.config["SECRET_KEY"] = "test-secret"
     with webui.app.test_client() as client:
         yield client

@@ -34,7 +34,7 @@ endblock %} {% block content %}
       Save Configuration
     </button>
 
-    <button id="copy-config-btn" class="log-filter-btn">Copy Config</button>
+    <button id="copy-config-btn" class="log-filter-btn">Copy Visible Config</button>
     <button
       id="restart-btn"
       class="log-filter-btn"
@@ -127,7 +127,8 @@ endblock %} {% block content %}
                                   {
                                       method: 'POST',
                                       headers: {
-                                          'Content-Type': 'application/json'
+                                          'Content-Type': 'application/json',
+                                          'X-CSRFToken': {{ csrf_token|tojson }}
                                       },
                                       body: JSON.stringify({
                                           config_content: editor.getValue()

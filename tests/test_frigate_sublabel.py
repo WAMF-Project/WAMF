@@ -50,7 +50,9 @@ def _make_det_db(path: str) -> None:
             display_name TEXT,
             category_name TEXT,
             frigate_event TEXT UNIQUE,
-            camera_name TEXT
+            camera_name TEXT,
+            wamf_snapshot_path TEXT,
+            wamf_clip_path TEXT
         )
     """)
     conn.commit()
@@ -144,6 +146,7 @@ def _run_on_message(fresh_db, wamf_score, sub_label=None, event_id='evt-fallback
 
     msg = MagicMock()
     msg.payload = json.dumps({
+        'type': 'new',
         'after': {
             'camera': 'birdcam',
             'label': 'bird',
@@ -174,6 +177,8 @@ def _run_on_message(fresh_db, wamf_score, sub_label=None, event_id='evt-fallback
          patch('speciesid.classify', return_value=[fake_category]), \
          patch('speciesid.get_common_name', return_value='American Robin'), \
          patch('speciesid.get_scientific_name', return_value=scientific_name_return), \
+         patch('speciesid.archive_snapshot', return_value=None), \
+         patch('speciesid.archive_clip', return_value=None), \
          patch('speciesid.set_sublabel'), \
          patch('speciesid.publish_new_species') as mock_publish:
         mock_Image.open.return_value = mock_image
@@ -275,8 +280,8 @@ def test_fallback_no_new_species_on_second_detection(fresh_db):
     conn = sqlite3.connect(fresh_db)
     conn.execute("""
         INSERT INTO detections
-            (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name)
-        VALUES ('2024-06-01 08:00:00', -1, 0.80, 'Turdus migratorius', 'frigate_classified', 'evt-prior', 'birdcam')
+            (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name, wamf_snapshot_path, wamf_clip_path)
+        VALUES ('2024-06-01 08:00:00', -1, 0.80, 'Turdus migratorius', 'frigate_classified', 'evt-prior', 'birdcam', NULL, NULL)
     """)
     conn.commit()
     conn.close()

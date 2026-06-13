@@ -40,6 +40,8 @@ def dry_run_retention():
 
     log_system_event("INFO", "RETENTION", "Retention scan started")
 
+    pending_events = []
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
@@ -83,7 +85,7 @@ def dry_run_retention():
 
                     path.unlink()
 
-                    log_system_event("INFO", "RETENTION", f"Deleted snapshot: {path}")
+                    pending_events.append(("INFO", "RETENTION", f"Deleted snapshot: {path}"))
 
                 cursor.execute(
                     """
@@ -98,7 +100,7 @@ def dry_run_retention():
 
                 print(f"[DRY RUN] Would delete snapshot: {path}")
 
-                log_system_event("INFO", "RETENTION", f"Deleted snapshot: {path}")
+                pending_events.append(("INFO", "RETENTION", f"Would delete snapshot: {path}"))
 
         if row["wamf_clip_path"] and age_days > clip_retention:
 
@@ -110,7 +112,7 @@ def dry_run_retention():
 
                     path.unlink()
 
-                    log_system_event("INFO", "RETENTION", f"Deleted clip: {path}")
+                    pending_events.append(("INFO", "RETENTION", f"Deleted clip: {path}"))
 
                 cursor.execute(
                     """
@@ -125,21 +127,36 @@ def dry_run_retention():
 
                 print(f"[DRY RUN] Would delete clip: {path}")
 
+                pending_events.append(("INFO", "RETENTION", f"Would delete clip: {path}"))
+
     print("\nRetention scan complete")
     print(f"Scanned rows: {len(rows)}")
 
     conn.commit()
     conn.close()
 
+    for severity, event_type, message in pending_events:
+        log_system_event(severity, event_type, message)
+
 
 def scan_for_orphans():
 
     config = load_config()
 
+    # Controls whether orphan/missing media checks run at all.
+    if not config["retention"].get("orphan_scan_enabled", True):
+
+        log_system_event("INFO", "RETENTION", "Orphan scan disabled")
+
+        return
+
+    # Controls whether detected orphan media is deleted or only reported.
     delete_orphaned_media = config["retention"].get(
         "delete_orphaned_media",
         False,
     )
+
+    pending_events = []
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -180,7 +197,7 @@ def scan_for_orphans():
 
                 print(f"[ORPHAN] {file_str}")
 
-                log_system_event("WARN", "RETENTION", f"Orphan detected: {file_str}")
+                pending_events.append(("WARN", "RETENTION", f"Orphan detected: {file_str}"))
 
                 orphan_count += 1
 
@@ -188,11 +205,11 @@ def scan_for_orphans():
 
                     file_path.unlink()
 
-                    log_system_event(
+                    pending_events.append((
                         "INFO",
                         "RETENTION",
                         f"Deleted orphan media: {file_str}",
-                    )
+                    ))
 
     for file_path in referenced_files:
 
@@ -206,14 +223,14 @@ def scan_for_orphans():
     print(f"Orphans found: {orphan_count}")
     print(f"Missing files: {missing_count}")
 
-    log_system_event(
+    pending_events.append((
         "INFO",
         "RETENTION",
         f"Retention scan complete. "
         f"Scanned {len(rows)} rows. "
         f"Orphans found: {orphan_count}. "
         f"Missing files: {missing_count}",
-    )
+    ))
 
     cursor.execute("""
     DELETE FROM retention_status
@@ -235,6 +252,9 @@ def scan_for_orphans():
     conn.commit()
 
     conn.close()
+
+    for severity, event_type, message in pending_events:
+        log_system_event(severity, event_type, message)
 
 
 if __name__ == "__main__":

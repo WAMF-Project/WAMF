@@ -1,6 +1,8 @@
 """Unit tests for webui.py Flask routes."""
 import json
 import sqlite3
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 
 # ---------------------------------------------------------------------------
@@ -11,8 +13,8 @@ def _insert_detection(det_db, frigate_event="evt-test-999", display_name="Turdus
     conn = sqlite3.connect(det_db)
     conn.execute(
         """INSERT INTO detections
-               (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name)
-           VALUES ('2024-06-02 10:00:00.000000', 99, 0.9, ?, 'bird', ?, 'birdcam')""",
+               (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name, wamf_snapshot_path, wamf_clip_path)
+           VALUES ('2024-06-02 10:00:00.000000', 99, 0.9, ?, 'bird', ?, 'birdcam', NULL, NULL)""",
         (display_name, frigate_event),
     )
     conn.commit()
@@ -24,6 +26,28 @@ def _delete_detection(det_db, frigate_event):
     conn.execute("DELETE FROM detections WHERE frigate_event = ?", (frigate_event,))
     conn.commit()
     conn.close()
+
+
+def _insert_detection_with_media(det_db, frigate_event, snapshot_path, clip_path):
+    conn = sqlite3.connect(det_db)
+    conn.execute(
+        """INSERT INTO detections
+               (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name, wamf_snapshot_path, wamf_clip_path)
+           VALUES ('2024-06-02 10:00:00.000000', 99, 0.9, 'Turdus migratorius', 'bird', ?, 'birdcam', ?, ?)""",
+        (frigate_event, str(snapshot_path), str(clip_path)),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _login_as_admin(flask_client):
+    flask_client.post(
+        "/login",
+        data={"password": "secret"},
+        follow_redirects=False,
+    )
+    with flask_client.session_transaction() as sess:
+        return sess["csrf_token"]
 
 
 # ---------------------------------------------------------------------------
@@ -38,6 +62,17 @@ def test_index_returns_200(flask_client):
 def test_index_contains_html(flask_client):
     response = flask_client.get("/")
     assert b"<!DOCTYPE html>" in response.data or b"<html" in response.data
+
+
+def test_public_pages_do_not_run_admin_health_checks(flask_client, monkeypatch):
+    import webui
+
+    def fail_health_check():
+        raise AssertionError("public pages should not run admin health checks")
+
+    monkeypatch.setattr(webui, "get_system_health", fail_health_check)
+    response = flask_client.get("/")
+    assert response.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +150,33 @@ def test_delete_detection_idempotent(flask_client, tmp_dbs):
     assert response.status_code == 404
 
 
+def test_delete_detection_removes_archived_media(flask_client, tmp_dbs):
+    snapshot_path = Path("media/wamf/snapshots/test-delete-media.jpg")
+    clip_path = Path("media/wamf/clips/test-delete-media.mp4")
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    clip_path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_path.write_bytes(b"snapshot")
+    clip_path.write_bytes(b"clip")
+
+    _insert_detection_with_media(
+        tmp_dbs["det_db"],
+        "evt-delete-media",
+        snapshot_path,
+        clip_path
+    )
+
+    response = flask_client.delete("/detections/evt-delete-media")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["success"] is True
+    assert sorted(data["deleted_media"]) == sorted([
+        str(snapshot_path),
+        str(clip_path),
+    ])
+    assert not snapshot_path.exists()
+    assert not clip_path.exists()
+
+
 # ---------------------------------------------------------------------------
 # /detections/by_hour
 # ---------------------------------------------------------------------------
@@ -176,3 +238,311 @@ def test_by_scientific_name_with_end_date_returns_501(flask_client):
     """end_date path is not implemented — must return 501, not 200/500."""
     response = flask_client.get("/detections/by_scientific_name/Turdus%20migratorius/2024-06-01/2024-06-07")
     assert response.status_code == 501
+
+# ---------------------------------------------------------------------------
+# Admin authentication
+# ---------------------------------------------------------------------------
+
+def test_public_recent_api_not_protected_when_admin_auth_enabled(flask_client, monkeypatch):
+    from werkzeug.security import generate_password_hash
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+    })
+    webui.app.secret_key = "test-secret"
+
+    response = flask_client.get("/api/detections/recent")
+    assert response.status_code == 200
+
+
+def test_admin_redirects_to_login_with_next(flask_client, monkeypatch):
+    from werkzeug.security import generate_password_hash
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+    })
+    webui.app.secret_key = "test-secret"
+
+    response = flask_client.get("/admin/api/health?check=1")
+    assert response.status_code == 302
+    location = urlsplit(response.headers["Location"])
+    assert location.path == "/login"
+    assert parse_qs(location.query)["next"] == ["/admin/api/health?check=1"]
+
+
+def test_admin_login_allows_requested_admin_url(flask_client, monkeypatch):
+    from werkzeug.security import generate_password_hash
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+    })
+    webui.app.secret_key = "test-secret"
+    monkeypatch.setattr(webui, "get_system_health", lambda: {
+        "frigate_online": True,
+        "mqtt_online": True,
+        "database_healthy": True,
+        "archive_writable": True,
+        "disk_used_percent": 10,
+    })
+    monkeypatch.setattr(webui, "get_retention_status", lambda: {
+        "last_run": None,
+        "orphan_count": 0,
+        "missing_count": 0,
+    })
+
+    response = flask_client.post(
+        "/login?next=/admin/api/health",
+        data={"password": "secret"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/admin/api/health")
+
+    response = flask_client.get("/admin/api/health")
+    assert response.status_code == 200
+
+
+def test_admin_login_rejects_external_next_url(flask_client, monkeypatch):
+    from werkzeug.security import generate_password_hash
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+    })
+    webui.app.secret_key = "test-secret"
+
+    response = flask_client.post(
+        "/login?next=https://example.com/admin",
+        data={"password": "secret"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/admin")
+
+
+def test_delete_detection_auth_enabled_requires_admin_session(flask_client, tmp_dbs, monkeypatch):
+    from werkzeug.security import generate_password_hash
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+    })
+    webui.app.secret_key = "test-secret"
+    _insert_detection(tmp_dbs["det_db"], frigate_event="evt-auth-delete")
+
+    response = flask_client.delete("/detections/evt-auth-delete")
+    assert response.status_code == 401
+
+
+def test_delete_detection_auth_enabled_requires_csrf(flask_client, tmp_dbs, monkeypatch):
+    from werkzeug.security import generate_password_hash
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+    })
+    webui.app.secret_key = "test-secret"
+    _login_as_admin(flask_client)
+    _insert_detection(tmp_dbs["det_db"], frigate_event="evt-csrf-delete")
+
+    response = flask_client.delete("/detections/evt-csrf-delete")
+    assert response.status_code == 400
+
+
+def test_delete_detection_auth_enabled_accepts_csrf(flask_client, tmp_dbs, monkeypatch):
+    from werkzeug.security import generate_password_hash
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+    })
+    webui.app.secret_key = "test-secret"
+    csrf_token = _login_as_admin(flask_client)
+    _insert_detection(tmp_dbs["det_db"], frigate_event="evt-csrf-ok")
+
+    response = flask_client.delete(
+        "/detections/evt-csrf-ok",
+        headers={"X-CSRFToken": csrf_token},
+    )
+    assert response.status_code == 200
+
+
+def test_config_editor_hides_admin_block(flask_client, monkeypatch, tmp_path):
+    import webui
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("""
+frigate:
+  mqtt_server: localhost
+admin:
+  auth_enabled: true
+  session_secret: hidden
+  password_hash: hidden-hash
+webui:
+  port: 7766
+""".lstrip())
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+    monkeypatch.setattr(webui, "get_system_health", lambda: {
+        "frigate_online": True,
+        "mqtt_online": True,
+        "database_healthy": True,
+        "archive_writable": True,
+        "disk_used_percent": 10,
+    })
+    monkeypatch.setattr(webui, "get_retention_status", lambda: None)
+
+    with flask_client.session_transaction() as sess:
+        sess["admin_authenticated"] = True
+        sess["csrf_token"] = "csrf"
+
+    monkeypatch.setattr(webui, "config", {
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": "hash",
+        }
+    })
+    webui.app.secret_key = "test-secret"
+
+    response = flask_client.get("/admin/config")
+    assert response.status_code == 200
+    assert b"mqtt_server" in response.data
+    assert b"password_hash" not in response.data
+    assert b"hidden-hash" not in response.data
+
+
+def test_change_password_updates_hidden_admin_block(flask_client, monkeypatch, tmp_path):
+    from werkzeug.security import check_password_hash, generate_password_hash
+    import yaml
+    import webui
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("""
+frigate:
+  mqtt_server: localhost
+admin:
+  auth_enabled: true
+  session_secret: test-secret
+  password_hash: old-hash
+""".lstrip())
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+    monkeypatch.setattr(webui, "config", {
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        }
+    })
+    webui.app.secret_key = "test-secret"
+
+    with flask_client.session_transaction() as sess:
+        sess["admin_authenticated"] = True
+        sess["csrf_token"] = "csrf"
+
+    response = flask_client.post(
+        "/admin/password",
+        data={
+            "csrf_token": "csrf",
+            "current_password": "secret",
+            "new_password": "new-secret",
+            "confirm_password": "new-secret",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    updated = yaml.safe_load(config_path.read_text())
+    assert updated["admin"]["session_secret"] == "test-secret"
+    assert check_password_hash(updated["admin"]["password_hash"], "new-secret")
+
+
+def test_change_password_page_renders_admin_status_footer(flask_client, monkeypatch):
+    from werkzeug.security import generate_password_hash
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+        sess["admin_authenticated"] = True
+        sess["csrf_token"] = "csrf"
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+    })
+    webui.app.secret_key = "test-secret"
+    monkeypatch.setattr(webui, "get_system_health", lambda: {
+        "frigate_online": True,
+        "mqtt_online": True,
+        "database_healthy": True,
+        "archive_writable": True,
+        "disk_used_percent": 10,
+    })
+    monkeypatch.setattr(webui, "get_retention_status", lambda: None)
+
+    response = flask_client.get("/admin/password")
+    assert response.status_code == 200
+    assert b"Admin Password" in response.data
+

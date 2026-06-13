@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WAMF Admin Login</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/styles-dev.css') }}"
+    />
+  </head>
+  <body class="admin-body">
+    <main class="login-main">
+      <form class="login-panel" method="post" action="{{ url_for('login') }}">
+        <input type="hidden" name="next" value="{{ next_url }}" />
+
+        <div class="login-title">WAMF Admin</div>
+        <label class="login-label" for="password">Admin password</label>
+        <input
+          class="login-input"
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          autofocus
+        />
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="login-message">{{ messages[0] }}</div>
+          {% endif %}
+        {% endwith %}
+
+        {% if error %}
+          <div class="login-error">{{ error }}</div>
+        {% endif %}
+
+        <button class="login-button" type="submit">Log in</button>
+        <a class="login-secondary-link" href="{{ url_for('index') }}">
+          Back to overview
+        </a>
+      </form>
+    </main>
+  </body>
+</html>

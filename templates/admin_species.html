@@ -4,12 +4,14 @@ endblock %}{% block content %}
 <div class="wamf-header-actions">
   <h1 class="wamf-heading">Species Metadata</h1>
 
-  <a href="{{ url_for('refresh_missing_species') }}" class="log-filter-btn">
-    Refresh Missing Metadata
-  </a>
-  <a href="{{ url_for('refresh_all_species') }}" class="log-filter-btn">
-    Refresh All Metadata
-  </a>
+  <form method="post" action="{{ url_for('refresh_missing_species') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <button type="submit" class="log-filter-btn">Refresh Missing Metadata</button>
+  </form>
+  <form method="post" action="{{ url_for('refresh_all_species') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <button type="submit" class="log-filter-btn">Refresh All Metadata</button>
+  </form>
 </div>
 
 <div class="stats-grid">
@@ -52,15 +54,16 @@ endblock %}{% block content %}
       <td>{% if item.thumbnail_url %} ✅ {% else %} ❌ {% endif %}</td>
       <td>{{ item.last_updated }}</td>
       <td>
-        <a
-          class="log-filter-btn"
-          href="{{ url_for(
+        <form
+          method="post"
+          action="{{ url_for(
       'refresh_species',
       scientific_name=item.scientific_name
     ) }}"
         >
-          Refresh
-        </a>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <button type="submit" class="log-filter-btn">Refresh</button>
+        </form>
       </td>
     </tr>
 

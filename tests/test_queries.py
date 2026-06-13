@@ -109,7 +109,7 @@ def test_get_records_for_date_hour_empty_hour(patched_queries):
 
 def test_get_records_for_scientific_name_and_date(patched_queries):
     records = patched_queries.get_records_for_scientific_name_and_date(
-        "Turdus migratorius", "2024-06-01"
+        "Turdus migratorius", "2024-06-01", 1, 25
     )
     assert len(records) == 2
     for r in records:
@@ -119,6 +119,6 @@ def test_get_records_for_scientific_name_and_date(patched_queries):
 
 def test_get_records_for_scientific_name_and_date_no_match(patched_queries):
     records = patched_queries.get_records_for_scientific_name_and_date(
-        "Turdus migratorius", "1999-01-01"
+        "Turdus migratorius", "1999-01-01", 1, 25
     )
     assert records == []

@@ -28,3 +28,13 @@ classification:
 webui:
   port: 7766
   host: 0.0.0.0
+
+admin:
+  auth_enabled: true
+  # Generate a long random value for session_secret and keep it stable across restarts.
+  session_secret: "<long random session secret>"
+  session_cookie_samesite: Lax
+  session_cookie_secure: false
+  # Generate with:
+  # python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('change-me'))"
+  password_hash: "<generated werkzeug password hash>"

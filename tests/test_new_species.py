@@ -48,7 +48,9 @@ def _make_det_db(path: str) -> None:
             display_name TEXT,
             category_name TEXT,
             frigate_event TEXT UNIQUE,
-            camera_name TEXT
+            camera_name TEXT,
+            wamf_snapshot_path TEXT,
+            wamf_clip_path TEXT
         )
     """)
     conn.commit()
@@ -59,8 +61,8 @@ def _insert(path: str, display_name: str, frigate_event: str, score: float = 0.9
     conn = sqlite3.connect(path)
     conn.execute(
         """INSERT INTO detections
-               (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name)
-           VALUES ('2024-06-01 08:00:00', 1, ?, ?, 'bird', ?, 'birdcam')""",
+               (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name, wamf_snapshot_path, wamf_clip_path)
+           VALUES ('2024-06-01 08:00:00', 1, ?, ?, 'bird', ?, 'birdcam', NULL, NULL)""",
         (score, display_name, frigate_event),
     )
     conn.commit()
@@ -246,6 +248,7 @@ def test_threshold_gating(fresh_db, score, threshold, expect_write):
 
     message = MagicMock()
     message.payload = json.dumps({
+        'type': 'new',
         'after': {
             'camera': 'birdcam',
             'label': 'bird',
@@ -274,6 +277,8 @@ def test_threshold_gating(fresh_db, score, threshold, expect_write):
          patch('speciesid.Image') as mock_Image, \
          patch('speciesid.classify', return_value=[fake_category]), \
          patch('speciesid.get_common_name', return_value='American Robin'), \
+         patch('speciesid.archive_snapshot', return_value=None), \
+         patch('speciesid.archive_clip', return_value=None), \
          patch('speciesid.set_sublabel'):
         mock_Image.open.return_value = mock_image
         speciesid.on_message(client, None, message)

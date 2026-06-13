@@ -46,6 +46,17 @@
         >
           Configuration
         </a>
+
+        <a
+          href="{{ url_for('change_password') }}"
+          class="admin-nav-btn {% if request.endpoint == 'change_password' %}active{% endif %}"
+        >
+          Password
+        </a>
+
+        <a href="{{ url_for('logout') }}" class="admin-nav-btn">
+          Logout
+        </a>
       </nav>
     </header>
 
