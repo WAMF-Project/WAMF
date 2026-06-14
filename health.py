@@ -1,13 +1,12 @@
 from pathlib import Path
 
 import requests
-import sqlite3
-
 import yaml
 import paho.mqtt.client as mqtt
 import shutil
+from db import connect_db, DB_PATH as DEFAULT_DB_PATH
 
-DB_PATH = "data/speciesid.db"
+DB_PATH = DEFAULT_DB_PATH
 
 def load_config():
 
@@ -82,7 +81,7 @@ def get_system_health():
     # Database connectivity
     try:
 
-        conn = sqlite3.connect(DB_PATH)
+        conn = connect_db(DB_PATH, row_factory=False)
 
         conn.execute("SELECT 1")
 

@@ -22,12 +22,13 @@ from archive_media import (
 )
 from system_events import log_system_event
 from version import VERSION
+from db import connect_db, ensure_schema, DB_PATH as DEFAULT_DB_PATH
 
 classifier = None
 config = None
 firstmessage = True
 
-DBPATH = './data/speciesid.db'
+DBPATH = DEFAULT_DB_PATH
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_INSECURE_TLS = False
 
@@ -202,7 +203,7 @@ def on_message(client, userdata, message):
 
 def _on_message_inner(client, userdata, message):
 
-    conn = sqlite3.connect(DBPATH)
+    conn = connect_db(DBPATH, row_factory=False)
 
     try:
 
@@ -392,7 +393,17 @@ def _on_message_inner(client, userdata, message):
 
                         cursor.execute(
                             """
-                            SELECT *
+                            SELECT
+                                id,
+                                detection_time,
+                                detection_index,
+                                score,
+                                display_name,
+                                category_name,
+                                frigate_event,
+                                camera_name,
+                                wamf_snapshot_path,
+                                wamf_clip_path
                             FROM detections
                             WHERE frigate_event = ?
                             """,
@@ -585,7 +596,17 @@ def _on_message_inner(client, userdata, message):
 
                                 cursor.execute(
                                     """
-                                    SELECT *
+                                    SELECT
+                                        id,
+                                        detection_time,
+                                        detection_index,
+                                        score,
+                                        display_name,
+                                        category_name,
+                                        frigate_event,
+                                        camera_name,
+                                        wamf_snapshot_path,
+                                        wamf_clip_path
                                     FROM detections
                                     WHERE frigate_event = ?
                                     """,
@@ -706,61 +727,7 @@ def _on_message_inner(client, userdata, message):
 
 def setupdb():
 
-    conn = sqlite3.connect(DBPATH)
-
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS detections (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            detection_time TEXT NOT NULL,
-            detection_index INTEGER,
-            score REAL,
-            display_name TEXT,
-            category_name TEXT,
-            frigate_event TEXT,
-            camera_name TEXT,
-            wamf_snapshot_path TEXT,
-            wamf_clip_path TEXT
-        )
-""")
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS system_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            severity TEXT NOT NULL,
-            event_type TEXT NOT NULL,
-            message TEXT NOT NULL
-        )
-""")
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS species_info (
-            scientific_name TEXT PRIMARY KEY,
-            common_name TEXT,
-            description TEXT,
-            wikipedia_url TEXT,
-            ebird_url TEXT,
-            inaturalist_url TEXT,
-            gbif_url TEXT,
-            last_updated TEXT,
-            thumbnail_url TEXT       
-        ) 
-""")
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS retention_status (
-            last_run TEXT,
-            rows_scanned INTEGER,
-            orphan_count INTEGER,
-            missing_count INTEGER
-        )
-""")
-
-    conn.commit()
-
-    conn.close()
+    ensure_schema(DBPATH)
 
 
 def load_config():

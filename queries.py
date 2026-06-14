@@ -1,15 +1,23 @@
-import sqlite3
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+from db import (
+    attach_names_db,
+    connect_db,
+    connect_names_db,
+    DB_PATH as DEFAULT_DB_PATH,
+    NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
+    DETECTION_SELECT,
+)
 
-DBPATH = './data/speciesid.db'
-NAMEDBPATH = './birdnames.db'
+
+DBPATH = DEFAULT_DB_PATH
+NAMEDBPATH = DEFAULT_NAMES_DB_PATH
 
 
 def get_scientific_name(common_name):
-    conn = sqlite3.connect(NAMEDBPATH)
+    conn = connect_names_db(NAMEDBPATH)
     cursor = conn.cursor()
     # Try exact match first
     cursor.execute(
@@ -34,7 +42,7 @@ def get_scientific_name(common_name):
 
 
 def get_common_name(scientific_name):
-    conn = sqlite3.connect(NAMEDBPATH)
+    conn = connect_names_db(NAMEDBPATH)
     cursor = conn.cursor()
 
     cursor.execute("SELECT common_name FROM birdnames WHERE scientific_name = ?", (scientific_name,))
@@ -59,9 +67,7 @@ def save_species_info(
     thumbnail_url=None
 ):
 
-    conn = sqlite3.connect(
-        DBPATH
-    )
+    conn = connect_db(DBPATH)
 
     cursor = conn.cursor()
 
@@ -102,17 +108,23 @@ def get_species_info(
     scientific_name
 ):
 
-    conn = sqlite3.connect(
-        DBPATH
-    )
+    conn = connect_db(DBPATH)
 
-    conn.row_factory = sqlite3.Row
-
+    
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        SELECT *
+        SELECT
+            scientific_name,
+            common_name,
+            description,
+            wikipedia_url,
+            ebird_url,
+            inaturalist_url,
+            gbif_url,
+            last_updated,
+            thumbnail_url
         FROM species_info
         WHERE scientific_name = ?
         """,
@@ -132,17 +144,23 @@ def get_species_info(
 
 def get_all_species_info():
 
-    conn = sqlite3.connect(
-        DBPATH
-    )
+    conn = connect_db(DBPATH)
 
-    conn.row_factory = sqlite3.Row
-
+    
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        SELECT *
+        SELECT
+            scientific_name,
+            common_name,
+            description,
+            wikipedia_url,
+            ebird_url,
+            inaturalist_url,
+            gbif_url,
+            last_updated,
+            thumbnail_url
         FROM species_info
         ORDER BY common_name
         """
@@ -157,16 +175,45 @@ def get_all_species_info():
         for row in results
     ]
 
+def detection_row_to_dict(row):
+    detection = dict(row)
+    detection['confidence_percent'] = int(detection['score'] * 100)
+    detection['snapshot_file'] = (
+        Path(detection['wamf_snapshot_path']).name
+        if detection['wamf_snapshot_path']
+        else None
+    )
+    detection['clip_file'] = (
+        Path(detection['wamf_clip_path']).name
+        if detection['wamf_clip_path']
+        else None
+    )
+    detection['common_name'] = (
+        detection.get('common_name')
+        or get_common_name(detection['display_name'])
+    )
+    return detection
+
+
 def recent_detections(num_detections):
 
-    conn = sqlite3.connect(DBPATH)
+    conn = connect_db(DBPATH)
+    attach_names_db(conn, NAMEDBPATH)
+
     cursor = conn.cursor()
 
     cursor.execute(
-        """
-        SELECT *
+        f"""
+        SELECT
+            {DETECTION_SELECT},
+            COALESCE(
+                birdnames_db.birdnames.common_name,
+                detections.display_name
+            ) AS common_name
         FROM detections
-        ORDER BY detection_time DESC
+        LEFT JOIN birdnames_db.birdnames
+        ON detections.display_name = birdnames_db.birdnames.scientific_name
+        ORDER BY detections.detection_time DESC
         LIMIT ?
         """,
         (num_detections,)
@@ -176,65 +223,34 @@ def recent_detections(num_detections):
 
     conn.close()
 
-    formatted_results = []
+    return [
+        detection_row_to_dict(row)
+        for row in results
+    ]
 
-    for result in results:
-
-        detection = {
-            'id': result[0],
-            'detection_time': result[1],
-            'detection_index': result[2],
-            'score': result[3],
-            'confidence_percent': int(result[3] * 100),
-            'display_name': result[4],
-            'category_name': result[5],
-            'frigate_event': result[6],
-            'camera_name': result[7],
-
-            'wamf_snapshot_path': result[8],
-            'wamf_clip_path': result[9],
-
-            'snapshot_file': (
-                Path(result[8]).name
-                if result[8]
-                else None
-            ),
-
-            'clip_file': (
-                Path(result[9]).name
-                if result[9]
-                else None
-            ),
-
-            'common_name': get_common_name(
-                result[4]
-            )
-        }
-
-        formatted_results.append(
-            detection
-        )
-
-    return formatted_results
 
 def get_daily_summary(date):
     date_str = date.strftime('%Y-%m-%d')
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(DBPATH)
     cursor = conn.cursor()
 
-    query = '''  
-        SELECT display_name,  
-               COUNT(*) AS total_detections,  
-               STRFTIME('%H', detection_time) AS hour,  
-               COUNT(*) AS hourly_detections  
-        FROM (  
-            SELECT *  
-            FROM detections  
-            WHERE DATE(detection_time) = ?  
-        ) AS subquery  
-        GROUP BY display_name, hour  
-        ORDER BY total_detections DESC, display_name, hour  
+    attach_names_db(conn, NAMEDBPATH)
+
+    query = '''
+        SELECT
+            detections.display_name,
+            COALESCE(
+                birdnames_db.birdnames.common_name,
+                detections.display_name
+            ) AS common_name,
+            STRFTIME('%H', detections.detection_time) AS hour,
+            COUNT(*) AS hourly_detections
+        FROM detections
+        LEFT JOIN birdnames_db.birdnames
+        ON detections.display_name = birdnames_db.birdnames.scientific_name
+        WHERE DATE(detections.detection_time) = ?
+        GROUP BY detections.display_name, common_name, hour
+        ORDER BY detections.display_name, hour
     '''
 
     cursor.execute(query, (date_str,))
@@ -250,7 +266,7 @@ def get_daily_summary(date):
     for row in rows:
         display_name = row['display_name']
         summary[display_name]['scientific_name'] = display_name
-        summary[display_name]['common_name'] = get_common_name(display_name)
+        summary[display_name]['common_name'] = row['common_name']
         summary[display_name]['total_detections'] += row['hourly_detections']
         summary[display_name]['hourly_detections'][int(row['hour'])] = row['hourly_detections']
 
@@ -259,54 +275,33 @@ def get_daily_summary(date):
 
 
 def get_records_for_date_hour(date, hour):
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row  # Set the row factory to sqlite3.Row
+    conn = connect_db(DBPATH)
+    attach_names_db(conn, NAMEDBPATH)
     cursor = conn.cursor()
 
-    # The SQL query to fetch records for the given date and hour, sorted by detection_time
-    query = '''    
-        SELECT *    
-        FROM detections    
-        WHERE strftime('%Y-%m-%d', detection_time) = ? AND strftime('%H', detection_time) = ?    
-        ORDER BY detection_time   
+    query = f'''
+        SELECT
+            {DETECTION_SELECT},
+            COALESCE(
+                birdnames_db.birdnames.common_name,
+                detections.display_name
+            ) AS common_name
+        FROM detections
+        LEFT JOIN birdnames_db.birdnames
+        ON detections.display_name = birdnames_db.birdnames.scientific_name
+        WHERE strftime('%Y-%m-%d', detections.detection_time) = ?
+        AND strftime('%H', detections.detection_time) = ?
+        ORDER BY detections.detection_time
     '''
 
     cursor.execute(query, (date, str(hour).zfill(2)))
     records = cursor.fetchall()
-   
-    # Append the common name for each record
-    result = []
-    for record in records:
-        common_name = get_common_name(record['display_name'])  # Access the field by name
-        record_dict = dict(record)
-
-        record_dict['common_name'] = common_name
-
-        if record_dict.get(
-            'wamf_snapshot_path'
-        ):
-            record_dict['snapshot_file'] = (
-                record_dict[
-                    'wamf_snapshot_path'
-                ].split('/')[-1]
-            )
-
-        if record_dict.get(
-            'wamf_clip_path'
-        ):
-            record_dict['clip_file'] = (
-                record_dict[
-                    'wamf_clip_path'
-                ].split('/')[-1]
-         )
-
-        result.append(
-            record_dict
-        )
-
     conn.close()
 
-    return result
+    return [
+        detection_row_to_dict(record)
+        for record in records
+    ]
 
 
 def get_records_for_scientific_name_and_date(
@@ -316,21 +311,27 @@ def get_records_for_scientific_name_and_date(
     per_page
 ):
 
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
-
+    conn = connect_db(DBPATH)
+    attach_names_db(conn, NAMEDBPATH)
     cursor = conn.cursor()
 
     offset = (
         page - 1
     ) * per_page
 
-    query = """
-        SELECT *
+    query = f"""
+        SELECT
+            {DETECTION_SELECT},
+            COALESCE(
+                birdnames_db.birdnames.common_name,
+                detections.display_name
+            ) AS common_name
         FROM detections
-        WHERE display_name = ?
-        AND strftime('%Y-%m-%d', detection_time) = ?
-        ORDER BY detection_time DESC
+        LEFT JOIN birdnames_db.birdnames
+        ON detections.display_name = birdnames_db.birdnames.scientific_name
+        WHERE detections.display_name = ?
+        AND strftime('%Y-%m-%d', detections.detection_time) = ?
+        ORDER BY detections.detection_time DESC
         LIMIT ?
         OFFSET ?
     """
@@ -346,51 +347,19 @@ def get_records_for_scientific_name_and_date(
     )
 
     records = cursor.fetchall()
-
-    result = []
-
-    for record in records:
-
-        record_dict = dict(record)
-
-        record_dict['common_name'] = (
-            get_common_name(
-                record['display_name']
-            )
-        )
-
-        record_dict['snapshot_file'] = (
-            Path(
-                record['wamf_snapshot_path']
-            ).name
-            if record['wamf_snapshot_path']
-            else None
-        )
-
-        record_dict['clip_file'] = (
-            Path(
-                record['wamf_clip_path']
-            ).name
-            if record['wamf_clip_path']
-            else None
-        )
-
-        result.append(
-            record_dict
-        )
-
     conn.close()
 
-    return result
+    return [
+        detection_row_to_dict(record)
+        for record in records
+    ]
 
 def get_detection_count_for_scientific_name_and_date(
     scientific_name,
     date
 ):
 
-    conn = sqlite3.connect(
-        DBPATH
-    )
+    conn = connect_db(DBPATH)
 
     cursor = conn.cursor()
 
@@ -414,7 +383,7 @@ def get_detection_count_for_scientific_name_and_date(
     return count
 
 def get_earliest_detection_date():
-    conn = sqlite3.connect(DBPATH)
+    conn = connect_db(DBPATH)
     cursor = conn.cursor()
     cursor.execute("SELECT MIN(date(detection_time)) FROM detections")
     earliest_date = cursor.fetchone()[0]
@@ -426,9 +395,8 @@ def get_earliest_detection_date():
 
 
 def get_activity_by_hour(date_str):
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
-
+    conn = connect_db(DBPATH)
+    
     rows = conn.execute("""
         SELECT
             strftime('%H', detection_time) as hour,
@@ -445,10 +413,9 @@ def get_activity_by_hour(date_str):
 
 
 def get_top_species(date_str):
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
-
-    conn.execute("ATTACH DATABASE 'birdnames.db' AS birdnames_db")
+    conn = connect_db(DBPATH)
+    
+    attach_names_db(conn, NAMEDBPATH)
 
     rows = conn.execute("""
         SELECT
@@ -481,15 +448,23 @@ def get_top_species(date_str):
 
 
 def get_latest_visitor():
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
-
-    conn.execute("ATTACH DATABASE 'birdnames.db' AS birdnames_db")
+    conn = connect_db(DBPATH)
+    
+    attach_names_db(conn, NAMEDBPATH)
 
     row = conn.execute("""
         SELECT
-            detections.display_name AS scientific_name,           
-            detections.*,
+            detections.display_name AS scientific_name,
+            detections.id,
+            detections.detection_time,
+            detections.detection_index,
+            detections.score,
+            detections.display_name,
+            detections.category_name,
+            detections.frigate_event,
+            detections.camera_name,
+            detections.wamf_snapshot_path,
+            detections.wamf_clip_path,
 
             COALESCE(
                 birdnames_db.birdnames.common_name,
@@ -513,10 +488,9 @@ def get_latest_visitor():
 
 def get_species_peak_hours(date_str):
 
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
-
-    conn.execute("ATTACH DATABASE 'birdnames.db' AS birdnames_db")
+    conn = connect_db(DBPATH)
+    
+    attach_names_db(conn, NAMEDBPATH)
 
     rows = conn.execute("""
 
@@ -567,9 +541,8 @@ def get_species_peak_hours(date_str):
 
 def get_species_stats(scientific_name):
 
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
-
+    conn = connect_db(DBPATH)
+    
     row = conn.execute("""
 
         SELECT
@@ -600,12 +573,9 @@ def get_species_stats_for_date(
     date
 ):
 
-    conn = sqlite3.connect(
-        DBPATH
-    )
+    conn = connect_db(DBPATH)
 
-    conn.row_factory = sqlite3.Row
-
+    
     row = conn.execute(
         """
 
@@ -643,9 +613,8 @@ def get_species_stats_for_date(
 
 def get_species_activity_by_hour(scientific_name):
 
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
-
+    conn = connect_db(DBPATH)
+    
     rows = conn.execute("""
 
         SELECT
@@ -670,9 +639,8 @@ def get_species_activity_by_hour(scientific_name):
 
 def get_admin_stats():
 
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
-    
+    conn = connect_db(DBPATH)
+        
     total_detections = conn.execute("""
         SELECT COUNT(*) AS count
         FROM detections
@@ -723,11 +691,9 @@ def get_admin_stats():
 
 def get_recent_system_events(limit=100, event_type=None):
 
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
-
-    conn.row_factory = sqlite3.Row
-
+    conn = connect_db(DBPATH)
+    
+    
     cursor = conn.cursor()
 
     if event_type:
@@ -784,17 +750,19 @@ def get_recent_system_events(limit=100, event_type=None):
 
     return formatted_rows
 
-from datetime import datetime
 
 def get_retention_status():
 
-    conn = sqlite3.connect(DBPATH)
-    conn.row_factory = sqlite3.Row
-
+    conn = connect_db(DBPATH)
+    
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT *
+        SELECT
+            last_run,
+            rows_scanned,
+            orphan_count,
+            missing_count
         FROM retention_status
         LIMIT 1
     """)

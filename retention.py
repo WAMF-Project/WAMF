@@ -2,10 +2,10 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 from system_events import log_system_event
-import sqlite3
+from db import connect_db, DB_PATH as DEFAULT_DB_PATH
 import yaml
 
-DB_PATH = "data/speciesid.db"
+DB_PATH = DEFAULT_DB_PATH
 
 
 def load_config():
@@ -42,8 +42,7 @@ def dry_run_retention():
 
     pending_events = []
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(DB_PATH)
 
     cursor = conn.cursor()
 
@@ -158,8 +157,7 @@ def scan_for_orphans():
 
     pending_events = []
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(DB_PATH)
 
     cursor = conn.cursor()
 

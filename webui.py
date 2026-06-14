@@ -23,13 +23,19 @@ from health import get_system_health
 from version import VERSION
 from species_metadata import fetch_species_metadata
 from system_events import log_system_event
+from db import (
+    connect_db,
+    ensure_schema,
+    DB_PATH as DEFAULT_DB_PATH,
+    NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
+)
 import shutil
 import glob
 
 app = Flask(__name__)
 config = None
-DBPATH = './data/speciesid.db'
-NAMEDBPATH = './birdnames.db'
+DBPATH = DEFAULT_DB_PATH
+NAMEDBPATH = DEFAULT_NAMES_DB_PATH
 LOGIN_ATTEMPTS = {}
 LOGIN_ATTEMPT_LIMIT = 5
 LOGIN_WINDOW_SECONDS = 300
@@ -595,8 +601,7 @@ def delete_detection(frigate_event):
 
     conn = None
     try:
-        conn = sqlite3.connect(DBPATH)
-        conn.row_factory = sqlite3.Row
+        conn = connect_db(DBPATH)
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -1146,3 +1151,4 @@ def load_config():
 
 
 load_config()
+ensure_schema(DBPATH)

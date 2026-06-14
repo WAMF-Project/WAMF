@@ -1,8 +1,8 @@
 from datetime import datetime
-import sqlite3
+from db import connect_db, DB_PATH as DEFAULT_DB_PATH
 
 
-DB_PATH = "data/speciesid.db"
+DB_PATH = DEFAULT_DB_PATH
 
 
 def log_system_event(
@@ -11,7 +11,7 @@ def log_system_event(
     message
 ):
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect_db(DB_PATH, row_factory=False)
 
     cursor = conn.cursor()
 

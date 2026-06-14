@@ -80,6 +80,13 @@ def _create_det_db(path: str) -> None:
             missing_count INTEGER
         )
     """)
+    conn.execute("""
+        INSERT INTO species_info
+            (scientific_name, common_name, description, wikipedia_url, last_updated, thumbnail_url)
+        VALUES
+            ('Turdus migratorius', 'American Robin', 'A familiar thrush.', 'https://example.com/robin', '2024-06-01 00:00:00', 'https://example.com/robin.jpg'),
+            ('Cyanocitta cristata', 'Blue Jay', 'A blue corvid.', 'https://example.com/blue-jay', '2024-06-01 00:00:00', 'https://example.com/blue-jay.jpg')
+    """)
     conn.commit()
     conn.close()
 
