@@ -21,7 +21,13 @@ DETECTION_SELECT = ', '.join(f'detections.{column}' for column in DETECTION_COLU
 
 
 def connect_db(db_path=None, row_factory=True):
-    conn = sqlite3.connect(db_path or DB_PATH)
+    target_path = db_path or DB_PATH
+
+    # SQLite creates missing database files, but not missing parent directories.
+    if target_path != ':memory:':
+        Path(target_path).parent.mkdir(parents=True, exist_ok=True)
+
+    conn = sqlite3.connect(target_path)
 
     if row_factory:
         conn.row_factory = sqlite3.Row

@@ -44,3 +44,23 @@ def test_ensure_schema_adds_missing_media_columns_and_indexes(tmp_path):
     assert "idx_detections_display_time" in indexes
     assert "idx_detections_frigate_event" in indexes
     assert "003_query_indexes" in migrations
+
+
+def test_ensure_schema_creates_missing_parent_directory(tmp_path):
+    db_path = tmp_path / "nested" / "data" / "speciesid.db"
+
+    ensure_schema(str(db_path))
+
+    assert db_path.exists()
+
+    conn = sqlite3.connect(db_path)
+    tables = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    }
+    conn.close()
+
+    assert "detections" in tables
+    assert "schema_migrations" in tables
