@@ -240,7 +240,7 @@ def test_frigate_thumbnail_timeout_returns_fallback(flask_client, monkeypatch):
     import requests as req
     def fake_get(*a, **kw):
         raise req.exceptions.Timeout("timed out")
-    monkeypatch.setattr("webui.requests.get", fake_get)
+    monkeypatch.setattr("frigate_proxy.requests.get", fake_get)
     response = flask_client.get("/frigate/evt-test/thumbnail.jpg")
     assert response.status_code == 200
     assert response.content_type == "image/png"
@@ -250,7 +250,7 @@ def test_frigate_snapshot_timeout_returns_fallback(flask_client, monkeypatch):
     import requests as req
     def fake_get(*a, **kw):
         raise req.exceptions.Timeout("timed out")
-    monkeypatch.setattr("webui.requests.get", fake_get)
+    monkeypatch.setattr("frigate_proxy.requests.get", fake_get)
     response = flask_client.get("/frigate/evt-test/snapshot.jpg")
     assert response.status_code == 200
     assert response.content_type == "image/png"
@@ -260,7 +260,7 @@ def test_frigate_clip_timeout_returns_fallback(flask_client, monkeypatch):
     import requests as req
     def fake_get(*a, **kw):
         raise req.exceptions.Timeout("timed out")
-    monkeypatch.setattr("webui.requests.get", fake_get)
+    monkeypatch.setattr("frigate_proxy.requests.get", fake_get)
     response = flask_client.get("/frigate/evt-test/clip.mp4")
     assert response.status_code == 200
 
@@ -272,6 +272,23 @@ def test_frigate_clip_timeout_returns_fallback(flask_client, monkeypatch):
 def test_by_scientific_name_no_end_date_returns_200(flask_client):
     response = flask_client.get("/detections/by_scientific_name/Turdus%20migratorius/2024-06-01")
     assert response.status_code == 200
+
+
+def test_species_page_queues_metadata_refresh_without_fetching(flask_client, monkeypatch):
+    import webui
+
+    queued = []
+    monkeypatch.setattr(webui, "get_species_info", lambda _name: None)
+    monkeypatch.setattr(webui, "queue_metadata_refresh", lambda name: queued.append(name))
+    monkeypatch.setattr(
+        webui,
+        "refresh_species_metadata_task",
+        lambda _name: (_ for _ in ()).throw(AssertionError("metadata fetch should not run during page render"))
+    )
+
+    response = flask_client.get("/detections/by_scientific_name/Turdus%20migratorius/2024-06-01")
+    assert response.status_code == 200
+    assert queued == ["Turdus migratorius"]
 
 
 def test_by_scientific_name_with_end_date_returns_501(flask_client):

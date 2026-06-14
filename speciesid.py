@@ -1,4 +1,5 @@
 import sqlite3
+import logging
 import numpy as np
 from datetime import datetime
 import time
@@ -27,6 +28,7 @@ from db import connect_db, ensure_schema, DB_PATH as DEFAULT_DB_PATH
 classifier = None
 config = None
 firstmessage = True
+logger = logging.getLogger(__name__)
 
 DBPATH = DEFAULT_DB_PATH
 DEFAULT_MQTT_PORT = 1883
@@ -71,8 +73,11 @@ def on_disconnect(client, userdata, rc):
             try:
                 client.reconnect()
                 break
-            except Exception as e:
-                print(f"Reconnection failed due to {e}, retrying in 60 seconds", flush=True)
+            except (OSError, RuntimeError) as e:
+                logger.warning(
+                    "MQTT reconnection failed; retrying in 60 seconds: %s",
+                    e,
+                )
                 time.sleep(60)
     else:
         print("Expected disconnection", flush=True)
@@ -190,15 +195,18 @@ def on_message(client, userdata, message):
             message
         )
 
-    except Exception as e:
+    except (
+        json.JSONDecodeError,
+        KeyError,
+        TypeError,
+        ValueError,
+        sqlite3.Error,
+        requests.exceptions.RequestException,
+        OSError,
+        AttributeError,
+    ) as e:
 
-        print(
-            f"ERROR in on_message (unhandled): {e}",
-            flush=True
-        )
-
-        import traceback
-        traceback.print_exc()
+        logger.exception("ERROR in on_message: %s", e)
 
 
 def _on_message_inner(client, userdata, message):

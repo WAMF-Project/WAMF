@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, send_file, abort, send_from_directory, jsonify, session, flash
+from flask import Flask, render_template, request, redirect, url_for, send_file, abort, jsonify, session, flash
 import os
 import hmac
+import logging
 import re
 import secrets
 import time
@@ -9,7 +10,6 @@ import base64
 from datetime import datetime, date
 from urllib.parse import urlsplit
 import yaml
-import requests
 from io import BytesIO
 from pathlib import Path
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -17,12 +17,17 @@ from queries import recent_detections, get_daily_summary, get_common_name, get_r
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
 from queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events, get_retention_status
-from queries import get_species_info, save_species_info, get_all_species_info, get_detection_count_for_scientific_name_and_date
+from queries import get_species_info, get_all_species_info, get_detection_count_for_scientific_name_and_date
 from queries import get_species_stats_for_date
 from health import get_system_health
 from version import VERSION
-from species_metadata import fetch_species_metadata
 from system_events import log_system_event
+from frigate_proxy import proxy_frigate_media
+from metadata_tasks import (
+    queue_metadata_refresh,
+    refresh_species_metadata as refresh_species_metadata_task,
+    species_needs_metadata,
+)
 from db import (
     connect_db,
     ensure_schema,
@@ -33,6 +38,7 @@ import shutil
 import glob
 
 app = Flask(__name__)
+logger = logging.getLogger(__name__)
 config = None
 DBPATH = DEFAULT_DB_PATH
 NAMEDBPATH = DEFAULT_NAMES_DB_PATH
@@ -436,50 +442,32 @@ def recent_feed():
 
 @app.route('/frigate/<frigate_event>/thumbnail.jpg')
 def frigate_thumbnail(frigate_event):
-    frigate_url = config['frigate']['frigate_url']
-    try:
-        response = requests.get(
-            f'{frigate_url}/api/events/{frigate_event}/thumbnail.jpg',
-            stream=True, timeout=5)
-        if response.status_code == 200:
-            return send_file(response.raw, mimetype=response.headers['Content-Type'])
-        else:
-            return send_from_directory('static/images', '1x1.png', mimetype='image/png')
-    except Exception as e:
-        print(f"Error fetching thumbnail from frigate: {e}", flush=True)
-        return send_from_directory('static/images', '1x1.png', mimetype='image/png')
+    return proxy_frigate_media(
+        config['frigate']['frigate_url'],
+        frigate_event,
+        'thumbnail.jpg',
+        timeout=5
+    )
 
 
 @app.route('/frigate/<frigate_event>/snapshot.jpg')
 def frigate_snapshot(frigate_event):
-    frigate_url = config['frigate']['frigate_url']
-    try:
-        response = requests.get(
-            f'{frigate_url}/api/events/{frigate_event}/snapshot.jpg',
-            stream=True, timeout=5)
-        if response.status_code == 200:
-            return send_file(response.raw, mimetype=response.headers['Content-Type'])
-        else:
-            return send_from_directory('static/images', '1x1.png', mimetype='image/png')
-    except Exception as e:
-        print(f"Error fetching snapshot from frigate: {e}", flush=True)
-        return send_from_directory('static/images', '1x1.png', mimetype='image/png')
+    return proxy_frigate_media(
+        config['frigate']['frigate_url'],
+        frigate_event,
+        'snapshot.jpg',
+        timeout=5
+    )
 
 
 @app.route('/frigate/<frigate_event>/clip.mp4')
 def frigate_clip(frigate_event):
-    frigate_url = config['frigate']['frigate_url']
-    try:
-        response = requests.get(
-            f'{frigate_url}/api/events/{frigate_event}/clip.mp4',
-            stream=True, timeout=30)
-        if response.status_code == 200:
-            return send_file(response.raw, mimetype=response.headers['Content-Type'])
-        else:
-            return send_from_directory('static/images', '1x1.png', mimetype='image/png')
-    except Exception as e:
-        print(f"Error fetching clip from frigate: {e}", flush=True)
-        return send_from_directory('static/images', '1x1.png', mimetype='image/png')
+    return proxy_frigate_media(
+        config['frigate']['frigate_url'],
+        frigate_event,
+        'clip.mp4',
+        timeout=30
+    )
 
 @app.route('/wamf/snapshot/<path:filename>')
 def wamf_snapshot(filename):
@@ -510,8 +498,8 @@ def show_detections_by_scientific_name(scientific_name, date, end_date):
         1,
         type=int
     )
-    print(f"scientific_name = [{scientific_name}]")
-    print(f"date = [{date}]")
+    logger.debug("scientific_name = [%s]", scientific_name)
+    logger.debug("date = [%s]", date)
 
     if end_date is not None:
         return jsonify({"error": "Date range queries are not yet implemented."}), 501
@@ -527,36 +515,16 @@ def show_detections_by_scientific_name(scientific_name, date, end_date):
         total_records + per_page - 1
     ) // per_page
     records = get_records_for_scientific_name_and_date(scientific_name, date, page, per_page)
-    print(f"scientific_name = [{scientific_name}]")
-    print(f"date = [{date}]")
+    logger.debug("scientific_name = [%s]", scientific_name)
+    logger.debug("date = [%s]", date)
     species_stats = get_species_stats_for_date(scientific_name, date)
     species_info = get_species_info(
         scientific_name
     )
 
-    if (
-        not species_info
-        or not species_info["description"]
-        or not species_info["thumbnail_url"]
-    ):
-
-        metadata = fetch_species_metadata(
-            scientific_name
-        )
-
-        save_species_info(
-            scientific_name=scientific_name,
-            common_name=get_common_name(
-                scientific_name
-            ),
-            description=metadata["description"],
-            wikipedia_url=metadata["wikipedia_url"],
-            thumbnail_url=metadata["thumbnail_url"]
-        )
-
-        species_info = get_species_info(
-            scientific_name
-        )
+    # Metadata can require a network call, so queue it instead of delaying page render.
+    if species_needs_metadata(species_info):
+        queue_metadata_refresh(scientific_name)
     
     species_activity = get_species_activity_by_hour(
         scientific_name
@@ -627,10 +595,10 @@ def delete_detection(frigate_event):
         )
         conn.commit()
     except sqlite3.Error as e:
-        print(f"Error deleting detection '{frigate_event}': {e}", flush=True)
+        logger.warning("Error deleting detection %s: %s", frigate_event, e)
         return jsonify({"success": False, "message": "Unable to delete detection."}), 500
     except OSError as e:
-        print(f"Error deleting media for detection '{frigate_event}': {e}", flush=True)
+        logger.warning("Error deleting media for detection %s: %s", frigate_event, e)
         return jsonify({"success": False, "message": "Unable to delete detection media."}), 500
     finally:
         if conn:
@@ -761,19 +729,7 @@ def admin_species():
 
 def refresh_species_metadata(scientific_name):
 
-    metadata = fetch_species_metadata(
-        scientific_name
-    )
-
-    save_species_info(
-        scientific_name=scientific_name,
-        common_name=get_common_name(
-            scientific_name
-        ),
-        description=metadata["description"],
-        wikipedia_url=metadata["wikipedia_url"],
-        thumbnail_url=metadata["thumbnail_url"]
-    ) 
+    refresh_species_metadata_task(scientific_name)
 
 @app.route('/admin/species/refresh/<path:scientific_name>', methods=['POST'])
 

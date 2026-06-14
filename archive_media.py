@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 import time
 
 import requests
@@ -6,6 +7,7 @@ from system_events import log_system_event
 
 WAMF_SNAPSHOT_DIR = Path("media/wamf/snapshots")
 WAMF_CLIP_DIR = Path("media/wamf/clips")
+logger = logging.getLogger(__name__)
 
 
 def archive_snapshot(
@@ -32,7 +34,7 @@ def archive_snapshot(
 
         if response.status_code != 200:
 
-            print(
+            logger.warning(
                 f"Snapshot download failed: "
                 f"{response.status_code}"
             )
@@ -42,17 +44,19 @@ def archive_snapshot(
         with open(destination, "wb") as f:
             f.write(response.content)
 
-        print(
-            f"Archived snapshot: {destination}"
-        )
+        logger.info("Archived snapshot: %s", destination)
 
         return str(destination)
 
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
 
-        print(
-            f"Snapshot archive error: {e}"
-        )
+        logger.warning("Snapshot archive request error: %s", e)
+
+        return None
+
+    except OSError as e:
+
+        logger.warning("Snapshot archive file error: %s", e)
 
         return None
 
@@ -85,9 +89,10 @@ def archive_clip(
             if response.status_code == 200:
                 break
 
-            print(
-                f"Clip not ready yet "
-                f"(attempt {attempt + 1})"
+            logger.info(
+                "Clip not ready yet for event %s (attempt %s)",
+                frigate_event,
+                attempt + 1,
             )
 
             log_system_event(
@@ -102,9 +107,10 @@ def archive_clip(
 
         else:
 
-            print(
-                f"Clip download failed: "
-                f"{response.status_code}"
+            logger.error(
+                "Clip download failed for event %s: %s",
+                frigate_event,
+                response.status_code,
             )
 
             log_system_event(
@@ -125,9 +131,7 @@ def archive_clip(
                 if chunk:
                     f.write(chunk)
 
-        print(
-            f"Archived clip: {destination}"
-        )
+        logger.info("Archived clip: %s", destination)
 
         log_system_event(
             "INFO",
@@ -138,10 +142,14 @@ def archive_clip(
 
         return str(destination)
 
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
 
-        print(
-            f"Clip archive error: {e}"
-        )
+        logger.warning("Clip archive request error: %s", e)
+
+        return None
+
+    except OSError as e:
+
+        logger.warning("Clip archive file error: %s", e)
 
         return None

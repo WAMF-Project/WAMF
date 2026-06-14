@@ -1,4 +1,6 @@
 from pathlib import Path
+import logging
+import sqlite3
 
 import requests
 import yaml
@@ -7,6 +9,7 @@ import shutil
 from db import connect_db, DB_PATH as DEFAULT_DB_PATH
 
 DB_PATH = DEFAULT_DB_PATH
+logger = logging.getLogger(__name__)
 
 def load_config():
 
@@ -36,7 +39,8 @@ def get_system_health():
             response.status_code == 200
         )
 
-    except Exception:
+    except requests.exceptions.RequestException as exc:
+        logger.debug("Frigate health check failed: %s", exc)
 
         health["frigate_online"] = False
 
@@ -56,7 +60,8 @@ def get_system_health():
             frigate_used_percent
         )
 
-    except Exception:
+    except OSError as exc:
+        logger.debug("Frigate disk usage check failed: %s", exc)
 
         health["frigate_disk_percent"] = None
         # MQTT connectivity
@@ -74,7 +79,8 @@ def get_system_health():
 
         health["mqtt_online"] = True
 
-    except Exception:
+    except OSError as exc:
+        logger.debug("MQTT health check failed: %s", exc)
 
         health["mqtt_online"] = False
 
@@ -89,7 +95,8 @@ def get_system_health():
 
         health["database_healthy"] = True
 
-    except Exception:
+    except sqlite3.Error as exc:
+        logger.debug("Database health check failed: %s", exc)
 
         health["database_healthy"] = False
 
