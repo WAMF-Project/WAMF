@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, send_file,
 import os
 import hmac
 import logging
-import re
 import secrets
 import time
 import sqlite3
@@ -34,8 +33,14 @@ from db import (
     DB_PATH as DEFAULT_DB_PATH,
     NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
 )
-import shutil
-import glob
+from config_editor import (
+    get_config_file_metadata,
+    get_config_path,
+    strip_admin_config_block,
+    update_admin_password_hash,
+    update_api_token_hash,
+    write_config_preserving_admin,
+)
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
@@ -838,139 +843,6 @@ def admin_health():
         )
     })
 
-def strip_sensitive_config_blocks(config_content):
-    lines = config_content.splitlines()
-    kept = []
-    skipping_sensitive = False
-
-    for line in lines:
-        stripped = line.strip()
-        indent = len(line) - len(line.lstrip())
-
-        if skipping_sensitive:
-            if not stripped or line.lstrip().startswith('#') or indent > 0:
-                continue
-            skipping_sensitive = False
-
-        if indent == 0 and re.match(r'^(admin|api)\s*:', line):
-            skipping_sensitive = True
-            continue
-
-        kept.append(line)
-
-    return '\n'.join(kept).strip() + '\n'
-
-
-def strip_admin_config_block(config_content):
-    return strip_sensitive_config_blocks(config_content)
-
-
-def load_config_file_content():
-    with open(get_config_path(), 'r') as config_file:
-        return config_file.read()
-
-
-def load_config_from_content(config_content):
-    return yaml.safe_load(config_content) or {}
-
-
-def get_existing_admin_config():
-    current_config = load_config_from_content(load_config_file_content())
-    return current_config.get('admin')
-
-
-def get_existing_api_config():
-    current_config = load_config_from_content(load_config_file_content())
-    return current_config.get('api')
-
-
-def append_sensitive_config_blocks(config_content, admin_config, api_config):
-    sanitized_content = strip_sensitive_config_blocks(config_content).rstrip()
-    sensitive_config = {}
-
-    if admin_config:
-        sensitive_config['admin'] = admin_config
-
-    if api_config:
-        sensitive_config['api'] = api_config
-
-    if not sensitive_config:
-        return sanitized_content + '\n'
-
-    sensitive_content = yaml.safe_dump(
-        sensitive_config,
-        sort_keys=False
-    ).strip()
-
-    return f"{sanitized_content}\n\n{sensitive_content}\n"
-
-
-def write_config_preserving_admin(config_content, admin_config=None, api_config=None):
-    if admin_config is None:
-        admin_config = get_existing_admin_config()
-
-    if api_config is None:
-        api_config = get_existing_api_config()
-
-    sanitized_content = strip_sensitive_config_blocks(config_content)
-    load_config_from_content(sanitized_content)
-    final_content = append_sensitive_config_blocks(
-        sanitized_content,
-        admin_config,
-        api_config
-    )
-    load_config_from_content(final_content)
-
-    backup_path = (
-        f"{get_config_path()}."
-        f"{datetime.now().strftime('%Y%m%d-%H%M%S')}.bak"
-    )
-
-    shutil.copy2(
-        get_config_path(),
-        backup_path
-    )
-
-    with open(
-        get_config_path(),
-        'w'
-    ) as config_file:
-
-        config_file.write(
-            final_content
-        )
-
-    load_config()
-
-
-def update_admin_password_hash(password_hash):
-    current_content = load_config_file_content()
-    current_config = load_config_from_content(current_content)
-    admin_config = current_config.get('admin', {})
-    admin_config['password_hash'] = password_hash
-    write_config_preserving_admin(current_content, admin_config)
-
-
-def update_api_token_hash(token_hash):
-    current_content = load_config_file_content()
-    current_config = load_config_from_content(current_content)
-    api_config = current_config.get('api', {})
-    api_config.setdefault('token_auth_enabled', True)
-    api_config['token_hash'] = token_hash
-    write_config_preserving_admin(
-        current_content,
-        current_config.get('admin'),
-        api_config
-    )
-
-
-def get_config_path():
-
-    return os.environ.get(
-        'WHOSATMYFEEDER_CONFIG',
-        './config/config.yml'
-    )
-
 @app.route('/admin/config')
 def admin_config():
 
@@ -981,31 +853,15 @@ def admin_config():
 
         config_content = strip_admin_config_block(config_file.read())
 
-        file_size = os.path.getsize(
-        get_config_path()
-    )
-
-    last_modified = datetime.fromtimestamp(
-        os.path.getmtime(
-            get_config_path()
-        )
-    ).strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-
-    backup_count = len(
-    glob.glob(
-        f"{get_config_path()}.*.bak"
-    )
-)
+    metadata = get_config_file_metadata()
 
     return render_template(
         'admin_config.html',
         config_content=config_content,
-        config_path=get_config_path(),
-        file_size=file_size,
-        last_modified=last_modified,
-        backup_count=backup_count
+        config_path=metadata['config_path'],
+        file_size=metadata['file_size'],
+        last_modified=metadata['last_modified'],
+        backup_count=metadata['backup_count']
     )   
 
 @app.route(
@@ -1024,7 +880,8 @@ def save_config():
     try:
 
         write_config_preserving_admin(
-            config_content
+            config_content,
+            reload_callback=load_config
         )
 
         log_system_event(
@@ -1065,7 +922,8 @@ def change_password():
             error = 'New passwords do not match.'
         else:
             update_admin_password_hash(
-                generate_password_hash(new_password)
+                generate_password_hash(new_password),
+                reload_callback=load_config
             )
             flash('Admin password updated.')
             return redirect(url_for('change_password'))
@@ -1085,7 +943,8 @@ def admin_api_token():
 
         generated_token = secrets.token_urlsafe(32)
         update_api_token_hash(
-            generate_password_hash(generated_token)
+            generate_password_hash(generated_token),
+            reload_callback=load_config
         )
         flash('API token generated. Store it now; it cannot be recovered later.')
 

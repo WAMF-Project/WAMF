@@ -35,6 +35,12 @@ DEFAULT_MQTT_PORT = 1883
 DEFAULT_INSECURE_TLS = False
 
 
+def configure_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s [%(name)s] %(message)s'
+    )
+
 
 def classify(image):
 
@@ -54,7 +60,7 @@ def classify(image):
 
 
 def on_connect(client, userdata, flags, rc):
-    print("MQTT Connected", flush=True)
+    logger.info("MQTT connected")
 
     log_system_event(
         event_type="MQTT",
@@ -68,7 +74,7 @@ def on_connect(client, userdata, flags, rc):
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
-        print("Unexpected disconnection, trying to reconnect", flush=True)
+        logger.warning("Unexpected MQTT disconnection, trying to reconnect")
         while True:
             try:
                 client.reconnect()
@@ -80,7 +86,7 @@ def on_disconnect(client, userdata, rc):
                 )
                 time.sleep(60)
     else:
-        print("Expected disconnection", flush=True)
+        logger.info("Expected MQTT disconnection")
 
 
 def publish_new_species(client, common_name, scientific_name, score, camera_name, frigate_event):
@@ -166,24 +172,14 @@ def set_sublabel(frigate_url, frigate_event, sublabel):
         )
 
     except requests.exceptions.RequestException as e:
-        print(
-            f"Failed to set sublabel (request error): {e}",
-            flush=True
-        )
+        logger.warning("Failed to set sublabel due to request error: %s", e)
         return
 
     if response.status_code == 200:
-        print(
-            "Sublabel set successfully to: " + sublabel,
-            flush=True
-        )
+        logger.info("Sublabel set successfully to: %s", sublabel)
 
     else:
-        print(
-            "Failed to set sublabel. Status code:",
-            response.status_code,
-            flush=True
-        )
+        logger.warning("Failed to set sublabel. Status code: %s", response.status_code)
 
 
 def on_message(client, userdata, message):
@@ -249,27 +245,15 @@ def _on_message_inner(client, userdata, message):
                     + "/snapshot.jpg"
                 )
 
-                print(
-                    "Getting image for event: "
-                    + frigate_event,
-                    flush=True
-                )
-
-                print(
-                    "Here's the URL: "
-                    + snapshot_url,
-                    flush=True
-                )
+                logger.info("Getting image for event: %s", frigate_event)
+                logger.debug("Snapshot URL: %s", snapshot_url)
 
                 params = {
                     "crop": 1,
                     "quality": 95
                 }
 
-                print(
-                    "Fetching snapshot...",
-                    flush=True
-                )
+                logger.info("Fetching snapshot")
 
                 try:
 
@@ -281,17 +265,11 @@ def _on_message_inner(client, userdata, message):
 
                 except requests.exceptions.RequestException as e:
 
-                    print(
-                        f"Error: Could not retrieve the image (request error): {e}",
-                        flush=True
-                    )
+                    logger.warning("Could not retrieve image due to request error: %s", e)
 
                     return
 
-                print(
-                    f"Snapshot HTTP {response.status_code}",
-                    flush=True
-                )
+                logger.info("Snapshot HTTP %s", response.status_code)
 
                 if response.status_code == 200:
 
@@ -329,16 +307,8 @@ def _on_message_inner(client, userdata, message):
                         np_arr
                     )
 
-                    print(
-                        f"Image shape: {np_arr.shape} "
-                        f"dtype: {np_arr.dtype}",
-                        flush=True
-                    )
-
-                    print(
-                        "Classifying...",
-                        flush=True
-                    )
+                    logger.debug("Image shape: %s dtype: %s", np_arr.shape, np_arr.dtype)
+                    logger.info("Classifying snapshot")
 
                     categories = classify(np_arr)
 
@@ -374,10 +344,7 @@ def _on_message_inner(client, userdata, message):
                         + str(category)
                     )
 
-                    print(
-                        result_text,
-                        flush=True
-                    )
+                    logger.info("Classification result: %s", result_text)
 
                     # 964 = background
                     if (
@@ -422,10 +389,7 @@ def _on_message_inner(client, userdata, message):
 
                         if result is None:
 
-                            print(
-                                "No record yet for this event. Storing.",
-                                flush=True
-                            )
+                            logger.info("No record yet for event %s. Storing.", frigate_event)
 
                             
 
@@ -485,9 +449,9 @@ def _on_message_inner(client, userdata, message):
 
                             if cursor.fetchone()[0] == 1:
 
-                                print(
-                                    f"New species detected for the first time: {common_name}",
-                                    flush=True
+                                logger.info(
+                                    "New species detected for the first time: %s",
+                                    common_name,
                                 )
 
                                 publish_new_species(
@@ -501,19 +465,16 @@ def _on_message_inner(client, userdata, message):
 
                         else:
 
-                            print(
-                                "There is already a record for this event. Checking score",
-                                flush=True
+                            logger.info(
+                                "Record already exists for event %s. Checking score.",
+                                frigate_event,
                             )
 
                             existing_score = result[3]
 
                             if score > existing_score:
 
-                                print(
-                                    "New score is higher. Updating record with higher score.",
-                                    flush=True
-                                )
+                                logger.info("New score is higher. Updating record.")
 
                                 cursor.execute(
                                     """
@@ -543,10 +504,7 @@ def _on_message_inner(client, userdata, message):
 
                             else:
 
-                                print(
-                                    "New score is lower.",
-                                    flush=True
-                                )
+                                logger.info("New score is lower. Keeping existing record.")
 
                         conn.commit()
 
@@ -593,11 +551,11 @@ def _on_message_inner(client, userdata, message):
 
                             if scientific_name:
 
-                                print(
-                                    f"WAMF below threshold; using Frigate sub_label: "
-                                    f"{frigate_common} "
-                                    f"(WAMF score: {frigate_score:.2f})",
-                                    flush=True
+                                logger.info(
+                                    "WAMF below threshold; using Frigate sub_label: "
+                                    "%s (WAMF score: %.2f)",
+                                    frigate_common,
+                                    frigate_score,
                                 )
 
                                 cursor = conn.cursor()
@@ -667,10 +625,9 @@ def _on_message_inner(client, userdata, message):
 
                                     if cursor.fetchone()[0] == 1:
 
-                                        print(
-                                            f"New species (via Frigate sub_label): "
-                                            f"{frigate_common}",
-                                            flush=True
+                                        logger.info(
+                                            "New species via Frigate sub_label: %s",
+                                            frigate_common,
                                         )
 
                                         publish_new_species(
@@ -714,20 +671,16 @@ def _on_message_inner(client, userdata, message):
 
                 else:
 
-                    print(
-                        f"Error: Could not retrieve the image. "
-                        f"Status code: {response.status_code}",
-                        flush=True
+                    logger.warning(
+                        "Could not retrieve image. Status code: %s",
+                        response.status_code,
                     )
 
         else:
 
             firstmessage = False
 
-            print(
-                "skipping first message",
-                flush=True
-            )
+            logger.info("Skipping first MQTT message")
 
     finally:
         conn.close()
@@ -753,10 +706,7 @@ def load_config():
 
 def run_webui():
 
-    print(
-        "Starting flask app",
-        flush=True
-    )
+    logger.info("Starting Flask app")
 
     app.run(
         debug=False,
@@ -789,15 +739,10 @@ def run_mqtt_client():
         options
     )
 
-    print(
-        "Classifier initialized in MQTT subprocess",
-        flush=True
-    )
-
-    print(
-        "Starting MQTT client. Connecting to: "
-        + config['frigate']['mqtt_server'],
-        flush=True
+    logger.info("Classifier initialized in MQTT subprocess")
+    logger.info(
+        "Starting MQTT client. Connecting to: %s",
+        config['frigate']['mqtt_server'],
     )
 
     now = datetime.now()
@@ -857,6 +802,7 @@ def run_mqtt_client():
 
 
 def main():
+    configure_logging()
 
     now = datetime.now()
 
@@ -874,39 +820,15 @@ def main():
 
     ...
 
-    print(
-        "Time: " + current_time,
-        flush=True
-    )
-
-    print(
-        "Python version",
-        flush=True
-    )
-
-    print(
-        sys.version,
-        flush=True
-    )
-
-    print(
-        "Version info.",
-        flush=True
-    )
-
-    print(
-        sys.version_info,
-        flush=True
-    )
+    logger.info("Time: %s", current_time)
+    logger.info("Python version: %s", sys.version)
+    logger.info("Version info: %s", sys.version_info)
 
     load_config()
 
     setupdb()
 
-    print(
-        "Starting threads for Flask and MQTT",
-        flush=True
-    )
+    logger.info("Starting processes for Flask and MQTT")
 
     flask_process = multiprocessing.Process(
         target=run_webui
@@ -926,10 +848,7 @@ def main():
 
         if not mqtt_process.is_alive():
 
-            print(
-                "WARNING: MQTT subprocess exited unexpectedly — restarting",
-                flush=True
-            )
+            logger.warning("MQTT subprocess exited unexpectedly; restarting")
 
             mqtt_process = multiprocessing.Process(
                 target=run_mqtt_client
@@ -943,9 +862,7 @@ def main():
 
 if __name__ == '__main__':
 
-    print(
-        "Calling Main",
-        flush=True
-    )
+    configure_logging()
+    logger.info("Calling main")
 
     main()
