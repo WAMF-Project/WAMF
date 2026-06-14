@@ -6,6 +6,7 @@ import requests
 import yaml
 import paho.mqtt.client as mqtt
 import shutil
+from app.config_editor import get_config_path
 from app.db import connect_db, DB_PATH as DEFAULT_DB_PATH
 
 DB_PATH = DEFAULT_DB_PATH
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def load_config():
 
-    with open("config/config.yml", "r") as f:
+    with open(get_config_path(), "r") as f:
         return yaml.safe_load(f)
 
 def get_system_health():

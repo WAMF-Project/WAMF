@@ -1,17 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for, send_file, abort, jsonify, session, flash
-import os
-import hmac
+from flask import Flask, request, redirect, url_for, jsonify, session, flash
 import logging
-import secrets
-import time
-import sqlite3
-import base64
-from datetime import datetime, date
-from urllib.parse import urlsplit
+from datetime import datetime
 import yaml
-from io import BytesIO
 from pathlib import Path
-from werkzeug.security import check_password_hash, generate_password_hash
+from app import security
 from app.queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
 from app.queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from app.queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
@@ -20,23 +12,18 @@ from app.queries import get_species_info, get_all_species_info, get_detection_co
 from app.queries import get_species_stats_for_date
 from app.health import get_system_health
 from version import VERSION
-from app.system_events import log_system_event
-from app.frigate_proxy import proxy_frigate_media
 from app.metadata_tasks import (
     queue_metadata_refresh,
     refresh_species_metadata as refresh_species_metadata_task,
     species_needs_metadata,
 )
 from app.db import (
-    connect_db,
     ensure_schema,
     DB_PATH as DEFAULT_DB_PATH,
     NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
 )
 from app.config_editor import (
-    get_config_file_metadata,
     get_config_path,
-    strip_admin_config_block,
     update_admin_password_hash,
     update_api_token_hash,
     write_config_preserving_admin,
@@ -47,10 +34,7 @@ logger = logging.getLogger(__name__)
 config = None
 DBPATH = DEFAULT_DB_PATH
 NAMEDBPATH = DEFAULT_NAMES_DB_PATH
-LOGIN_ATTEMPTS = {}
-LOGIN_ATTEMPT_LIMIT = 5
-LOGIN_WINDOW_SECONDS = 300
-LOGIN_FAILURE_DELAY_SECONDS = 0.35
+LOGIN_ATTEMPTS = security.LOGIN_ATTEMPTS
 CSRF_PROTECTED_ENDPOINTS = {
     'admin.save_config',
     'admin.change_password',
@@ -63,41 +47,31 @@ CSRF_PROTECTED_ENDPOINTS = {
 
 
 def is_admin_auth_enabled():
-    admin_config = (config or {}).get('admin', {})
-    return bool(admin_config.get('auth_enabled', False))
+    return security.is_admin_auth_enabled(config)
 
 
 def get_admin_password_hash():
-    admin_config = (config or {}).get('admin', {})
-    return admin_config.get('password_hash')
+    return security.get_admin_password_hash(config)
 
 
 def get_admin_session_secret():
-    admin_config = (config or {}).get('admin', {})
-    return os.environ.get('WAMF_SECRET_KEY') or admin_config.get('session_secret')
+    return security.get_admin_session_secret(config)
 
 
 def get_api_config():
-    return (config or {}).get('api', {})
+    return security.get_api_config(config)
 
 
 def is_api_token_auth_enabled():
-    return bool(get_api_config().get('token_auth_enabled', False))
+    return security.is_api_token_auth_enabled(config)
 
 
 def get_api_token_hash():
-    return get_api_config().get('token_hash')
+    return security.get_api_token_hash(config)
 
 
 def is_valid_api_token():
-    token = request.headers.get('X-WAMF-API-Key', '')
-    token_hash = get_api_token_hash()
-
-    return bool(
-        token
-        and token_hash
-        and check_password_hash(token_hash, token)
-    )
+    return security.is_valid_api_token(config)
 
 
 def admin_api_unauthorized_response():
@@ -108,97 +82,43 @@ def admin_api_unauthorized_response():
 
 
 def get_admin_auth_config_error():
-    if not is_admin_auth_enabled():
-        return None
-
-    if not get_admin_session_secret():
-        return 'Admin authentication requires admin.session_secret or WAMF_SECRET_KEY.'
-
-    if not get_admin_password_hash():
-        return 'Admin authentication is enabled, but no password hash is configured.'
-
-    return None
+    return security.get_admin_auth_config_error(config)
 
 
 def configure_session_secret():
-    admin_config = (config or {}).get('admin', {})
-    secret_key = get_admin_session_secret()
-
-    app.secret_key = secret_key
-    app.config.update(
-        SESSION_COOKIE_HTTPONLY=True,
-        SESSION_COOKIE_SAMESITE=admin_config.get('session_cookie_samesite', 'Lax'),
-        SESSION_COOKIE_SECURE=bool(admin_config.get('session_cookie_secure', False)),
-    )
+    security.configure_session_secret(app, config)
 
 
 def get_client_ip():
-    forwarded_for = request.headers.get('X-Forwarded-For', '')
-
-    if forwarded_for:
-        return forwarded_for.split(',')[0].strip()
-
-    return request.remote_addr or 'unknown'
+    return security.get_client_ip()
 
 
 def is_login_rate_limited(client_ip):
-    now = time.monotonic()
-    attempts = [
-        timestamp
-        for timestamp in LOGIN_ATTEMPTS.get(client_ip, [])
-        if now - timestamp < LOGIN_WINDOW_SECONDS
-    ]
-    LOGIN_ATTEMPTS[client_ip] = attempts
-    return len(attempts) >= LOGIN_ATTEMPT_LIMIT
+    return security.is_login_rate_limited(client_ip)
 
 
 def record_login_failure(client_ip):
-    now = time.monotonic()
-    attempts = [
-        timestamp
-        for timestamp in LOGIN_ATTEMPTS.get(client_ip, [])
-        if now - timestamp < LOGIN_WINDOW_SECONDS
-    ]
-    attempts.append(now)
-    LOGIN_ATTEMPTS[client_ip] = attempts
+    security.record_login_failure(client_ip)
 
 
 def clear_login_failures(client_ip):
-    LOGIN_ATTEMPTS.pop(client_ip, None)
+    security.clear_login_failures(client_ip)
 
 
 def delay_login_failure():
-    time.sleep(LOGIN_FAILURE_DELAY_SECONDS)
+    security.delay_login_failure()
 
 
 def get_csrf_token():
-    if not app.secret_key:
-        return ''
-
-    token = session.get('csrf_token')
-
-    if not token:
-        token = secrets.token_urlsafe(32)
-        session['csrf_token'] = token
-
-    return token
+    return security.get_csrf_token(app.secret_key)
 
 
 def get_request_csrf_token():
-    return (
-        request.headers.get('X-CSRFToken')
-        or request.headers.get('X-CSRF-Token')
-        or request.form.get('csrf_token')
-    )
+    return security.get_request_csrf_token()
 
 
 def is_valid_csrf_token(token):
-    expected = session.get('csrf_token') if app.secret_key else None
-    return bool(
-        token
-        and expected
-        and hmac.compare_digest(token, expected)
-    )
+    return security.is_valid_csrf_token(token, app.secret_key)
 
 
 def csrf_failure_response():
@@ -213,25 +133,11 @@ def csrf_failure_response():
 
 
 def is_safe_next_url(next_url):
-    if not next_url:
-        return False
-
-    parsed = urlsplit(next_url)
-    return (
-        not parsed.scheme
-        and not parsed.netloc
-        and next_url.startswith('/')
-        and not next_url.startswith('//')
-    )
+    return security.is_safe_next_url(next_url)
 
 
 def get_safe_next_url(default_endpoint='admin.admin_dashboard'):
-    next_url = request.args.get('next') or request.form.get('next')
-
-    if is_safe_next_url(next_url):
-        return next_url
-
-    return url_for(default_endpoint)
+    return security.get_safe_next_url(default_endpoint)
 
 
 def is_wamf_media_path(path):

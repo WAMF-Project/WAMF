@@ -1,16 +1,19 @@
 
 from datetime import datetime, timedelta
+import logging
 from pathlib import Path
+from app.config_editor import get_config_path
 from app.system_events import log_system_event
 from app.db import connect_db, DB_PATH as DEFAULT_DB_PATH
 import yaml
 
 DB_PATH = DEFAULT_DB_PATH
+logger = logging.getLogger(__name__)
 
 
 def load_config():
 
-    with open("config/config.yml", "r") as f:
+    with open(get_config_path(), "r") as f:
         return yaml.safe_load(f)
 
 
@@ -97,7 +100,7 @@ def dry_run_retention():
 
             else:
 
-                print(f"[DRY RUN] Would delete snapshot: {path}")
+                logger.info("[DRY RUN] Would delete snapshot: %s", path)
 
                 pending_events.append(("INFO", "RETENTION", f"Would delete snapshot: {path}"))
 
@@ -124,12 +127,12 @@ def dry_run_retention():
 
             else:
 
-                print(f"[DRY RUN] Would delete clip: {path}")
+                logger.info("[DRY RUN] Would delete clip: %s", path)
 
                 pending_events.append(("INFO", "RETENTION", f"Would delete clip: {path}"))
 
-    print("\nRetention scan complete")
-    print(f"Scanned rows: {len(rows)}")
+    logger.info("Retention scan complete")
+    logger.info("Scanned rows: %s", len(rows))
 
     conn.commit()
     conn.close()
@@ -193,7 +196,7 @@ def scan_for_orphans():
 
             if file_str not in referenced_files:
 
-                print(f"[ORPHAN] {file_str}")
+                logger.warning("[ORPHAN] %s", file_str)
 
                 pending_events.append(("WARN", "RETENTION", f"Orphan detected: {file_str}"))
 
@@ -213,13 +216,13 @@ def scan_for_orphans():
 
         if not Path(file_path).exists():
 
-            print(f"[MISSING] {file_path}")
+            logger.warning("[MISSING] %s", file_path)
 
             missing_count += 1
 
-    print("\nOrphan scan complete")
-    print(f"Orphans found: {orphan_count}")
-    print(f"Missing files: {missing_count}")
+    logger.info("Orphan scan complete")
+    logger.info("Orphans found: %s", orphan_count)
+    logger.info("Missing files: %s", missing_count)
 
     pending_events.append((
         "INFO",
@@ -256,9 +259,11 @@ def scan_for_orphans():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
+    )
 
     dry_run_retention()
-
-    print()
 
     scan_for_orphans()

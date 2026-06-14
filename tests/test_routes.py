@@ -104,6 +104,28 @@ def test_index_contains_html(flask_client):
     assert b"<!DOCTYPE html>" in response.data or b"<html" in response.data
 
 
+def test_expected_blueprint_endpoints_are_registered(flask_client):
+    import webui
+
+    endpoints = {
+        rule.endpoint
+        for rule in webui.app.url_map.iter_rules()
+    }
+
+    assert {
+        "public.index",
+        "public.recent_feed",
+        "api.api_recent_detections",
+        "admin.admin_dashboard",
+        "admin_api.admin_health",
+        "auth.login",
+        "auth.logout",
+        "detections.delete_detection",
+        "media.wamf_snapshot",
+        "media.wamf_clip",
+    }.issubset(endpoints)
+
+
 def test_public_pages_do_not_run_admin_health_checks(flask_client, monkeypatch):
     import webui
 
@@ -263,6 +285,11 @@ def test_frigate_clip_timeout_returns_fallback(flask_client, monkeypatch):
     monkeypatch.setattr("app.frigate_proxy.requests.get", fake_get)
     response = flask_client.get("/frigate/evt-test/clip.mp4")
     assert response.status_code == 200
+
+
+def test_wamf_media_routes_do_not_allow_path_traversal(flask_client):
+    response = flask_client.get("/wamf/snapshot/../../config/config.yml")
+    assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------

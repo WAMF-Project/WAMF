@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import datetime
+import logging
 from pathlib import Path
 
 from app.db import (
@@ -14,6 +15,7 @@ from app.db import (
 
 DBPATH = DEFAULT_DB_PATH
 NAMEDBPATH = DEFAULT_NAMES_DB_PATH
+logger = logging.getLogger(__name__)
 
 
 def get_scientific_name(common_name):
@@ -52,9 +54,9 @@ def get_common_name(scientific_name):
 
     if result:
         return result[0]
-    else:
-        print(f"No common name for: {scientific_name}", flush=True)
-        return None
+
+    logger.debug("No common name for: %s", scientific_name)
+    return None
 
 def save_species_info(
     scientific_name,
