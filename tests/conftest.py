@@ -1,9 +1,9 @@
 """
 Shared fixtures for whosatmyfeeder tests.
 
-Both queries.py and webui.py hard-code their DB paths as module-level globals
-(DBPATH / NAMEDBPATH). We patch those via monkeypatch before importing the
-modules so tests never touch the real on-disk databases.
+Both app.queries and webui.py keep DB paths as module-level globals
+(DBPATH / NAMEDBPATH). We patch those so tests never touch the real on-disk
+databases.
 """
 import os
 import sqlite3
@@ -156,8 +156,8 @@ def tmp_dbs(tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def patched_queries(tmp_dbs):
-    """Import queries with DB paths pointing at temp databases."""
-    import queries
+    """Import app.queries with DB paths pointing at temp databases."""
+    import app.queries as queries
     queries.DBPATH = tmp_dbs["det_db"]
     queries.NAMEDBPATH = tmp_dbs["name_db"]
     return queries

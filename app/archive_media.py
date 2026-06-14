@@ -3,7 +3,7 @@ import logging
 import time
 
 import requests
-from system_events import log_system_event
+from app.system_events import log_system_event
 
 WAMF_SNAPSHOT_DIR = Path("media/wamf/snapshots")
 WAMF_CLIP_DIR = Path("media/wamf/clips")

@@ -15,53 +15,53 @@
       <div class="admin-title">WAMF Admin</div>
 
       <nav class="admin-nav">
-        <a href="{{ url_for('index') }}" class="admin-nav-btn">
+        <a href="{{ url_for('public.index') }}" class="admin-nav-btn">
           ← Back to WAMF
         </a>
 
         <a
-          href="{{ url_for('admin_dashboard') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin_dashboard' %}active{% endif %}"
+          href="{{ url_for('admin.admin_dashboard') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin.admin_dashboard' %}active{% endif %}"
         >
           Dashboard
         </a>
 
         <a
-          href="{{ url_for('admin_species') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin_species' %}active{% endif %}"
+          href="{{ url_for('admin.admin_species') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin.admin_species' %}active{% endif %}"
         >
           Species
         </a>
 
         <a
-          href="{{ url_for('admin_logs') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin_logs' %}active{% endif %}"
+          href="{{ url_for('admin.admin_logs') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin.admin_logs' %}active{% endif %}"
         >
           Logs
         </a>
 
         <a
-          href="{{ url_for('admin_config') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin_config' %}active{% endif %}"
+          href="{{ url_for('admin.admin_config') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin.admin_config' %}active{% endif %}"
         >
           Configuration
         </a>
 
         <a
-          href="{{ url_for('change_password') }}"
-          class="admin-nav-btn {% if request.endpoint == 'change_password' %}active{% endif %}"
+          href="{{ url_for('admin.change_password') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin.change_password' %}active{% endif %}"
         >
           Password
         </a>
 
         <a
-          href="{{ url_for('admin_api_token') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin_api_token' %}active{% endif %}"
+          href="{{ url_for('admin.admin_api_token') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin.admin_api_token' %}active{% endif %}"
         >
           API Token
         </a>
 
-        <a href="{{ url_for('logout') }}" class="admin-nav-btn">
+        <a href="{{ url_for('auth.logout') }}" class="admin-nav-btn">
           Logout
         </a>
       </nav>

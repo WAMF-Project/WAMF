@@ -3,40 +3,40 @@
 
 <div class="log-filters">
   <a
-    href="{{ url_for('admin_logs') }}"
+    href="{{ url_for('admin.admin_logs') }}"
     class="log-filter-btn {% if not current_filter %}active{% endif %}"
   >
     All
   </a>
 
   <a
-    href="{{ url_for('admin_logs', filter='SYSTEM') }}"
+    href="{{ url_for('admin.admin_logs', filter='SYSTEM') }}"
     class="log-filter-btn {% if current_filter == 'SYSTEM' %}active{% endif %}"
   >
     System
   </a>
 
   <a
-    href="{{ url_for('admin_logs', filter='RETENTION') }}"
+    href="{{ url_for('admin.admin_logs', filter='RETENTION') }}"
     class="log-filter-btn {% if current_filter == 'RETENTION' %}active{% endif %}"
   >
     Retention
   </a>
 
   <a
-    href="{{ url_for('admin_logs', filter='MQTT') }}"
+    href="{{ url_for('admin.admin_logs', filter='MQTT') }}"
     class="log-filter-btn {% if current_filter == 'MQTT' %}active{% endif %}"
   >
     MQTT
   </a>
   <a
-    href="{{ url_for('admin_logs', filter='SPECIES') }}"
+    href="{{ url_for('admin.admin_logs', filter='SPECIES') }}"
     class="log-filter-btn {% if current_filter == 'SPECIES' %}active{% endif %}"
   >
     Species
   </a>
   <a
-    href="{{ url_for('admin_logs', filter='CONFIG') }}"
+    href="{{ url_for('admin.admin_logs', filter='CONFIG') }}"
     class="log-filter-btn {% if current_filter == 'CONFIG' %}active{% endif %}"
   >
     Config

@@ -1,6 +1,6 @@
 import sqlite3
 
-from db import ensure_schema
+from app.db import ensure_schema
 
 
 def test_ensure_schema_adds_missing_media_columns_and_indexes(tmp_path):

@@ -37,7 +37,7 @@
     hash, so the token cannot be recovered later.
   </p>
 
-  <form class="admin-form" method="post" action="{{ url_for('admin_api_token') }}">
+  <form class="admin-form" method="post" action="{{ url_for('admin.admin_api_token') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <button class="login-button" type="submit">
       {% if token_configured %}Regenerate Token{% else %}Generate Token{% endif %}

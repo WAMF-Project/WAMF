@@ -18,7 +18,7 @@ endblock %} {% block date_picker %}
     {% for species in daily_summary.values() %}
     <div class="wamf-summary-card">
       <a
-        href="{{ url_for('show_detections_by_scientific_name',
+        href="{{ url_for('public.show_detections_by_scientific_name',
       scientific_name=species.scientific_name,
       date=date,
       end_date=None) }}"
@@ -36,7 +36,7 @@ endblock %} {% block date_picker %}
         species.hourly_detections[hour] %}
 
         <a
-          href="{{ url_for('show_detections_by_hour', date=date, hour=hour) }}"
+          href="{{ url_for('public.show_detections_by_hour', date=date, hour=hour) }}"
           class="wamf-hour-chip {% if count > 0 %}active{% endif %}"
         >
           {{ hour }} {% if count > 0 %}

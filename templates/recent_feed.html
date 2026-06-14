@@ -12,7 +12,7 @@ block content %}
 
     <a
       href="{{ url_for(
-    'show_detections_by_scientific_name',
+    'public.show_detections_by_scientific_name',
     scientific_name=record.display_name,
     date=record.detection_time[:10],
     end_date=None
@@ -23,11 +23,11 @@ block content %}
         {% if record.snapshot_file %}
 
         <img
-          src="{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}"
+          src="{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}"
           class="wamf-detection-image"
           onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
-        '{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}',
-        '{{ url_for('wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
+        '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
+        '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
         '{{ record.frigate_event }}'
       )"
         />

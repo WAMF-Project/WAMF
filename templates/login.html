@@ -11,7 +11,7 @@
   </head>
   <body class="admin-body">
     <main class="login-main">
-      <form class="login-panel" method="post" action="{{ url_for('login') }}">
+      <form class="login-panel" method="post" action="{{ url_for('auth.login') }}">
         <input type="hidden" name="next" value="{{ next_url }}" />
 
         <div class="login-title">WAMF Admin</div>
@@ -37,7 +37,7 @@
         {% endif %}
 
         <button class="login-button" type="submit">Log in</button>
-        <a class="login-secondary-link" href="{{ url_for('index') }}">
+        <a class="login-secondary-link" href="{{ url_for('public.index') }}">
           Back to overview
         </a>
       </form>

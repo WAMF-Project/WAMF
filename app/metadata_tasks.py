@@ -4,9 +4,9 @@ import threading
 
 import requests
 
-from queries import get_common_name, get_species_info, save_species_info
-from species_metadata import fetch_species_metadata
-from system_events import log_system_event
+from app.queries import get_common_name, get_species_info, save_species_info
+from app.species_metadata import fetch_species_metadata
+from app.system_events import log_system_event
 
 logger = logging.getLogger(__name__)
 

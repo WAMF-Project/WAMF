@@ -57,8 +57,8 @@
           <ul class="navbar-nav mb-2 mb-lg-0">
             <li class="nav-item">
               <a
-                class="nav-link wamf-nav-btn {% if request.endpoint == 'index' %}active{% endif %}"
-                href="{{ url_for('index') }}"
+                class="nav-link wamf-nav-btn {% if request.endpoint == 'public.index' %}active{% endif %}"
+                href="{{ url_for('public.index') }}"
               >
                 Overview
               </a>
@@ -66,8 +66,8 @@
 
             <li class="nav-item">
               <a
-                class="nav-link wamf-nav-btn {% if request.endpoint == 'recent_feed' %}active{% endif %}"
-                href="{{ url_for('recent_feed') }}"
+                class="nav-link wamf-nav-btn {% if request.endpoint == 'public.recent_feed' %}active{% endif %}"
+                href="{{ url_for('public.recent_feed') }}"
               >
                 Recent Feed
               </a>
@@ -75,16 +75,16 @@
 
             <li class="nav-item">
               <a
-                class="nav-link wamf-nav-btn {% if request.endpoint == 'activity' %}active{% endif %}"
-                href="{{ url_for('activity') }}"
+                class="nav-link wamf-nav-btn {% if request.endpoint == 'public.activity' %}active{% endif %}"
+                href="{{ url_for('public.activity') }}"
               >
                 Activity
               </a>
             </li>
             <li class="nav-item">
               <a
-                class="nav-link wamf-nav-btn {% if request.endpoint == 'live_view' %}active{% endif %}"
-                href="{{ url_for('live_view') }}"
+                class="nav-link wamf-nav-btn {% if request.endpoint == 'public.live_view' %}active{% endif %}"
+                href="{{ url_for('public.live_view') }}"
               >
                 Live View
               </a>
@@ -94,7 +94,7 @@
             <li class="nav-item">
               <a
                 class="nav-link wamf-nav-btn"
-                href="{{ url_for('admin_dashboard') }}"
+                href="{{ url_for('admin.admin_dashboard') }}"
               >
                 Admin
               </a>

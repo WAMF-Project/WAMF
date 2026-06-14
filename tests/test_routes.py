@@ -240,7 +240,7 @@ def test_frigate_thumbnail_timeout_returns_fallback(flask_client, monkeypatch):
     import requests as req
     def fake_get(*a, **kw):
         raise req.exceptions.Timeout("timed out")
-    monkeypatch.setattr("frigate_proxy.requests.get", fake_get)
+    monkeypatch.setattr("app.frigate_proxy.requests.get", fake_get)
     response = flask_client.get("/frigate/evt-test/thumbnail.jpg")
     assert response.status_code == 200
     assert response.content_type == "image/png"
@@ -250,7 +250,7 @@ def test_frigate_snapshot_timeout_returns_fallback(flask_client, monkeypatch):
     import requests as req
     def fake_get(*a, **kw):
         raise req.exceptions.Timeout("timed out")
-    monkeypatch.setattr("frigate_proxy.requests.get", fake_get)
+    monkeypatch.setattr("app.frigate_proxy.requests.get", fake_get)
     response = flask_client.get("/frigate/evt-test/snapshot.jpg")
     assert response.status_code == 200
     assert response.content_type == "image/png"
@@ -260,7 +260,7 @@ def test_frigate_clip_timeout_returns_fallback(flask_client, monkeypatch):
     import requests as req
     def fake_get(*a, **kw):
         raise req.exceptions.Timeout("timed out")
-    monkeypatch.setattr("frigate_proxy.requests.get", fake_get)
+    monkeypatch.setattr("app.frigate_proxy.requests.get", fake_get)
     response = flask_client.get("/frigate/evt-test/clip.mp4")
     assert response.status_code == 200
 

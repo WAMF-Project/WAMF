@@ -12,28 +12,28 @@ import yaml
 from io import BytesIO
 from pathlib import Path
 from werkzeug.security import check_password_hash, generate_password_hash
-from queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
-from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
-from queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
-from queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events, get_retention_status
-from queries import get_species_info, get_all_species_info, get_detection_count_for_scientific_name_and_date
-from queries import get_species_stats_for_date
-from health import get_system_health
+from app.queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
+from app.queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
+from app.queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
+from app.queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events, get_retention_status
+from app.queries import get_species_info, get_all_species_info, get_detection_count_for_scientific_name_and_date
+from app.queries import get_species_stats_for_date
+from app.health import get_system_health
 from version import VERSION
-from system_events import log_system_event
-from frigate_proxy import proxy_frigate_media
-from metadata_tasks import (
+from app.system_events import log_system_event
+from app.frigate_proxy import proxy_frigate_media
+from app.metadata_tasks import (
     queue_metadata_refresh,
     refresh_species_metadata as refresh_species_metadata_task,
     species_needs_metadata,
 )
-from db import (
+from app.db import (
     connect_db,
     ensure_schema,
     DB_PATH as DEFAULT_DB_PATH,
     NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
 )
-from config_editor import (
+from app.config_editor import (
     get_config_file_metadata,
     get_config_path,
     strip_admin_config_block,
@@ -52,13 +52,13 @@ LOGIN_ATTEMPT_LIMIT = 5
 LOGIN_WINDOW_SECONDS = 300
 LOGIN_FAILURE_DELAY_SECONDS = 0.35
 CSRF_PROTECTED_ENDPOINTS = {
-    'save_config',
-    'change_password',
-    'admin_api_token',
-    'refresh_species',
-    'refresh_missing_species',
-    'refresh_all_species',
-    'delete_detection',
+    'admin.save_config',
+    'admin.change_password',
+    'admin.admin_api_token',
+    'admin.refresh_species',
+    'admin.refresh_missing_species',
+    'admin.refresh_all_species',
+    'detections.delete_detection',
 }
 
 
@@ -209,7 +209,7 @@ def csrf_failure_response():
         }), 400
 
     flash('Security token expired. Refresh the page and try again.')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin.admin_dashboard'))
 
 
 def is_safe_next_url(next_url):
@@ -225,7 +225,7 @@ def is_safe_next_url(next_url):
     )
 
 
-def get_safe_next_url(default_endpoint='admin_dashboard'):
+def get_safe_next_url(default_endpoint='admin.admin_dashboard'):
     next_url = request.args.get('next') or request.form.get('next')
 
     if is_safe_next_url(next_url):
@@ -293,7 +293,7 @@ def require_admin_auth():
     if session.get('admin_authenticated'):
         return None
 
-    login_url = url_for('login', next=request.full_path.rstrip('?'))
+    login_url = url_for('auth.login', next=request.full_path.rstrip('?'))
     return redirect(login_url)
 
 
@@ -309,75 +309,18 @@ def require_csrf_for_mutations():
         return None
 
     if not session.get('admin_authenticated'):
-        if request.endpoint == 'delete_detection':
+        if request.endpoint == 'detections.delete_detection':
             return jsonify({
                 'success': False,
                 'message': 'Admin login required.',
             }), 401
 
-        return redirect(url_for('login', next=request.full_path.rstrip('?')))
+        return redirect(url_for('auth.login', next=request.full_path.rstrip('?')))
 
     if not is_valid_csrf_token(get_request_csrf_token()):
         return csrf_failure_response()
 
     return None
-
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if not is_admin_auth_enabled():
-        return redirect(get_safe_next_url())
-
-    if session.get('admin_authenticated'):
-        return redirect(get_safe_next_url())
-
-    config_error = get_admin_auth_config_error()
-
-    if config_error:
-        return render_template(
-            'login.html',
-            error=config_error,
-            next_url=get_safe_next_url()
-        ), 500
-
-    error = None
-
-    if request.method == 'POST':
-        client_ip = get_client_ip()
-
-        if is_login_rate_limited(client_ip):
-            delay_login_failure()
-            error = 'Login temporarily locked. Try again later.'
-        else:
-            password = request.form.get('password', '')
-
-            if check_password_hash(get_admin_password_hash(), password):
-                session.clear()
-                session['admin_authenticated'] = True
-                get_csrf_token()
-                clear_login_failures(client_ip)
-                return redirect(get_safe_next_url())
-
-            record_login_failure(client_ip)
-            delay_login_failure()
-            error = 'Login failed.'
-
-    return render_template(
-        'login.html',
-        error=error,
-        next_url=get_safe_next_url()
-    )
-
-
-@app.route('/logout')
-def logout():
-    if app.secret_key:
-        session.clear()
-        flash('You have been logged out.')
-
-    return redirect(url_for('login'))
-
-
 
 
 def format_datetime(value, format='%B %d, %Y %H:%M:%S'):
@@ -398,12 +341,12 @@ def inject_admin_status():
     endpoint = request.endpoint or ""
 
     admin_template_endpoints = {
-        'admin_dashboard',
-        'admin_logs',
-        'admin_species',
-        'admin_config',
-        'admin_api_token',
-        'change_password',
+        'admin.admin_dashboard',
+        'admin.admin_logs',
+        'admin.admin_species',
+        'admin.admin_config',
+        'admin.admin_api_token',
+        'admin.change_password',
     }
 
     if endpoint in admin_template_endpoints:
@@ -414,548 +357,6 @@ def inject_admin_status():
 
     return context
 
-@app.route('/')
-def index():
-    today = datetime.now()
-    date_str = today.strftime('%Y-%m-%d')
-    earliest_date = get_earliest_detection_date()
-    recent_records = recent_detections(4)
-    daily_summary = get_daily_summary(today)
-    activity_by_hour = get_activity_by_hour(date_str)
-    top_species = get_top_species(date_str)
-    latest_visitor = get_latest_visitor()
-    return render_template('index.html',recent_detections=recent_records,daily_summary=daily_summary,activity_by_hour=activity_by_hour,
-                           top_species=top_species,latest_visitor=latest_visitor,current_hour=today.hour,date=date_str,earliest_date=earliest_date)
-
-@app.route('/recent')
-def recent_feed():
-    today = datetime.now()
-    date_str = today.strftime('%Y-%m-%d')
-
-    earliest_date = get_earliest_detection_date()
-
-    recent_records = recent_detections(50)
-
-    return render_template(
-        'recent_feed.html',
-        recent_detections=recent_records,
-        current_hour=today.hour,
-        date=date_str,
-        earliest_date=earliest_date
-    )
-
-
-@app.route('/frigate/<frigate_event>/thumbnail.jpg')
-def frigate_thumbnail(frigate_event):
-    return proxy_frigate_media(
-        config['frigate']['frigate_url'],
-        frigate_event,
-        'thumbnail.jpg',
-        timeout=5
-    )
-
-
-@app.route('/frigate/<frigate_event>/snapshot.jpg')
-def frigate_snapshot(frigate_event):
-    return proxy_frigate_media(
-        config['frigate']['frigate_url'],
-        frigate_event,
-        'snapshot.jpg',
-        timeout=5
-    )
-
-
-@app.route('/frigate/<frigate_event>/clip.mp4')
-def frigate_clip(frigate_event):
-    return proxy_frigate_media(
-        config['frigate']['frigate_url'],
-        frigate_event,
-        'clip.mp4',
-        timeout=30
-    )
-
-@app.route('/wamf/snapshot/<path:filename>')
-def wamf_snapshot(filename):
-
-    return send_file(
-        f"media/wamf/snapshots/{filename}"
-    )
-
-@app.route('/wamf/clip/<path:filename>')
-def wamf_clip(filename):
-
-    return send_file(
-        f"media/wamf/clips/{filename}"
-    )
-
-@app.route('/detections/by_hour/<date>/<int:hour>')
-def show_detections_by_hour(date, hour):
-    records = get_records_for_date_hour(date, hour)
-    return render_template('detections_by_hour.html', date=date, hour=hour, records=records)
-
-
-@app.route('/detections/by_scientific_name/<scientific_name>/<date>', defaults={'end_date': None})
-@app.route('/detections/by_scientific_name/<scientific_name>/<date>/<end_date>')
-def show_detections_by_scientific_name(scientific_name, date, end_date):
-
-    page = request.args.get(
-        'page',
-        1,
-        type=int
-    )
-    logger.debug("scientific_name = [%s]", scientific_name)
-    logger.debug("date = [%s]", date)
-
-    if end_date is not None:
-        return jsonify({"error": "Date range queries are not yet implemented."}), 501
-    per_page = 25
-    total_records = (
-        get_detection_count_for_scientific_name_and_date(
-            scientific_name,
-        date
-        )
-    )
-
-    total_pages = (
-        total_records + per_page - 1
-    ) // per_page
-    records = get_records_for_scientific_name_and_date(scientific_name, date, page, per_page)
-    logger.debug("scientific_name = [%s]", scientific_name)
-    logger.debug("date = [%s]", date)
-    species_stats = get_species_stats_for_date(scientific_name, date)
-    species_info = get_species_info(
-        scientific_name
-    )
-
-    # Metadata can require a network call, so queue it instead of delaying page render.
-    if species_needs_metadata(species_info):
-        queue_metadata_refresh(scientific_name)
-    
-    species_activity = get_species_activity_by_hour(
-        scientific_name
-    )
-    return render_template('detections_by_scientific_name.html', scientific_name=scientific_name, date=date,
-                           end_date=end_date, common_name=get_common_name(scientific_name), records=records, species_stats=species_stats, 
-                           species_activity=species_activity, species_info=species_info, page=page, total_pages=total_pages, total_records=total_records)
-
-
-@app.route('/api/detections/recent')
-def api_recent_detections():
-    limit = request.args.get('limit', 5, type=int)
-    records = recent_detections(min(limit, 20))  # cap at 20
-    return jsonify(records)
-
-
-@app.route('/daily_summary')
-@app.route('/daily_summary/')
-def show_daily_summary_today():
-    today = datetime.now().strftime('%Y-%m-%d')
-    target = url_for('show_daily_summary', date=today)
-    query = request.query_string.decode('utf-8')
-    if query:
-        target = f'{target}?{query}'
-    return redirect(target)
-
-
-@app.route('/daily_summary/<date>')
-def show_daily_summary(date):
-    date_datetime = datetime.strptime(date, "%Y-%m-%d")
-    daily_summary = get_daily_summary(date_datetime)
-    today = datetime.now().strftime('%Y-%m-%d')
-    earliest_date = get_earliest_detection_date()
-    return render_template('daily_summary.html', daily_summary=daily_summary, date=date, today=today,
-                           earliest_date=earliest_date)
-
-
-@app.route('/detections/<frigate_event>', methods=['DELETE'])
-def delete_detection(frigate_event):
-    if not frigate_event:
-        return jsonify({"success": False, "message": "Missing detection identifier."}), 400
-
-    conn = None
-    try:
-        conn = connect_db(DBPATH)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT wamf_snapshot_path, wamf_clip_path
-            FROM detections
-            WHERE frigate_event = ?
-            """,
-            (frigate_event,)
-        )
-        detection = cursor.fetchone()
-
-        if detection is None:
-            return jsonify({"success": False, "message": "Detection not found."}), 404
-
-        deleted_media = delete_wamf_media_files(
-            detection["wamf_snapshot_path"],
-            detection["wamf_clip_path"]
-        )
-
-        cursor.execute(
-            "DELETE FROM detections WHERE frigate_event = ?",
-            (frigate_event,)
-        )
-        conn.commit()
-    except sqlite3.Error as e:
-        logger.warning("Error deleting detection %s: %s", frigate_event, e)
-        return jsonify({"success": False, "message": "Unable to delete detection."}), 500
-    except OSError as e:
-        logger.warning("Error deleting media for detection %s: %s", frigate_event, e)
-        return jsonify({"success": False, "message": "Unable to delete detection media."}), 500
-    finally:
-        if conn:
-            conn.close()
-
-    return jsonify({
-        "success": True,
-        "message": "Detection deleted.",
-        "frigate_event": frigate_event,
-        "deleted_media": deleted_media
-    }), 200
-
-
-@app.route('/activity')
-def activity():
-
-    today = datetime.now()
-    date_str = today.strftime('%Y-%m-%d')
-
-    activity_by_hour = get_activity_by_hour(date_str)
-
-    top_species = get_top_species(date_str)
-
-    species_peak_hours = get_species_peak_hours(date_str)
-
-    total_detections = sum(
-        item['total']
-        for item in activity_by_hour
-    )
-
-    busiest_hour = max(
-        activity_by_hour,
-        key=lambda x: x['total'],
-        default=None
-    )
-
-    species_count = len(top_species)
-
-    return render_template(
-        'activity.html',
-        activity_by_hour=activity_by_hour,
-        top_species=top_species,
-        total_detections=total_detections,
-        busiest_hour=busiest_hour,
-        species_count=species_count,
-        species_peak_hours=species_peak_hours,
-        date=date_str
-    )
-
-@app.route('/live')
-def live_view():
-    return render_template(
-        'live_view.html'
-    )
-
-@app.route('/admin')
-def admin_dashboard():
-
-    stats = get_admin_stats()
-
-    health = get_system_health()
-
-    events = get_recent_system_events()
-
-    retention_status = get_retention_status()
-
-    return render_template(
-        'admin.html',
-        stats=stats,
-        health=health,
-        events=events,
-        retention_status=retention_status
-    )
-
-@app.route('/admin/logs')
-def admin_logs():
-
-    event_type = request.args.get("filter")
-
-    logs = get_recent_system_events(
-        100,
-        event_type
-    )
-
-    return render_template(
-        'admin_logs.html',
-        logs=logs,
-        current_filter=event_type
-    )
-
-@app.route('/admin/species')
-def admin_species():
-
-    species = get_all_species_info()
-
-    species_count = len(species)
-
-    missing_description = sum(
-        1
-        for s in species
-        if not s["description"]
-    )
-
-    missing_thumbnail = sum(
-        1
-        for s in species
-        if not s["thumbnail_url"]
-    )
-
-    latest_update = None
-
-    if species:
-
-        latest_update = max(
-            s["last_updated"]
-            for s in species
-            if s["last_updated"]
-        )
-
-    return render_template(
-        'admin_species.html',
-        species=species,
-        species_count=species_count,
-        missing_description=missing_description,
-        missing_thumbnail=missing_thumbnail,
-        latest_update=latest_update
-    )
-
-def refresh_species_metadata(scientific_name):
-
-    refresh_species_metadata_task(scientific_name)
-
-@app.route('/admin/species/refresh/<path:scientific_name>', methods=['POST'])
-
-def refresh_species(scientific_name):
-
-    refresh_species_metadata(
-        scientific_name
-    )
-
-    log_system_event(
-        "INFO",
-        "SPECIES",
-        f"Refreshed metadata for {scientific_name}"
-    )
-
-    return redirect(
-        url_for(
-            'admin_species'
-        )
-    )
-
-@app.route('/admin/species/refresh-missing', methods=['POST'])
-def refresh_missing_species():
-
-    species = get_all_species_info()
-
-    refreshed = 0
-
-    for item in species:
-
-        if (
-            not item["description"]
-            or not item["thumbnail_url"]
-        ):
-
-            refresh_species_metadata(
-                item["scientific_name"]
-            )
-
-            refreshed += 1
-
-    log_system_event(
-        "INFO",
-        "SPECIES",
-        f"Refreshed metadata for {refreshed} species with missing data"
-    )
-
-    return redirect(
-        url_for(
-            'admin_species'
-        )
-    )
-
-@app.route('/admin/species/refresh-all', methods=['POST'])
-def refresh_all_species():
-
-    species = get_all_species_info()
-
-    for item in species:
-
-        refresh_species_metadata(
-            item["scientific_name"]
-        )
-
-    log_system_event(
-        "INFO",
-        "SPECIES",
-        f"Refreshed metadata for {len(species)} species"
-    )
-
-    return redirect(
-        url_for(
-            'admin_species'
-        )
-    )
-
-@app.route("/admin/api/health")
-def admin_health():
-
-    health = get_system_health()
-
-    retention = get_retention_status()
-
-    return jsonify({
-        "version": VERSION,
-
-        "frigate": health["frigate_online"],
-        "mqtt": health["mqtt_online"],
-        "database": health["database_healthy"],
-        "archive_storage": health["archive_writable"],
-        "disk_used_percent": health["disk_used_percent"],
-
-        "last_retention_run": (
-            retention["last_run"]
-            if retention else None
-        ),
-
-        "orphan_count": (
-            retention["orphan_count"]
-            if retention else None
-        ),
-
-        "missing_count": (
-            retention["missing_count"]
-            if retention else None
-        )
-    })
-
-@app.route('/admin/config')
-def admin_config():
-
-    with open(
-        get_config_path(),
-        'r'
-    ) as config_file:
-
-        config_content = strip_admin_config_block(config_file.read())
-
-    metadata = get_config_file_metadata()
-
-    return render_template(
-        'admin_config.html',
-        config_content=config_content,
-        config_path=metadata['config_path'],
-        file_size=metadata['file_size'],
-        last_modified=metadata['last_modified'],
-        backup_count=metadata['backup_count']
-    )   
-
-@app.route(
-    '/admin/config/save',
-    methods=['POST']
-)
-def save_config():
-
-    data = request.get_json()
-
-    config_content = data.get(
-        'config_content',
-        ''
-    )
-
-    try:
-
-        write_config_preserving_admin(
-            config_content,
-            reload_callback=load_config
-        )
-
-        log_system_event(
-            "INFO",
-            "CONFIG",
-            "Configuration updated via admin editor"
-        )
-        
-        return {
-            "success": True,
-            "message": "Configuration updated"
-        }
-
-    except yaml.YAMLError as e:
-
-        return {
-            "success": False,
-            "error": str(e)
-        }
-
-
-@app.route('/admin/password', methods=['GET', 'POST'])
-def change_password():
-
-    error = None
-
-    if request.method == 'POST':
-
-        current_password = request.form.get('current_password', '')
-        new_password = request.form.get('new_password', '')
-        confirm_password = request.form.get('confirm_password', '')
-
-        if not check_password_hash(get_admin_password_hash() or '', current_password):
-            error = 'Password change failed.'
-        elif len(new_password) < 8:
-            error = 'New password must be at least 8 characters.'
-        elif new_password != confirm_password:
-            error = 'New passwords do not match.'
-        else:
-            update_admin_password_hash(
-                generate_password_hash(new_password),
-                reload_callback=load_config
-            )
-            flash('Admin password updated.')
-            return redirect(url_for('change_password'))
-
-    return render_template(
-        'admin_password.html',
-        error=error
-    )
-
-
-@app.route('/admin/api-token', methods=['GET', 'POST'])
-def admin_api_token():
-
-    generated_token = None
-
-    if request.method == 'POST':
-
-        generated_token = secrets.token_urlsafe(32)
-        update_api_token_hash(
-            generate_password_hash(generated_token),
-            reload_callback=load_config
-        )
-        flash('API token generated. Store it now; it cannot be recovered later.')
-
-    return render_template(
-        'admin_api_token.html',
-        token_auth_enabled=is_api_token_auth_enabled(),
-        token_configured=bool(get_api_token_hash()),
-        generated_token=generated_token
-    )
-
-
 def load_config():
     global config
 
@@ -965,5 +366,24 @@ def load_config():
     configure_session_secret()
 
 
+def register_blueprints(flask_app):
+    from routes.admin import admin_bp
+    from routes.admin_api import admin_api_bp
+    from routes.api import api_bp
+    from routes.auth import auth_bp
+    from routes.detections import detections_bp
+    from routes.media import media_bp
+    from routes.public import public_bp
+
+    flask_app.register_blueprint(auth_bp)
+    flask_app.register_blueprint(public_bp)
+    flask_app.register_blueprint(media_bp)
+    flask_app.register_blueprint(api_bp)
+    flask_app.register_blueprint(detections_bp)
+    flask_app.register_blueprint(admin_bp)
+    flask_app.register_blueprint(admin_api_bp)
+
+
+register_blueprints(app)
 load_config()
 ensure_schema(DBPATH)

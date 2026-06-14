@@ -13,13 +13,13 @@ block date_picker %} {% endblock %} {% block content %}
     <div class="wamf-detection-card">
       {% if record.snapshot_file %}
       <img
-        src="{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}"
+        src="{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}"
         alt="Thumbnail"
         class="wamf-detection-image"
         onload="checkTransparentImage(this)"
         onclick="showSnapshot(
-    '{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}',
-    '{{ url_for('wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
+    '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
+    '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
     '{{ record.frigate_event }}'
   )"
       />

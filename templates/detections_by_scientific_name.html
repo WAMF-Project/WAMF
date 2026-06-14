@@ -5,7 +5,7 @@
     {% if records and records[0]['snapshot_file'] %}
     <img
       src="{{ url_for(
-      'wamf_snapshot',
+      'media.wamf_snapshot',
       filename=records[0]['snapshot_file']
   ) }}"
       alt="{{ common_name }}"
@@ -123,15 +123,15 @@
       {% if record.snapshot_file %}
       <img
         src="{{ url_for(
-      'wamf_snapshot',
+      'media.wamf_snapshot',
       filename=record.snapshot_file
   ) }}"
         alt="Thumbnail"
         class="wamf-detection-image"
         onload="checkTransparentImage(this)"
         onclick="showSnapshot(
-    '{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}',
-    '{{ url_for('wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
+    '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
+    '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
     '{{ record['frigate_event'] }}'
   )"
       />
@@ -171,7 +171,7 @@
 
     <a
       href="{{ url_for(
-      'show_detections_by_scientific_name',
+      'public.show_detections_by_scientific_name',
       scientific_name=scientific_name,
       date=date,
       end_date=end_date
@@ -191,7 +191,7 @@
 
     <a
       href="{{ url_for(
-      'show_detections_by_scientific_name',
+      'public.show_detections_by_scientific_name',
       scientific_name=scientific_name,
       date=date,
       end_date=end_date

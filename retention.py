@@ -1,8 +1,8 @@
 
 from datetime import datetime, timedelta
 from pathlib import Path
-from system_events import log_system_event
-from db import connect_db, DB_PATH as DEFAULT_DB_PATH
+from app.system_events import log_system_event
+from app.db import connect_db, DB_PATH as DEFAULT_DB_PATH
 import yaml
 
 DB_PATH = DEFAULT_DB_PATH

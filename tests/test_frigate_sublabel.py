@@ -32,7 +32,7 @@ for _mod in [
     sys.modules.setdefault(_mod, MagicMock())
 
 import speciesid  # noqa: E402
-import queries    # noqa: E402
+import app.queries as queries    # noqa: E402
 
 
 # ---------------------------------------------------------------------------

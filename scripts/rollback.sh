@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Rolls back whosatmyfeeder to the previously deployed image.
-# Usage: bash rollback.sh
+# Usage: bash scripts/rollback.sh
 
 set -euo pipefail
 

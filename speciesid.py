@@ -16,14 +16,14 @@ import json
 import requests
 from PIL import Image, ImageOps
 from io import BytesIO
-from queries import get_common_name, get_scientific_name
-from archive_media import (
+from app.queries import get_common_name, get_scientific_name
+from app.archive_media import (
     archive_snapshot,
     archive_clip
 )
-from system_events import log_system_event
+from app.system_events import log_system_event
 from version import VERSION
-from db import connect_db, ensure_schema, DB_PATH as DEFAULT_DB_PATH
+from app.db import connect_db, ensure_schema, DB_PATH as DEFAULT_DB_PATH
 
 classifier = None
 config = None

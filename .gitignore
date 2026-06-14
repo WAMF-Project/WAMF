@@ -1,59 +1,35 @@
-# macOS metadata
+# macOS/Linux junk
 ._*
 .DS_Store
 
-# Local dev staging dir
-_frigate_overrides/
-
-# Config (contains credentials — never commit)
-config/*
-!config/config.yml.example
-
-# Data files (not for version control)
-data/
-*.db
-
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
 .venv/
 venv/
 .venv311/
-.coverage
-htmlcov/
 
-# Local dev compose override
-docker-compose.dev.yml
-
-# MCP config (contains private token)
+# Config and secrets
+config/*
+!config/config.yml.example
 .mcp.json
 
-# Development databases
-data/*.db
-
-# Local configs
-config/config.yml
-
-# Test images
-static/test-images/
-
-# WAMF generated media
+# Runtime data
+data/
+*.db
+*.db.backup
+logs/
+*.log
 media/wamf/clips/
 media/wamf/snapshots/
 
-# Runtime logs
-logs/
-*.log
-
-# VS Code
+# Local development
+_frigate_overrides/
+docker-compose.dev.yml
+static/test-images/
 .vscode/
-
-# Python env
-.venv/
-
-# Pytest cache
-.pytest_cache/
-
-# macOS/Linux junk
-.DS_Store

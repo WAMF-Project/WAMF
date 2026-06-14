@@ -1,5 +1,5 @@
 from datetime import datetime
-from db import connect_db, DB_PATH as DEFAULT_DB_PATH
+from app.db import connect_db, DB_PATH as DEFAULT_DB_PATH
 
 
 DB_PATH = DEFAULT_DB_PATH

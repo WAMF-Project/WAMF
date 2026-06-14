@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from db import (
+from app.db import (
     attach_names_db,
     connect_db,
     connect_names_db,

@@ -26,7 +26,7 @@ block date_picker %}
 
     <a
       href="{{ url_for(
-    'show_detections_by_scientific_name',
+    'public.show_detections_by_scientific_name',
     scientific_name=record.display_name,
     date=record.detection_time[:10],
     end_date=None
@@ -41,15 +41,15 @@ block date_picker %}
        {% if record.snapshot_file %}
 <img
   src="{{ url_for(
-      'wamf_snapshot',
+      'media.wamf_snapshot',
       filename=record.snapshot_file
   ) }}"
   alt="Thumbnail"
   class="wamf-detection-image"
   onload="checkTransparentImage(this)"
   onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
-    '{{ url_for('wamf_snapshot', filename=record.snapshot_file) }}',
-    '{{ url_for('wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
+    '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
+    '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
     '{{ record.frigate_event }}'
   )"
 />
@@ -85,7 +85,7 @@ block date_picker %}
 
   <a
   href="{{ url_for(
-    'show_detections_by_scientific_name',
+    'public.show_detections_by_scientific_name',
     scientific_name=latest_visitor.scientific_name,
     date=date,
     end_date=None
@@ -124,7 +124,7 @@ block date_picker %}
 
     <a
       href="{{ url_for(
-        'show_detections_by_scientific_name',
+        'public.show_detections_by_scientific_name',
         scientific_name=species.scientific_name,
         date=date,
         end_date=None

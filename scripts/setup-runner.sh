@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run this once on the deployment host to set up the self-hosted GitHub Actions runner.
-# Usage: bash setup-runner.sh <GITHUB_RUNNER_TOKEN>
+# Usage: bash scripts/setup-runner.sh <GITHUB_RUNNER_TOKEN>
 # Get the token from: https://github.com/k1n6b0b/WhosAtMyFeeder/settings/actions/runners/new
 
 set -euo pipefail
