@@ -832,6 +832,14 @@
   color: #ff9a9a;
 }
 
+.api-token-once code {
+  display: block;
+  margin-top: 0.75rem;
+  overflow-wrap: anywhere;
+  color: #ffffff;
+  font-size: 0.95rem;
+}
+
 .thumbnail {
   width: 100px;
   height: auto;

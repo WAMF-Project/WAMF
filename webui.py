@@ -37,6 +37,7 @@ LOGIN_FAILURE_DELAY_SECONDS = 0.35
 CSRF_PROTECTED_ENDPOINTS = {
     'save_config',
     'change_password',
+    'admin_api_token',
     'refresh_species',
     'refresh_missing_species',
     'refresh_all_species',
@@ -57,6 +58,36 @@ def get_admin_password_hash():
 def get_admin_session_secret():
     admin_config = (config or {}).get('admin', {})
     return os.environ.get('WAMF_SECRET_KEY') or admin_config.get('session_secret')
+
+
+def get_api_config():
+    return (config or {}).get('api', {})
+
+
+def is_api_token_auth_enabled():
+    return bool(get_api_config().get('token_auth_enabled', False))
+
+
+def get_api_token_hash():
+    return get_api_config().get('token_hash')
+
+
+def is_valid_api_token():
+    token = request.headers.get('X-WAMF-API-Key', '')
+    token_hash = get_api_token_hash()
+
+    return bool(
+        token
+        and token_hash
+        and check_password_hash(token_hash, token)
+    )
+
+
+def admin_api_unauthorized_response():
+    return jsonify({
+        'success': False,
+        'message': 'Authentication required.',
+    }), 401
 
 
 def get_admin_auth_config_error():
@@ -227,6 +258,15 @@ def delete_wamf_media_files(*paths):
 
 @app.before_request
 def require_admin_auth():
+    if request.path.startswith('/admin/api/'):
+        if session.get('admin_authenticated') or is_valid_api_token():
+            return None
+
+        if is_admin_auth_enabled() or is_api_token_auth_enabled():
+            return admin_api_unauthorized_response()
+
+        return None
+
     if not is_admin_auth_enabled():
         return None
 
@@ -345,6 +385,7 @@ def inject_admin_status():
         'admin_logs',
         'admin_species',
         'admin_config',
+        'admin_api_token',
         'change_password',
     }
 
@@ -836,27 +877,31 @@ def admin_health():
         )
     })
 
-def strip_admin_config_block(config_content):
+def strip_sensitive_config_blocks(config_content):
     lines = config_content.splitlines()
     kept = []
-    skipping_admin = False
+    skipping_sensitive = False
 
     for line in lines:
         stripped = line.strip()
         indent = len(line) - len(line.lstrip())
 
-        if skipping_admin:
+        if skipping_sensitive:
             if not stripped or line.lstrip().startswith('#') or indent > 0:
                 continue
-            skipping_admin = False
+            skipping_sensitive = False
 
-        if indent == 0 and re.match(r'^admin\s*:', line):
-            skipping_admin = True
+        if indent == 0 and re.match(r'^(admin|api)\s*:', line):
+            skipping_sensitive = True
             continue
 
         kept.append(line)
 
     return '\n'.join(kept).strip() + '\n'
+
+
+def strip_admin_config_block(config_content):
+    return strip_sensitive_config_blocks(config_content)
 
 
 def load_config_file_content():
@@ -873,27 +918,46 @@ def get_existing_admin_config():
     return current_config.get('admin')
 
 
-def append_admin_config_block(config_content, admin_config):
-    sanitized_content = strip_admin_config_block(config_content).rstrip()
+def get_existing_api_config():
+    current_config = load_config_from_content(load_config_file_content())
+    return current_config.get('api')
 
-    if not admin_config:
+
+def append_sensitive_config_blocks(config_content, admin_config, api_config):
+    sanitized_content = strip_sensitive_config_blocks(config_content).rstrip()
+    sensitive_config = {}
+
+    if admin_config:
+        sensitive_config['admin'] = admin_config
+
+    if api_config:
+        sensitive_config['api'] = api_config
+
+    if not sensitive_config:
         return sanitized_content + '\n'
 
-    admin_content = yaml.safe_dump(
-        {'admin': admin_config},
+    sensitive_content = yaml.safe_dump(
+        sensitive_config,
         sort_keys=False
     ).strip()
 
-    return f"{sanitized_content}\n\n{admin_content}\n"
+    return f"{sanitized_content}\n\n{sensitive_content}\n"
 
 
-def write_config_preserving_admin(config_content, admin_config=None):
+def write_config_preserving_admin(config_content, admin_config=None, api_config=None):
     if admin_config is None:
         admin_config = get_existing_admin_config()
 
-    sanitized_content = strip_admin_config_block(config_content)
+    if api_config is None:
+        api_config = get_existing_api_config()
+
+    sanitized_content = strip_sensitive_config_blocks(config_content)
     load_config_from_content(sanitized_content)
-    final_content = append_admin_config_block(sanitized_content, admin_config)
+    final_content = append_sensitive_config_blocks(
+        sanitized_content,
+        admin_config,
+        api_config
+    )
     load_config_from_content(final_content)
 
     backup_path = (
@@ -924,6 +988,19 @@ def update_admin_password_hash(password_hash):
     admin_config = current_config.get('admin', {})
     admin_config['password_hash'] = password_hash
     write_config_preserving_admin(current_content, admin_config)
+
+
+def update_api_token_hash(token_hash):
+    current_content = load_config_file_content()
+    current_config = load_config_from_content(current_content)
+    api_config = current_config.get('api', {})
+    api_config.setdefault('token_auth_enabled', True)
+    api_config['token_hash'] = token_hash
+    write_config_preserving_admin(
+        current_content,
+        current_config.get('admin'),
+        api_config
+    )
 
 
 def get_config_path():
@@ -1038,6 +1115,27 @@ def change_password():
     )
 
 
+@app.route('/admin/api-token', methods=['GET', 'POST'])
+def admin_api_token():
+
+    generated_token = None
+
+    if request.method == 'POST':
+
+        generated_token = secrets.token_urlsafe(32)
+        update_api_token_hash(
+            generate_password_hash(generated_token)
+        )
+        flash('API token generated. Store it now; it cannot be recovered later.')
+
+    return render_template(
+        'admin_api_token.html',
+        token_auth_enabled=is_api_token_auth_enabled(),
+        token_configured=bool(get_api_token_hash()),
+        generated_token=generated_token
+    )
+
+
 def load_config():
     global config
 
@@ -1048,4 +1146,3 @@ def load_config():
 
 
 load_config()
-

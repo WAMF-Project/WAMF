@@ -1,8 +1,8 @@
 """Unit tests for webui.py Flask routes."""
 import json
+import re
 import sqlite3
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
 
 
 # ---------------------------------------------------------------------------
@@ -48,6 +48,46 @@ def _login_as_admin(flask_client):
     )
     with flask_client.session_transaction() as sess:
         return sess["csrf_token"]
+
+
+def _set_admin_api_auth(webui, monkeypatch, api_token=None):
+    from werkzeug.security import generate_password_hash
+
+    api_config = {
+        "token_auth_enabled": True,
+        "token_hash": generate_password_hash(api_token) if api_token else "",
+    }
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+        "api": api_config,
+    })
+    webui.app.secret_key = "test-secret"
+
+
+def _stub_admin_api_dependencies(webui, monkeypatch):
+    monkeypatch.setattr(webui, "get_system_health", lambda: {
+        "frigate_online": True,
+        "mqtt_online": True,
+        "database_healthy": True,
+        "archive_writable": True,
+        "disk_used_percent": 10,
+    })
+    monkeypatch.setattr(webui, "get_retention_status", lambda: {
+        "last_run": None,
+        "orphan_count": 0,
+        "missing_count": 0,
+    })
+
+
+def _extract_generated_token(response):
+    match = re.search(rb"<code>([^<]+)</code>", response.data)
+    assert match
+    return match.group(1).decode("utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -264,58 +304,28 @@ def test_public_recent_api_not_protected_when_admin_auth_enabled(flask_client, m
     assert response.status_code == 200
 
 
-def test_admin_redirects_to_login_with_next(flask_client, monkeypatch):
-    from werkzeug.security import generate_password_hash
+def test_admin_api_requires_authentication(flask_client, monkeypatch):
     import webui
 
     with flask_client.session_transaction() as sess:
         sess.clear()
 
-    monkeypatch.setattr(webui, "config", {
-        **webui.config,
-        "admin": {
-            "auth_enabled": True,
-            "session_secret": "test-secret",
-            "password_hash": generate_password_hash("secret"),
-        },
-    })
-    webui.app.secret_key = "test-secret"
+    _set_admin_api_auth(webui, monkeypatch)
 
     response = flask_client.get("/admin/api/health?check=1")
-    assert response.status_code == 302
-    location = urlsplit(response.headers["Location"])
-    assert location.path == "/login"
-    assert parse_qs(location.query)["next"] == ["/admin/api/health?check=1"]
+    assert response.status_code == 401
+    data = json.loads(response.data)
+    assert data["success"] is False
 
 
 def test_admin_login_allows_requested_admin_url(flask_client, monkeypatch):
-    from werkzeug.security import generate_password_hash
     import webui
 
     with flask_client.session_transaction() as sess:
         sess.clear()
 
-    monkeypatch.setattr(webui, "config", {
-        **webui.config,
-        "admin": {
-            "auth_enabled": True,
-            "session_secret": "test-secret",
-            "password_hash": generate_password_hash("secret"),
-        },
-    })
-    webui.app.secret_key = "test-secret"
-    monkeypatch.setattr(webui, "get_system_health", lambda: {
-        "frigate_online": True,
-        "mqtt_online": True,
-        "database_healthy": True,
-        "archive_writable": True,
-        "disk_used_percent": 10,
-    })
-    monkeypatch.setattr(webui, "get_retention_status", lambda: {
-        "last_run": None,
-        "orphan_count": 0,
-        "missing_count": 0,
-    })
+    _set_admin_api_auth(webui, monkeypatch)
+    _stub_admin_api_dependencies(webui, monkeypatch)
 
     response = flask_client.post(
         "/login?next=/admin/api/health",
@@ -327,6 +337,147 @@ def test_admin_login_allows_requested_admin_url(flask_client, monkeypatch):
 
     response = flask_client.get("/admin/api/health")
     assert response.status_code == 200
+
+
+def test_admin_api_accepts_valid_session(flask_client, monkeypatch):
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    _set_admin_api_auth(webui, monkeypatch, api_token="api-secret")
+    _stub_admin_api_dependencies(webui, monkeypatch)
+    _login_as_admin(flask_client)
+
+    response = flask_client.get("/admin/api/health")
+    assert response.status_code == 200
+
+
+def test_admin_api_accepts_valid_api_token(flask_client, monkeypatch):
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    _set_admin_api_auth(webui, monkeypatch, api_token="api-secret")
+    _stub_admin_api_dependencies(webui, monkeypatch)
+
+    response = flask_client.get(
+        "/admin/api/health",
+        headers={"X-WAMF-API-Key": "api-secret"},
+    )
+    assert response.status_code == 200
+
+
+def test_admin_api_rejects_invalid_api_token(flask_client, monkeypatch):
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    _set_admin_api_auth(webui, monkeypatch, api_token="api-secret")
+
+    response = flask_client.get(
+        "/admin/api/health",
+        headers={"X-WAMF-API-Key": "wrong-secret"},
+    )
+    assert response.status_code == 401
+
+
+def test_admin_api_rejects_missing_api_token(flask_client, monkeypatch):
+    import webui
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    _set_admin_api_auth(webui, monkeypatch, api_token="api-secret")
+
+    response = flask_client.get("/admin/api/health")
+    assert response.status_code == 401
+
+
+def test_regenerated_api_token_invalidates_old_token(flask_client, monkeypatch, tmp_path):
+    from werkzeug.security import check_password_hash, generate_password_hash
+    import yaml
+    import webui
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("""
+frigate:
+  mqtt_server: localhost
+api:
+  token_auth_enabled: true
+  token_hash: ""
+admin:
+  auth_enabled: true
+  session_secret: test-secret
+  password_hash: old-hash
+""".lstrip())
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+    monkeypatch.setattr(webui, "config", {
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+        "api": {
+            "token_auth_enabled": True,
+            "token_hash": "",
+        },
+    })
+    webui.app.secret_key = "test-secret"
+    _stub_admin_api_dependencies(webui, monkeypatch)
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+        sess["admin_authenticated"] = True
+        sess["csrf_token"] = "csrf"
+
+    response = flask_client.post(
+        "/admin/api-token",
+        data={"csrf_token": "csrf"},
+    )
+    assert response.status_code == 200
+    first_token = _extract_generated_token(response)
+    updated = yaml.safe_load(config_path.read_text())
+    assert updated["api"]["token_hash"] != first_token
+    assert check_password_hash(updated["api"]["token_hash"], first_token)
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    response = flask_client.get(
+        "/admin/api/health",
+        headers={"X-WAMF-API-Key": first_token},
+    )
+    assert response.status_code == 200
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+        sess["admin_authenticated"] = True
+        sess["csrf_token"] = "csrf"
+
+    response = flask_client.post(
+        "/admin/api-token",
+        data={"csrf_token": "csrf"},
+    )
+    assert response.status_code == 200
+    second_token = _extract_generated_token(response)
+    assert second_token != first_token
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    old_response = flask_client.get(
+        "/admin/api/health",
+        headers={"X-WAMF-API-Key": first_token},
+    )
+    new_response = flask_client.get(
+        "/admin/api/health",
+        headers={"X-WAMF-API-Key": second_token},
+    )
+    assert old_response.status_code == 401
+    assert new_response.status_code == 200
 
 
 def test_admin_login_rejects_external_next_url(flask_client, monkeypatch):
@@ -437,6 +588,9 @@ admin:
   auth_enabled: true
   session_secret: hidden
   password_hash: hidden-hash
+api:
+  token_auth_enabled: true
+  token_hash: hidden-token-hash
 webui:
   port: 7766
 """.lstrip())
@@ -468,6 +622,8 @@ webui:
     assert b"mqtt_server" in response.data
     assert b"password_hash" not in response.data
     assert b"hidden-hash" not in response.data
+    assert b"token_hash" not in response.data
+    assert b"hidden-token-hash" not in response.data
 
 
 def test_change_password_updates_hidden_admin_block(flask_client, monkeypatch, tmp_path):
@@ -545,4 +701,3 @@ def test_change_password_page_renders_admin_status_footer(flask_client, monkeypa
     response = flask_client.get("/admin/password")
     assert response.status_code == 200
     assert b"Admin Password" in response.data
-

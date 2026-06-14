@@ -54,6 +54,13 @@
           Password
         </a>
 
+        <a
+          href="{{ url_for('admin_api_token') }}"
+          class="admin-nav-btn {% if request.endpoint == 'admin_api_token' %}active{% endif %}"
+        >
+          API Token
+        </a>
+
         <a href="{{ url_for('logout') }}" class="admin-nav-btn">
           Logout
         </a>

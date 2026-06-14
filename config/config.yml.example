@@ -29,6 +29,10 @@ webui:
   port: 7766
   host: 0.0.0.0
 
+api:
+  token_auth_enabled: true
+  token_hash: ""
+
 admin:
   auth_enabled: true
   # Generate a long random value for session_secret and keep it stable across restarts.

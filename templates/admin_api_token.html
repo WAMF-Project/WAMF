@@ -1,0 +1,48 @@
+{% extends "admin_base.html" %} {% block title %} WAMF | API Token {% endblock %}
+{% block content %}
+
+<h1 class="wamf-heading">API Token</h1>
+
+<div class="wamf-panel">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="config-message success">{{ messages[0] }}</div>
+    {% endif %}
+  {% endwith %}
+
+  {% if generated_token %}
+    <div class="config-message api-token-once">
+      <div>Copy this token now. It cannot be recovered after leaving this page.</div>
+      <code>{{ generated_token }}</code>
+    </div>
+  {% endif %}
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <h2>Token Authentication</h2>
+      <p>{% if token_auth_enabled %}Enabled{% else %}Disabled{% endif %}</p>
+    </div>
+
+    <div class="stat-card">
+      <h2>Token Configured</h2>
+      <p>{% if token_configured %}Yes{% else %}No{% endif %}</p>
+    </div>
+  </div>
+</div>
+
+<div class="wamf-panel">
+  <h2 class="wamf-subheading">Generate Token</h2>
+  <p class="wamf-meta-secondary">
+    Generating a new token invalidates the previous token. WAMF stores only a
+    hash, so the token cannot be recovered later.
+  </p>
+
+  <form class="admin-form" method="post" action="{{ url_for('admin_api_token') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <button class="login-button" type="submit">
+      {% if token_configured %}Regenerate Token{% else %}Generate Token{% endif %}
+    </button>
+  </form>
+</div>
+
+{% endblock %}
