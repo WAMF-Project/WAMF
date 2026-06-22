@@ -46,27 +46,10 @@ def get_system_health():
 
         health["frigate_online"] = False
 
-    # Frigate media storage
-    try:
+    # Retain the API field for compatibility; Frigate storage is not local to WAMF.
+    health["frigate_disk_percent"] = None
 
-        total, used, free = shutil.disk_usage(
-            "/media/frigate"
-        )
-
-        frigate_used_percent = round(
-            (used / total) * 100,
-            1
-        )
-
-        health["frigate_disk_percent"] = (
-            frigate_used_percent
-        )
-
-    except OSError as exc:
-        logger.debug("Frigate disk usage check failed: %s", exc)
-
-        health["frigate_disk_percent"] = None
-        # MQTT connectivity
+    # MQTT connectivity
     try:
 
         client = mqtt.Client()

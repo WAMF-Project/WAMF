@@ -5,11 +5,7 @@ block content %}
 <h2 class="wamf-subheading">Live view of the feeder</h2>
 
 <div class="live-view-card">
-  <iframe
-    src="http://192.168.1.98:1984/api/stream.mp4?src=test&mp4=all"
-    allowfullscreen
-  >
-  </iframe>
+  <iframe src="{{ live_view_url }}" allowfullscreen></iframe>
 </div>
 
 {% endblock %}

@@ -29,6 +29,9 @@ webui:
   port: 7766
   host: 0.0.0.0
 
+live_view:
+  url: http:// # Live view url from go2rtc etc
+
 storage:
   database_path: ./data/speciesid.db
 
