@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Rolls back whosatmyfeeder to the previously deployed image.
+# Rolls back WAMF to the previously deployed image.
 # Usage: bash scripts/rollback.sh
 
 set -euo pipefail
 
-DEPLOY_DIR="${DEPLOY_DIR:?DEPLOY_DIR must be set, e.g. export DEPLOY_DIR=/opt/whosatmyfeeder}"
+DEPLOY_DIR="${DEPLOY_DIR:?DEPLOY_DIR must be set, e.g. export DEPLOY_DIR=/opt/wamf}"
 COMPOSE="$DEPLOY_DIR/docker-compose.yml"
 LAST_DEPLOYED="$DEPLOY_DIR/.last-deployed"
 

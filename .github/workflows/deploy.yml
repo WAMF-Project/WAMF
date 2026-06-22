@@ -1,4 +1,4 @@
-name: Deploy to Frigate
+name: Deploy WAMF
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
             --exit-code 1
 
   deploy:
-    name: Build and deploy whosatmyfeeder
+    name: Build and deploy WAMF
     runs-on: self-hosted
     needs: scan-secrets
     permissions:
@@ -43,13 +43,13 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Pull previous image for layer cache
-        run: docker pull ghcr.io/k1n6b0b/whosatmyfeeder:latest || true
+        run: docker pull ghcr.io/k1n6b0b/wamf:latest || true
 
       - name: Build image
         run: |
           docker build \
-            --cache-from ghcr.io/k1n6b0b/whosatmyfeeder:latest \
-            -t ghcr.io/k1n6b0b/whosatmyfeeder:${{ github.sha }} \
+            --cache-from ghcr.io/k1n6b0b/wamf:latest \
+            -t ghcr.io/k1n6b0b/wamf:${{ github.sha }} \
             .
 
       - name: Scan image for critical vulnerabilities
@@ -59,19 +59,19 @@ jobs:
             --severity CRITICAL \
             --ignore-unfixed \
             --no-progress \
-            ghcr.io/k1n6b0b/whosatmyfeeder:${{ github.sha }}
+            ghcr.io/k1n6b0b/wamf:${{ github.sha }}
 
       - name: Push image
         run: |
-          docker tag ghcr.io/k1n6b0b/whosatmyfeeder:${{ github.sha }} ghcr.io/k1n6b0b/whosatmyfeeder:latest
-          docker push ghcr.io/k1n6b0b/whosatmyfeeder:${{ github.sha }}
-          docker push ghcr.io/k1n6b0b/whosatmyfeeder:latest
+          docker tag ghcr.io/k1n6b0b/wamf:${{ github.sha }} ghcr.io/k1n6b0b/wamf:latest
+          docker push ghcr.io/k1n6b0b/wamf:${{ github.sha }}
+          docker push ghcr.io/k1n6b0b/wamf:latest
 
       - name: Deploy
         run: |
           current=$(grep 'image:' "$DEPLOY_DIR/docker-compose.yml" | awk '{print $2}')
           echo "$current" > "$DEPLOY_DIR/.last-deployed"
-          sed -i "s|image: ghcr.io/k1n6b0b/whosatmyfeeder:.*|image: ghcr.io/k1n6b0b/whosatmyfeeder:${{ github.sha }}|" "$DEPLOY_DIR/docker-compose.yml"
+          sed -i "s|image: ghcr.io/k1n6b0b/wamf:.*|image: ghcr.io/k1n6b0b/wamf:${{ github.sha }}|" "$DEPLOY_DIR/docker-compose.yml"
           docker compose -f "$DEPLOY_DIR/docker-compose.yml" pull
           docker compose -f "$DEPLOY_DIR/docker-compose.yml" up -d
 

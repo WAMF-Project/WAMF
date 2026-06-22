@@ -2,12 +2,14 @@ services:
   wamf:
     container_name: wamf
     restart: unless-stopped
-    image: ghcr.io/k1n6b0b/wamf:latest
+    build:
+      context: .
+    image: wamf:0.4.0-beta.3
     volumes:
       - ./config/config.yml:/app/config/config.yml
       - ./data:/data
       - ./media:/media
     ports:
-      - 7767:7767 # The container port must match webui.port in config.yml.
+      - "7767:7767"
     environment:
       TZ: Europe/London

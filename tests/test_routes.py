@@ -71,6 +71,36 @@ def _set_admin_api_auth(webui, monkeypatch, api_token=None):
     webui.app.secret_key = "test-secret"
 
 
+def test_live_view_uses_camera_config(flask_client, monkeypatch):
+    import webui
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "camera": {"live_view_url": "https://camera.example/live"},
+        "live_view": {"url": "https://legacy.example/live"},
+    })
+
+    response = flask_client.get("/live")
+
+    assert response.status_code == 200
+    assert b'https://camera.example/live' in response.data
+
+
+def test_live_view_keeps_legacy_config_fallback(flask_client, monkeypatch):
+    import webui
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "live_view": {"url": "https://legacy.example/live"},
+    })
+    webui.config.pop("camera", None)
+
+    response = flask_client.get("/live")
+
+    assert response.status_code == 200
+    assert b'https://legacy.example/live' in response.data
+
+
 def _stub_admin_api_dependencies(webui, monkeypatch):
     monkeypatch.setattr(webui, "get_system_health", lambda: {
         "frigate_online": True,

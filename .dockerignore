@@ -1,0 +1,12 @@
+.git
+.venv/
+.venv311/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+config/
+data/
+media/
+logs/
+*.log
+*.db.backup

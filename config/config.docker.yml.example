@@ -1,0 +1,54 @@
+frigate:
+  frigate_url: http://<frigate-host>:5000
+  mqtt_server: <mqtt-host>
+  mqtt_auth: false
+  # mqtt_username: <mqtt-username>
+  # mqtt_password: <mqtt-password>
+  mqtt_port: 1883
+  mqtt_use_tls: false
+  mqtt_tls_insecure: false
+  main_topic: frigate
+  camera:
+    - <camera-name>
+  object: bird
+
+classification:
+  model: model.tflite
+  threshold: 0.7
+
+webui:
+  port: 7766
+  host: 0.0.0.0
+
+storage:
+  database_path: /data/speciesid.db
+
+media:
+  snapshots_path: /media/wamf/snapshots
+  clips_path: /media/wamf/clips
+
+camera:
+  live_view_url: ""
+
+api:
+  token_auth_enabled: true
+  token_hash: ""
+
+retention:
+  enabled: true
+  snapshots_days: 90
+  clips_days: 90
+  delete_media: false
+  orphan_scan_enabled: true
+  delete_orphaned_media: false
+  system_events_days: 90
+  system_events_min_rows: 1000
+  config_backups_max_files: 10
+  species_overrides: {}
+
+admin:
+  auth_enabled: true
+  session_secret: "<long random session secret>"
+  session_cookie_samesite: Lax
+  session_cookie_secure: false
+  password_hash: "<generated werkzeug password hash>"

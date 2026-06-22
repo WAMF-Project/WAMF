@@ -13,10 +13,12 @@ htmlcov/
 .venv/
 venv/
 .venv311/
+.venv-test/
 
 # Config and secrets
 config/*
 !config/config.yml.example
+!config/config.docker.yml.example
 .mcp.json
 
 # Runtime data

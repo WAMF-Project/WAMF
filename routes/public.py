@@ -190,7 +190,10 @@ def activity():
 def live_view():
     import webui
 
-    live_view_url = webui.config.get('live_view', {}).get('url', '')
+    live_view_url = webui.config.get('camera', {}).get(
+        'live_view_url',
+        webui.config.get('live_view', {}).get('url', ''),
+    )
 
     return render_template(
         'live_view.html',
