@@ -42,6 +42,7 @@ retention:
   delete_orphaned_media: false
   system_events_days: 90
   system_events_min_rows: 1000
+  config_backups_max_files: 10
   species_overrides: {}
 
 admin:

@@ -8,6 +8,8 @@ import yaml
 
 
 SENSITIVE_CONFIG_BLOCKS = {'admin', 'api'}
+DEFAULT_CONFIG_BACKUPS_MAX_FILES = 10
+BACKUP_TIMESTAMP_FORMAT = '%Y%m%d-%H%M%S-%f'
 
 
 def get_config_path():
@@ -52,6 +54,37 @@ def load_config_file_content():
 
 def load_config_from_content(config_content):
     return yaml.safe_load(config_content) or {}
+
+
+def get_config_backups_max_files(config):
+    retention_config = (config or {}).get('retention', {})
+    return max(
+        int(
+            retention_config.get(
+                'config_backups_max_files',
+                DEFAULT_CONFIG_BACKUPS_MAX_FILES,
+            )
+        ),
+        0,
+    )
+
+
+def get_config_backup_paths(config_path=None):
+    config_path = config_path or get_config_path()
+    return sorted(
+        glob.glob(f"{config_path}.*.bak"),
+        key=os.path.getmtime,
+        reverse=True,
+    )
+
+
+def prune_config_backups(config_path=None, max_files=DEFAULT_CONFIG_BACKUPS_MAX_FILES):
+    backups = get_config_backup_paths(config_path)
+
+    for backup_path in backups[max_files:]:
+        os.remove(backup_path)
+
+    return len(backups[max_files:])
 
 
 def get_existing_admin_config():
@@ -99,11 +132,11 @@ def write_config_preserving_admin(config_content, admin_config=None, api_config=
         admin_config,
         api_config
     )
-    load_config_from_content(final_content)
+    final_config = load_config_from_content(final_content)
 
     backup_path = (
         f"{get_config_path()}."
-        f"{datetime.now().strftime('%Y%m%d-%H%M%S')}.bak"
+        f"{datetime.now().strftime(BACKUP_TIMESTAMP_FORMAT)}.bak"
     )
 
     shutil.copy2(
@@ -121,6 +154,11 @@ def write_config_preserving_admin(config_content, admin_config=None, api_config=
 
     if reload_callback:
         reload_callback()
+
+    prune_config_backups(
+        get_config_path(),
+        get_config_backups_max_files(final_config),
+    )
 
 
 def update_admin_password_hash(password_hash, reload_callback=None):
@@ -158,5 +196,5 @@ def get_config_file_metadata():
         'last_modified': datetime.fromtimestamp(
             os.path.getmtime(config_path)
         ).strftime("%Y-%m-%d %H:%M:%S"),
-        'backup_count': len(glob.glob(f"{config_path}.*.bak")),
+        'backup_count': len(get_config_backup_paths(config_path)),
     }
