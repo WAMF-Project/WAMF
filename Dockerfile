@@ -6,6 +6,7 @@ COPY model.tflite .
 COPY birdnames.db .
 COPY speciesid.py .
 COPY webui.py .
+COPY wamf_paths.py .
 COPY version.py .
 COPY app/ ./app/
 COPY routes/ ./routes/

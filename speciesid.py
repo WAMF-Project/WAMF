@@ -23,14 +23,16 @@ from app.archive_media import (
 )
 from app.system_events import log_system_event
 from version import VERSION
-from app.db import connect_db, ensure_schema, DB_PATH as DEFAULT_DB_PATH
+from app.db import connect_db, ensure_schema
+from wamf_paths import ensure_storage_paths
 
 classifier = None
 config = None
 firstmessage = True
 logger = logging.getLogger(__name__)
 
-DBPATH = DEFAULT_DB_PATH
+# Optional test/explicit override. None keeps config resolution dynamic.
+DBPATH = None
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_INSECURE_TLS = False
 
@@ -688,6 +690,7 @@ def _on_message_inner(client, userdata, message):
 
 def setupdb():
 
+    ensure_storage_paths()
     ensure_schema(DBPATH)
 
 

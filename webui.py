@@ -19,7 +19,6 @@ from app.metadata_tasks import (
 )
 from app.db import (
     ensure_schema,
-    DB_PATH as DEFAULT_DB_PATH,
     NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
 )
 from app.config_editor import (
@@ -28,11 +27,18 @@ from app.config_editor import (
     update_api_token_hash,
     write_config_preserving_admin,
 )
+from wamf_paths import (
+    ensure_storage_paths,
+    get_clips_path,
+    get_snapshots_path,
+    resolve_media_path,
+)
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
 config = None
-DBPATH = DEFAULT_DB_PATH
+# Optional test/explicit override. None keeps config resolution dynamic.
+DBPATH = None
 NAMEDBPATH = DEFAULT_NAMES_DB_PATH
 LOGIN_ATTEMPTS = security.LOGIN_ATTEMPTS
 CSRF_PROTECTED_ENDPOINTS = {
@@ -142,15 +148,18 @@ def get_safe_next_url(default_endpoint='admin.admin_dashboard'):
     return security.get_safe_next_url(default_endpoint)
 
 
-def is_wamf_media_path(path):
+def is_wamf_media_path(path, media_type=None):
     if not path:
         return False
 
     try:
-        media_path = Path(path).resolve()
+        if media_type:
+            media_path = resolve_media_path(path, media_type).resolve()
+        else:
+            media_path = Path(path).resolve()
         allowed_dirs = (
-            Path('media/wamf/snapshots').resolve(),
-            Path('media/wamf/clips').resolve(),
+            get_snapshots_path().resolve(),
+            get_clips_path().resolve(),
         )
         return any(
             media_path == allowed_dir or allowed_dir in media_path.parents
@@ -160,14 +169,17 @@ def is_wamf_media_path(path):
         return False
 
 
-def delete_wamf_media_files(*paths):
+def delete_wamf_media_files(snapshot_path=None, clip_path=None):
     deleted = []
 
-    for media_path in paths:
-        if not is_wamf_media_path(media_path):
+    for media_path, media_type in (
+        (snapshot_path, "snapshots"),
+        (clip_path, "clips"),
+    ):
+        if not is_wamf_media_path(media_path, media_type):
             continue
 
-        path = Path(media_path)
+        path = resolve_media_path(media_path, media_type)
 
         if not path.exists():
             continue
@@ -294,4 +306,5 @@ def register_blueprints(flask_app):
 
 register_blueprints(app)
 load_config()
+ensure_storage_paths()
 ensure_schema(DBPATH)

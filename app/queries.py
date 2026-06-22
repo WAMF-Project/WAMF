@@ -7,13 +7,14 @@ from app.db import (
     attach_names_db,
     connect_db,
     connect_names_db,
-    DB_PATH as DEFAULT_DB_PATH,
     NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
     DETECTION_SELECT,
 )
+from wamf_paths import get_clips_path, get_snapshots_path
 
 
-DBPATH = DEFAULT_DB_PATH
+# Optional test/explicit override. None keeps config resolution dynamic.
+DBPATH = None
 NAMEDBPATH = DEFAULT_NAMES_DB_PATH
 logger = logging.getLogger(__name__)
 
@@ -663,8 +664,8 @@ def get_admin_stats():
     conn.close()
 
     archive_dirs = [
-        Path("media/wamf/snapshots"),
-        Path("media/wamf/clips")
+        get_snapshots_path(),
+        get_clips_path()
     ]
 
     total_size = 0

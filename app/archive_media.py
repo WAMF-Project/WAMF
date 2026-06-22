@@ -1,12 +1,10 @@
-from pathlib import Path
 import logging
 import time
 
 import requests
 from app.system_events import log_system_event
+from wamf_paths import ensure_storage_paths, get_clips_path, get_snapshots_path
 
-WAMF_SNAPSHOT_DIR = Path("media/wamf/snapshots")
-WAMF_CLIP_DIR = Path("media/wamf/clips")
 logger = logging.getLogger(__name__)
 
 
@@ -15,13 +13,14 @@ def archive_snapshot(
     frigate_event: str
 ) -> str | None:
 
+    ensure_storage_paths()
     snapshot_url = (
         f"{frigate_url}/api/events/"
         f"{frigate_event}/snapshot.jpg"
     )
 
     destination = (
-        WAMF_SNAPSHOT_DIR
+        get_snapshots_path()
         / f"{frigate_event}.jpg"
     )
 
@@ -66,13 +65,14 @@ def archive_clip(
     frigate_event: str
 ) -> str | None:
 
+    ensure_storage_paths()
     clip_url = (
         f"{frigate_url}/api/events/"
         f"{frigate_event}/clip.mp4"
     )
 
     destination = (
-        WAMF_CLIP_DIR
+        get_clips_path()
         / f"{frigate_event}.mp4"
     )
 

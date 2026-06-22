@@ -1,10 +1,11 @@
 from datetime import datetime
 import logging
 import sqlite3
-from app.db import connect_db, DB_PATH as DEFAULT_DB_PATH
+from app.db import connect_db
 
 
-DB_PATH = DEFAULT_DB_PATH
+# Optional test/explicit override. None keeps config resolution dynamic.
+DB_PATH = None
 logger = logging.getLogger(__name__)
 
 VALID_SEVERITIES = {'DEBUG', 'INFO', 'WARN', 'ERROR'}

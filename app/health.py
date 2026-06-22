@@ -1,4 +1,3 @@
-from pathlib import Path
 import logging
 import sqlite3
 
@@ -7,9 +6,11 @@ import yaml
 import paho.mqtt.client as mqtt
 import shutil
 from app.config_editor import get_config_path
-from app.db import connect_db, DB_PATH as DEFAULT_DB_PATH
+from app.db import connect_db
+from wamf_paths import get_clips_path, get_snapshots_path
 
-DB_PATH = DEFAULT_DB_PATH
+# Optional test/explicit override. None keeps config resolution dynamic.
+DB_PATH = None
 logger = logging.getLogger(__name__)
 
 def load_config():
@@ -114,13 +115,8 @@ def get_system_health():
     health["disk_used_percent"] = used_percent
 
     # Archive directories
-    snapshot_dir = Path(
-        "media/wamf/snapshots"
-    )
-
-    clip_dir = Path(
-        "media/wamf/clips"
-    )
+    snapshot_dir = get_snapshots_path()
+    clip_dir = get_clips_path()
 
     health["archive_writable"] = (
         snapshot_dir.exists()

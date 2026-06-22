@@ -1,6 +1,8 @@
 import sqlite3
 
-from app.db import ensure_schema
+import yaml
+
+from app.db import connect_db, ensure_schema
 
 
 def test_ensure_schema_adds_missing_media_columns_and_indexes(tmp_path):
@@ -70,3 +72,25 @@ def test_ensure_schema_creates_missing_parent_directory(tmp_path):
 
     assert "detections" in tables
     assert "schema_migrations" in tables
+
+
+def test_connect_db_resolves_current_config_on_each_call(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yml"
+    first_db = tmp_path / "first.db"
+    second_db = tmp_path / "second.db"
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+
+    config_path.write_text(
+        yaml.safe_dump({"storage": {"database_path": str(first_db)}}),
+        encoding="utf-8",
+    )
+    connect_db().close()
+
+    config_path.write_text(
+        yaml.safe_dump({"storage": {"database_path": str(second_db)}}),
+        encoding="utf-8",
+    )
+    connect_db().close()
+
+    assert first_db.exists()
+    assert second_db.exists()

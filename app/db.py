@@ -1,7 +1,7 @@
 from pathlib import Path
 import sqlite3
+from wamf_paths import get_database_path
 
-DB_PATH = './data/speciesid.db'
 NAMES_DB_PATH = './birdnames.db'
 
 DETECTION_COLUMNS = (
@@ -21,7 +21,7 @@ DETECTION_SELECT = ', '.join(f'detections.{column}' for column in DETECTION_COLU
 
 
 def connect_db(db_path=None, row_factory=True):
-    target_path = db_path or DB_PATH
+    target_path = get_database_path() if db_path is None else db_path
 
     # SQLite creates missing database files, but not missing parent directories.
     if target_path != ':memory:':

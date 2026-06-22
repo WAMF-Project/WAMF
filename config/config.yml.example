@@ -29,6 +29,13 @@ webui:
   port: 7766
   host: 0.0.0.0
 
+storage:
+  database_path: ./data/speciesid.db
+
+media:
+  snapshots_path: ./media/wamf/snapshots
+  clips_path: ./media/wamf/clips
+
 api:
   token_auth_enabled: true
   token_hash: ""
@@ -39,6 +46,7 @@ retention:
   clips_days: 90
   delete_media: false
   orphan_scan_enabled: true
+  
   delete_orphaned_media: false
   system_events_days: 90
   system_events_min_rows: 1000

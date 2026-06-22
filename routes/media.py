@@ -3,6 +3,7 @@
 from flask import Blueprint, send_from_directory
 
 from app.frigate_proxy import proxy_frigate_media
+from wamf_paths import get_clips_path, get_snapshots_path
 
 
 media_bp = Blueprint('media', __name__)
@@ -45,16 +46,18 @@ def frigate_clip(frigate_event):
 
 
 @media_bp.route('/wamf/snapshot/<path:filename>')
+@media_bp.route('/media/snapshots/<path:filename>')
 def wamf_snapshot(filename):
     return send_from_directory(
-        "media/wamf/snapshots",
+        get_snapshots_path(),
         filename
     )
 
 
 @media_bp.route('/wamf/clip/<path:filename>')
+@media_bp.route('/media/clips/<path:filename>')
 def wamf_clip(filename):
     return send_from_directory(
-        "media/wamf/clips",
+        get_clips_path(),
         filename
     )

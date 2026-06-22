@@ -1,13 +1,14 @@
 
 from datetime import datetime, timedelta
 import logging
-from pathlib import Path
 from app.config_editor import get_config_path
 from app.system_events import log_system_event
-from app.db import connect_db, DB_PATH as DEFAULT_DB_PATH
+from app.db import connect_db
+from wamf_paths import get_clips_path, get_snapshots_path, resolve_media_path
 import yaml
 
-DB_PATH = DEFAULT_DB_PATH
+# Optional test/explicit override. None keeps config resolution dynamic.
+DB_PATH = None
 logger = logging.getLogger(__name__)
 DEFAULT_SYSTEM_EVENTS_DAYS = 90
 DEFAULT_SYSTEM_EVENTS_MIN_ROWS = 1000
@@ -145,7 +146,7 @@ def dry_run_retention():
 
         if row["wamf_snapshot_path"] and age_days > snapshot_retention:
 
-            path = Path(row["wamf_snapshot_path"])
+            path = resolve_media_path(row["wamf_snapshot_path"], "snapshots")
 
             if delete_media:
 
@@ -172,7 +173,7 @@ def dry_run_retention():
 
         if row["wamf_clip_path"] and age_days > clip_retention:
 
-            path = Path(row["wamf_clip_path"])
+            path = resolve_media_path(row["wamf_clip_path"], "clips")
 
             if delete_media:
 
@@ -244,12 +245,16 @@ def scan_for_orphans():
     for row in rows:
 
         if row["wamf_snapshot_path"]:
-            referenced_files.add(row["wamf_snapshot_path"])
+            referenced_files.add(
+                resolve_media_path(row["wamf_snapshot_path"], "snapshots").resolve()
+            )
 
         if row["wamf_clip_path"]:
-            referenced_files.add(row["wamf_clip_path"])
+            referenced_files.add(
+                resolve_media_path(row["wamf_clip_path"], "clips").resolve()
+            )
 
-    media_dirs = [Path("media/wamf/snapshots"), Path("media/wamf/clips")]
+    media_dirs = [get_snapshots_path(), get_clips_path()]
 
     orphan_count = 0
     missing_count = 0
@@ -258,9 +263,10 @@ def scan_for_orphans():
 
         for file_path in media_dir.glob("*"):
 
+            resolved_file = file_path.resolve()
             file_str = str(file_path)
 
-            if file_str not in referenced_files:
+            if resolved_file not in referenced_files:
 
                 logger.warning("[ORPHAN] %s", file_str)
 
@@ -280,7 +286,7 @@ def scan_for_orphans():
 
     for file_path in referenced_files:
 
-        if not Path(file_path).exists():
+        if not file_path.exists():
 
             logger.warning("[MISSING] %s", file_path)
 

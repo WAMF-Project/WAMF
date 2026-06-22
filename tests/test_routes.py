@@ -214,9 +214,25 @@ def test_delete_detection_idempotent(flask_client, tmp_dbs):
     assert response.status_code == 404
 
 
-def test_delete_detection_removes_archived_media(flask_client, tmp_dbs):
-    snapshot_path = Path("media/wamf/snapshots/test-delete-media.jpg")
-    clip_path = Path("media/wamf/clips/test-delete-media.mp4")
+def test_delete_detection_removes_archived_media(
+    flask_client, tmp_dbs, tmp_path, monkeypatch
+):
+    import webui
+
+    snapshot_root = tmp_path / "snapshots"
+    clip_root = tmp_path / "clips"
+    monkeypatch.setattr(webui, "get_snapshots_path", lambda: snapshot_root)
+    monkeypatch.setattr(webui, "get_clips_path", lambda: clip_root)
+    monkeypatch.setattr(
+        webui,
+        "resolve_media_path",
+        lambda value, media_type: (
+            snapshot_root if media_type == "snapshots" else clip_root
+        ) / Path(value).name,
+    )
+
+    snapshot_path = snapshot_root / "test-delete-media.jpg"
+    clip_path = clip_root / "test-delete-media.mp4"
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
     clip_path.parent.mkdir(parents=True, exist_ok=True)
     snapshot_path.write_bytes(b"snapshot")
@@ -292,6 +308,22 @@ def test_frigate_clip_timeout_returns_fallback(flask_client, monkeypatch):
 def test_wamf_media_routes_do_not_allow_path_traversal(flask_client):
     response = flask_client.get("/wamf/snapshot/../../config/config.yml")
     assert response.status_code == 404
+
+
+def test_configured_snapshot_route_serves_media(flask_client, tmp_path, monkeypatch):
+    import routes.media
+
+    snapshot_root = tmp_path / "snapshots"
+    snapshot_root.mkdir()
+    (snapshot_root / "event.jpg").write_bytes(b"configured snapshot")
+    monkeypatch.setattr(
+        routes.media, "get_snapshots_path", lambda: snapshot_root
+    )
+
+    response = flask_client.get("/media/snapshots/event.jpg")
+
+    assert response.status_code == 200
+    assert response.data == b"configured snapshot"
 
 
 # ---------------------------------------------------------------------------
