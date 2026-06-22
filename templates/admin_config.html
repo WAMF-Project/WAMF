@@ -38,16 +38,12 @@ endblock %} {% block content %}
     <button
       id="restart-btn"
       class="log-filter-btn"
-      disabled
-      title="Available when restart management is implemented"
     >
       Restart WAMF
     </button>
     <button
-      id="restart-btn"
+      id="save-restart-btn"
       class="log-filter-btn"
-      disabled
-      title="Available when restart management is implemented"
     >
       Save & Restart
     </button>
@@ -158,6 +154,51 @@ endblock %} {% block content %}
 
                       }
                   );
+
+          async function postConfigAction(url, includeConfig) {
+
+              const options = {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': {{ csrf_token|tojson }}
+                  }
+              };
+
+              if (includeConfig) {
+                  options.body = JSON.stringify({
+                      config_content: editor.getValue()
+                  });
+              }
+
+              try {
+                  const response = await fetch(url, options);
+                  const result = await response.json();
+
+                  showMessage(
+                      result.success
+                          ? result.message
+                          : (result.error || result.message || 'Request failed'),
+                      result.success ? 'success' : 'error'
+                  );
+              }
+              catch (error) {
+                  showMessage('WAMF is restarting. Reconnect in a moment.', 'success');
+              }
+
+          }
+
+          document
+              .getElementById('restart-btn')
+              .addEventListener('click', function () {
+                  postConfigAction('/admin/config/restart', false);
+              });
+
+          document
+              .getElementById('save-restart-btn')
+              .addEventListener('click', function () {
+                  postConfigAction('/admin/config/save-and-restart', true);
+              });
 
           document
               .getElementById('copy-config-btn')

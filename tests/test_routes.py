@@ -4,6 +4,8 @@ import re
 import sqlite3
 from pathlib import Path
 
+import yaml
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -668,6 +670,68 @@ webui:
     assert b"hidden-hash" not in response.data
     assert b"token_hash" not in response.data
     assert b"hidden-token-hash" not in response.data
+
+
+def test_config_editor_restart_schedules_process_restart(flask_client, monkeypatch):
+    import routes.admin as admin_routes
+
+    scheduled = []
+    monkeypatch.setattr(admin_routes, "schedule_restart", lambda: scheduled.append(True))
+
+    response = flask_client.post("/admin/config/restart", json={})
+
+    assert response.status_code == 200
+    assert response.get_json()["success"] is True
+    assert scheduled == [True]
+
+
+def test_config_editor_restart_requires_csrf_when_auth_enabled(
+    flask_client, monkeypatch
+):
+    from werkzeug.security import generate_password_hash
+    import routes.admin as admin_routes
+    import webui
+
+    monkeypatch.setattr(webui, "config", {
+        **webui.config,
+        "admin": {
+            "auth_enabled": True,
+            "session_secret": "test-secret",
+            "password_hash": generate_password_hash("secret"),
+        },
+    })
+    webui.app.secret_key = "test-secret"
+    _login_as_admin(flask_client)
+    scheduled = []
+    monkeypatch.setattr(admin_routes, "schedule_restart", lambda: scheduled.append(True))
+
+    response = flask_client.post("/admin/config/restart", json={})
+
+    assert response.status_code == 400
+    assert response.is_json
+    assert scheduled == []
+
+
+def test_config_editor_save_and_restart_writes_config(
+    flask_client, monkeypatch, tmp_path
+):
+    import routes.admin as admin_routes
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("webui:\n  port: 7766\n")
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+    scheduled = []
+    monkeypatch.setattr(admin_routes, "schedule_restart", lambda: scheduled.append(True))
+
+    response = flask_client.post(
+        "/admin/config/save-and-restart",
+        json={"config_content": "webui:\n  port: 8877\n"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["success"] is True
+    assert yaml.safe_load(config_path.read_text())["webui"]["port"] == 8877
+    assert scheduled == [True]
 
 
 def test_change_password_updates_hidden_admin_block(flask_client, monkeypatch, tmp_path):

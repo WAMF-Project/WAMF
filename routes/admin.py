@@ -12,6 +12,7 @@ from app.config_editor import (
     strip_admin_config_block,
 )
 from app.system_events import log_system_event
+from app.process_control import schedule_restart
 
 
 admin_bp = Blueprint('admin', __name__)
@@ -199,6 +200,49 @@ def save_config():
             "message": "Configuration updated"
         }
 
+    except yaml.YAMLError as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@admin_bp.route('/admin/config/restart', methods=['POST'])
+def restart_wamf():
+    log_system_event(
+        "INFO",
+        "SYSTEM",
+        "WAMF restart requested via admin editor"
+    )
+    schedule_restart()
+
+    return {
+        "success": True,
+        "message": "Restart requested. WAMF will be available again shortly."
+    }
+
+
+@admin_bp.route('/admin/config/save-and-restart', methods=['POST'])
+def save_and_restart_wamf():
+    import webui
+
+    data = request.get_json() or {}
+    config_content = data.get('config_content', '')
+
+    try:
+        webui.write_config_preserving_admin(config_content)
+
+        log_system_event(
+            "INFO",
+            "CONFIG",
+            "Configuration updated; WAMF restart requested"
+        )
+        schedule_restart()
+
+        return {
+            "success": True,
+            "message": "Configuration saved. WAMF will restart shortly."
+        }
     except yaml.YAMLError as e:
         return {
             "success": False,

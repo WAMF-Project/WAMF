@@ -37,6 +37,8 @@ NAMEDBPATH = DEFAULT_NAMES_DB_PATH
 LOGIN_ATTEMPTS = security.LOGIN_ATTEMPTS
 CSRF_PROTECTED_ENDPOINTS = {
     'admin.save_config',
+    'admin.restart_wamf',
+    'admin.save_and_restart_wamf',
     'admin.change_password',
     'admin.admin_api_token',
     'admin.refresh_species',
@@ -122,7 +124,7 @@ def is_valid_csrf_token(token):
 
 
 def csrf_failure_response():
-    if request.path.startswith('/admin/config/save') or request.path.startswith('/detections/'):
+    if request.path.startswith('/admin/config/') or request.path.startswith('/detections/'):
         return jsonify({
             'success': False,
             'message': 'Security token expired. Refresh the page and try again.',
