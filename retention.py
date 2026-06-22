@@ -9,6 +9,8 @@ import yaml
 
 DB_PATH = DEFAULT_DB_PATH
 logger = logging.getLogger(__name__)
+DEFAULT_SYSTEM_EVENTS_DAYS = 90
+DEFAULT_SYSTEM_EVENTS_MIN_ROWS = 1000
 
 
 def load_config():
@@ -29,6 +31,70 @@ def get_retention_days(config, species_name, media_type):
             return overrides[species_name][key]
 
     return config["retention"][f"{media_type}_days"]
+
+
+def prune_system_events(config=None):
+
+    config = config or load_config()
+    retention_config = config.get("retention", {})
+
+    if not retention_config.get("enabled", True):
+
+        log_system_event("INFO", "RETENTION", "System event retention disabled")
+
+        return 0
+
+    retention_days = int(
+        retention_config.get(
+            "system_events_days",
+            DEFAULT_SYSTEM_EVENTS_DAYS,
+        )
+    )
+    min_rows = max(
+        int(
+            retention_config.get(
+                "system_events_min_rows",
+                DEFAULT_SYSTEM_EVENTS_MIN_ROWS,
+            )
+        ),
+        0,
+    )
+    cutoff = (
+        datetime.now() - timedelta(days=retention_days)
+    ).isoformat()
+
+    conn = connect_db(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        DELETE FROM system_events
+        WHERE timestamp < ?
+        AND id NOT IN (
+            SELECT id
+            FROM system_events
+            ORDER BY id DESC
+            LIMIT ?
+        )
+        """,
+        (cutoff, min_rows),
+    )
+
+    deleted_count = cursor.rowcount
+
+    conn.commit()
+    conn.close()
+
+    if deleted_count:
+
+        log_system_event(
+            "INFO",
+            "RETENTION",
+            f"Pruned {deleted_count} system events older than "
+            f"{retention_days} days; kept newest {min_rows} rows",
+        )
+
+    return deleted_count
 
 
 def dry_run_retention():
@@ -267,3 +333,5 @@ if __name__ == "__main__":
     dry_run_retention()
 
     scan_for_orphans()
+
+    prune_system_events()

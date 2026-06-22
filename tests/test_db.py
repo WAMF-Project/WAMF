@@ -32,6 +32,10 @@ def test_ensure_schema_adds_missing_media_columns_and_indexes(tmp_path):
         row[1]
         for row in conn.execute("PRAGMA index_list(detections)").fetchall()
     }
+    system_event_indexes = {
+        row[1]
+        for row in conn.execute("PRAGMA index_list(system_events)").fetchall()
+    }
     migrations = {
         row[0]
         for row in conn.execute("SELECT version FROM schema_migrations").fetchall()
@@ -43,7 +47,9 @@ def test_ensure_schema_adds_missing_media_columns_and_indexes(tmp_path):
     assert "idx_detections_detection_time" in indexes
     assert "idx_detections_display_time" in indexes
     assert "idx_detections_frigate_event" in indexes
+    assert "idx_system_events_timestamp" in system_event_indexes
     assert "003_query_indexes" in migrations
+    assert "004_system_events_timestamp_index" in migrations
 
 
 def test_ensure_schema_creates_missing_parent_directory(tmp_path):

@@ -132,6 +132,7 @@ def ensure_schema(db_path=None):
         '001_initial_tables',
         '002_detection_media_columns',
         '003_query_indexes',
+        '004_system_events_timestamp_index',
     ):
         cursor.execute(
             "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
@@ -153,6 +154,10 @@ def ensure_schema(db_path=None):
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_system_events_type_id
         ON system_events(event_type, id)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_system_events_timestamp
+        ON system_events(timestamp)
     """)
 
     conn.commit()

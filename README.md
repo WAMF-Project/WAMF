@@ -1,4 +1,4 @@
-# Who's At My Feeder? (WAMF)
+#  WAMF (Wildlife Activity Monitoring Framework)
 
 > A wildlife observatory platform built around Frigate NVR, bird species identification, feeder activity analytics, and live wildlife monitoring.
 

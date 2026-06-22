@@ -33,6 +33,17 @@ api:
   token_auth_enabled: true
   token_hash: ""
 
+retention:
+  enabled: true
+  snapshots_days: 90
+  clips_days: 90
+  delete_media: false
+  orphan_scan_enabled: true
+  delete_orphaned_media: false
+  system_events_days: 90
+  system_events_min_rows: 1000
+  species_overrides: {}
+
 admin:
   auth_enabled: true
   # Generate a long random value for session_secret and keep it stable across restarts.
