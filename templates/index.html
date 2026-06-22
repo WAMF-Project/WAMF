@@ -83,6 +83,7 @@ block date_picker %}
 <section class="wamf-panel">
   <h2 class="wamf-heading">Latest Visitor</h2>
 
+  {% if latest_visitor %}
   <a
   href="{{ url_for(
     'public.show_detections_by_scientific_name',
@@ -114,6 +115,11 @@ block date_picker %}
   </div>
   </div>
 </a>
+  {% else %}
+  <div class="wamf-summary-card">
+    <h3>No detections yet</h3>
+  </div>
+  {% endif %}
 </section>
 
 <section class="wamf-panel">

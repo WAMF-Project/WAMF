@@ -136,6 +136,17 @@ def test_index_contains_html(flask_client):
     assert b"<!DOCTYPE html>" in response.data or b"<html" in response.data
 
 
+def test_index_handles_empty_database(flask_client, monkeypatch):
+    import webui
+
+    monkeypatch.setattr(webui, "get_latest_visitor", lambda: None)
+
+    response = flask_client.get("/")
+
+    assert response.status_code == 200
+    assert b"No detections yet" in response.data
+
+
 def test_expected_blueprint_endpoints_are_registered(flask_client):
     import webui
 

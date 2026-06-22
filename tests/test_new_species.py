@@ -34,6 +34,22 @@ import speciesid  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
+# Config loading
+# ---------------------------------------------------------------------------
+
+def test_load_config_uses_shared_config_path(monkeypatch, tmp_path):
+    config_path = tmp_path / "mounted-config.yml"
+    config_path.write_text("frigate:\n  server: http://frigate:5000\n")
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+
+    speciesid.load_config()
+
+    assert speciesid.config == {
+        "frigate": {"server": "http://frigate:5000"},
+    }
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 

@@ -24,6 +24,7 @@ from app.archive_media import (
 from app.system_events import log_system_event
 from version import VERSION
 from app.db import connect_db, ensure_schema
+from app.config_editor import get_config_path
 from wamf_paths import ensure_storage_paths
 
 classifier = None
@@ -698,9 +699,7 @@ def load_config():
 
     global config
 
-    file_path = './config/config.yml'
-
-    with open(file_path, 'r') as config_file:
+    with open(get_config_path(), 'r') as config_file:
 
         config = yaml.safe_load(
             config_file
