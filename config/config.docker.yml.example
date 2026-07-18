@@ -16,6 +16,11 @@ classification:
   model: model.tflite
   threshold: 0.7
 
+bridge:
+  enabled: false
+  events_url: http://192.168.1.112:5000/api/events
+  timeout_seconds: 1
+
 webui:
   port: 7766
   host: 0.0.0.0

@@ -242,6 +242,30 @@ def test_score_update_does_not_add_row(fresh_db):
     assert count == 1
 
 
+def test_bridge_notification_runs_after_successful_commit():
+    conn = MagicMock()
+
+    with patch('speciesid.post_observation_event') as mock_bridge:
+        mock_bridge.side_effect = lambda *args, **kwargs: (
+            conn.commit.assert_called_once_with()
+        )
+        speciesid.config = {'bridge': {'enabled': True}}
+        speciesid.commit_detection(conn, {'common_name': 'American Robin'})
+
+    mock_bridge.assert_called_once()
+
+
+def test_bridge_notification_not_run_when_commit_fails():
+    conn = MagicMock()
+    conn.commit.side_effect = sqlite3.OperationalError('commit failed')
+
+    with patch('speciesid.post_observation_event') as mock_bridge, \
+         pytest.raises(sqlite3.OperationalError):
+        speciesid.commit_detection(conn, {'common_name': 'American Robin'})
+
+    mock_bridge.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Threshold gating
 # ---------------------------------------------------------------------------

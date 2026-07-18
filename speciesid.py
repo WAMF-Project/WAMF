@@ -26,6 +26,7 @@ from version import VERSION
 from app.db import connect_db, ensure_schema
 from app.config_editor import get_config_path
 from wamf_paths import ensure_storage_paths
+from integrations.bridge import post_observation_event
 
 classifier = None
 config = None
@@ -183,6 +184,17 @@ def set_sublabel(frigate_url, frigate_event, sublabel):
 
     else:
         logger.warning("Failed to set sublabel. Status code: %s", response.status_code)
+
+
+def commit_detection(conn, pending_observation=None):
+    """Commit detection changes, then notify Bridge for a new row if present."""
+    conn.commit()
+
+    if pending_observation:
+        post_observation_event(
+            config.get('bridge', {}),
+            **pending_observation
+        )
 
 
 def on_message(client, userdata, message):
@@ -390,6 +402,8 @@ def _on_message_inner(client, userdata, message):
 
                         result = cursor.fetchone()
 
+                        pending_observation = None
+
                         if result is None:
 
                             logger.info("No record yet for event %s. Storing.", frigate_event)
@@ -434,6 +448,14 @@ def _on_message_inner(client, userdata, message):
                                     wamf_clip_path
                                 )
                             )
+
+                            pending_observation = {
+                                'common_name': common_name,
+                                'scientific_name': display_name,
+                                'confidence': score,
+                                'camera': after_data.get('camera'),
+                                'frigate_event': frigate_event,
+                            }
 
                             set_sublabel(
                                 frigate_url,
@@ -509,7 +531,7 @@ def _on_message_inner(client, userdata, message):
 
                                 logger.info("New score is lower. Keeping existing record.")
 
-                        conn.commit()
+                        commit_detection(conn, pending_observation)
 
                     else:
 
@@ -584,6 +606,8 @@ def _on_message_inner(client, userdata, message):
 
                                 result = cursor.fetchone()
 
+                                pending_observation = None
+
                                 if result is None:
 
                                     cursor.execute(
@@ -610,6 +634,14 @@ def _on_message_inner(client, userdata, message):
                                             after_data['camera']
                                         )
                                     )
+
+                                    pending_observation = {
+                                        'common_name': frigate_common,
+                                        'scientific_name': scientific_name,
+                                        'confidence': frigate_score,
+                                        'camera': after_data.get('camera'),
+                                        'frigate_event': frigate_event,
+                                    }
 
                                     set_sublabel(
                                         frigate_url,
@@ -670,7 +702,7 @@ def _on_message_inner(client, userdata, message):
                                             frigate_common
                                         )
 
-                                conn.commit()
+                                commit_detection(conn, pending_observation)
 
                 else:
 

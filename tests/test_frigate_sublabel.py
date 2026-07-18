@@ -292,3 +292,36 @@ def test_fallback_no_new_species_on_second_detection(fresh_db):
         event_id='evt-fallback-002',
     )
     mock_publish.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    'wamf_score,sub_label,expected_common',
+    [
+        (0.92, None, 'American Robin'),
+        (0.13, ['American Robin', 0.85], 'American Robin'),
+    ],
+)
+def test_both_new_observation_paths_use_bridge(
+    fresh_db,
+    wamf_score,
+    sub_label,
+    expected_common,
+):
+    with patch('speciesid.post_observation_event') as mock_bridge:
+        _run_on_message(
+            fresh_db,
+            wamf_score=wamf_score,
+            sub_label=sub_label,
+        )
+
+    mock_bridge.assert_called_once()
+    assert mock_bridge.call_args.kwargs['common_name'] == expected_common
+
+
+def test_duplicate_observation_does_not_use_bridge(fresh_db):
+    _run_on_message(fresh_db, wamf_score=0.80)
+
+    with patch('speciesid.post_observation_event') as mock_bridge:
+        _run_on_message(fresh_db, wamf_score=0.92)
+
+    mock_bridge.assert_not_called()
