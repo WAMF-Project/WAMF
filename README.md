@@ -313,6 +313,13 @@ pytest tests/ -v
 
 # Development Notes
 
+## Bridge events
+
+When enabled, the Bridge integration emits events for newly committed
+observations and for overall health state changes. Health events are sent only
+when WAMF moves between healthy, degraded, and unhealthy states. Delivery is
+best effort; Bridge outages never interrupt WAMF processing or health checks.
+
 ## WAMF currently supports:
 
 - Frigate-backed thumbnails

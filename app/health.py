@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+import threading
 
 import requests
 import yaml
@@ -8,15 +9,91 @@ import shutil
 from app.config_editor import get_config_path
 from app.db import connect_db
 from wamf_paths import get_clips_path, get_snapshots_path
+from integrations.bridge import post_health_event
 
 # Optional test/explicit override. None keeps config resolution dynamic.
 DB_PATH = None
 logger = logging.getLogger(__name__)
+_previous_health_state = None
+_health_state_lock = threading.Lock()
+
+
+def _overall_health_state(health):
+    if (
+        not health["database_healthy"]
+        or not health["archive_writable"]
+        or health["disk_used_percent"] >= 90
+    ):
+        return "unhealthy"
+
+    if (
+        not health["frigate_online"]
+        or not health["mqtt_online"]
+        or health["disk_used_percent"] >= 75
+    ):
+        return "degraded"
+
+    return "healthy"
+
+
+def _health_details(health):
+    details = []
+    checks = (
+        ("frigate_online", "Frigate offline"),
+        ("mqtt_online", "MQTT offline"),
+        ("database_healthy", "Database unhealthy"),
+        ("archive_writable", "Archive storage unavailable"),
+    )
+    for key, message in checks:
+        if not health.get(key, False):
+            details.append(message)
+
+    disk_percent = health.get("disk_used_percent")
+    if disk_percent is not None and disk_percent >= 75:
+        severity = "critical" if disk_percent >= 90 else "high"
+        details.append(f"Disk usage {severity} ({disk_percent}%)")
+
+    return "; ".join(details) or "All monitored services healthy"
+
+
+def record_health_transition(health, bridge_config):
+    """Remember overall health and publish only genuine state transitions."""
+    global _previous_health_state
+
+    current_state = health["overall_state"]
+    with _health_state_lock:
+        previous_state = _previous_health_state
+        _previous_health_state = current_state
+
+    if previous_state is None or previous_state == current_state:
+        return False
+
+    if current_state == "healthy":
+        level = "info"
+        title = "WAMF health recovered"
+    elif current_state == "unhealthy":
+        level = "error"
+        title = "WAMF health unhealthy"
+    elif previous_state == "unhealthy":
+        level = "warning"
+        title = "WAMF health improved"
+    else:
+        level = "warning"
+        title = "WAMF health degraded"
+
+    return post_health_event(
+        bridge_config,
+        level=level,
+        title=title,
+        details=_health_details(health),
+    )
+
 
 def load_config():
 
     with open(get_config_path(), "r") as f:
         return yaml.safe_load(f)
+
 
 def get_system_health():
 
@@ -32,14 +109,9 @@ def get_system_health():
     # Frigate connectivity
     try:
 
-        response = requests.get(
-            f"{frigate_url}/api/version",
-            timeout=5
-        )
+        response = requests.get(f"{frigate_url}/api/version", timeout=5)
 
-        health["frigate_online"] = (
-            response.status_code == 200
-        )
+        health["frigate_online"] = response.status_code == 200
 
     except requests.exceptions.RequestException as exc:
         logger.debug("Frigate health check failed: %s", exc)
@@ -54,11 +126,7 @@ def get_system_health():
 
         client = mqtt.Client()
 
-        client.connect(
-            mqtt_host,
-            mqtt_port,
-            5
-        )
+        client.connect(mqtt_host, mqtt_port, 5)
 
         client.disconnect()
 
@@ -85,15 +153,10 @@ def get_system_health():
 
         health["database_healthy"] = False
 
-    
-
         # Disk usage
     total, used, free = shutil.disk_usage("/")
 
-    used_percent = round(
-        (used / total) * 100,
-        1
-    )
+    used_percent = round((used / total) * 100, 1)
 
     health["disk_used_percent"] = used_percent
 
@@ -101,9 +164,13 @@ def get_system_health():
     snapshot_dir = get_snapshots_path()
     clip_dir = get_clips_path()
 
-    health["archive_writable"] = (
-        snapshot_dir.exists()
-        and clip_dir.exists()
-    )
+    health["archive_writable"] = snapshot_dir.exists() and clip_dir.exists()
+
+    health["overall_state"] = _overall_health_state(health)
+
+    try:
+        record_health_transition(health, config.get("bridge", {}))
+    except Exception as exc:
+        logger.warning("Bridge health transition handling failed: %s", exc)
 
     return health
