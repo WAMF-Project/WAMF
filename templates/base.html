@@ -14,8 +14,44 @@
     />
     <link
       rel="icon"
+      type="image/svg+xml"
+      href="{{ url_for('static', filename='images/icons/favicon.svg') }}"
+    />
+
+    <link
+      rel="icon"
       type="image/png"
-      href="{{ url_for('static', filename='images/flutter.svg') }}"
+      sizes="96x96"
+      href="{{ url_for('static', filename='images/icons/favicon-96x96.png') }}"
+    />
+
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="{{ url_for('static', filename='images/icons/favicon-32x32.png') }}"
+    />
+
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="{{ url_for('static', filename='images/icons/favicon-16x16.png') }}"
+    />
+
+    <link
+      rel="shortcut icon"
+      href="{{ url_for('static', filename='images/icons/favicon.ico') }}"
+    />
+
+    <link
+      rel="apple-touch-icon"
+      href="{{ url_for('static', filename='images/icons/apple-touch-icon.png') }}"
+    />
+
+    <link
+      rel="manifest"
+      href="{{ url_for('static', filename='images/icons/site.webmanifest') }}"
     />
     <script>
       (function () {
@@ -32,7 +68,12 @@
   <body class="wamf-body">
     <nav class="navbar navbar-expand-lg wamf-navbar">
       <div class="container-fluid">
-        <a class="navbar-brand" href="/">Who's At My Feeder?</a>
+        <a class="navbar-brand" href="/"
+          ><img
+            class="navbar-logo"
+            src="{{ url_for('static', filename='images/WAMF-Header.png') }}"
+            alt="Logo"
+        /></a>
         {% if title_text %}
         <span class="navbar-text">
           {% if title_link %}

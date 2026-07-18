@@ -27,6 +27,18 @@
   padding: 8px 14px;
 }
 
+.wamf-navbar .container-fluid {
+  display: flex;
+  align-items: center;
+  min-height: 90px;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  margin-left: 16px;
+}
+
 .wamf-navbar input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
   opacity: 0.7;
@@ -58,6 +70,13 @@
 .wamf-nav-btn.active {
   background: #03a9f4;
   color: #ffffff !important;
+}
+
+.navbar-logo {
+  height: 76px;
+  width: auto;
+  display: block;
+  filter: brightness(1.25) contrast(1.1);
 }
 
 .wamf-container {
