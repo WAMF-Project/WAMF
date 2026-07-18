@@ -20,6 +20,7 @@ bridge:
   enabled: false
   events_url: http://192.168.1.112:5000/api/events
   timeout_seconds: 1
+  health_check_interval_seconds: 60
 
 webui:
   port: 7766

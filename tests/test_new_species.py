@@ -5,6 +5,7 @@ speciesid.py has heavy ML imports (numpy, cv2, tflite_support, PIL) that are
 not available in the test environment. We patch them in sys.modules before
 importing speciesid so only the functions we care about are exercised.
 """
+
 import json
 import os
 import sqlite3
@@ -15,27 +16,32 @@ import pytest
 
 # webui calls load_config() at module level; point it at the example config
 # so it doesn't fail when speciesid (which imports webui) is imported here.
-os.environ.setdefault('WHOSATMYFEEDER_CONFIG', 'config/config.yml.example')
+os.environ.setdefault("WHOSATMYFEEDER_CONFIG", "config/config.yml.example")
 
 # Patch heavy ML deps before importing speciesid (not available in test env)
 for _mod in [
-    "numpy", "cv2",
+    "numpy",
+    "cv2",
     "tflite_support",
     "tflite_support.task",
     "tflite_support.task.core",
     "tflite_support.task.processor",
     "tflite_support.task.vision",
-    "PIL", "PIL.Image", "PIL.ImageOps",
-    "paho", "paho.mqtt", "paho.mqtt.client",
+    "PIL",
+    "PIL.Image",
+    "PIL.ImageOps",
+    "paho",
+    "paho.mqtt",
+    "paho.mqtt.client",
 ]:
     sys.modules.setdefault(_mod, MagicMock())
 
 import speciesid  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # Config loading
 # ---------------------------------------------------------------------------
+
 
 def test_load_config_uses_shared_config_path(monkeypatch, tmp_path):
     config_path = tmp_path / "mounted-config.yml"
@@ -52,6 +58,7 @@ def test_load_config_uses_shared_config_path(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_det_db(path: str) -> None:
     conn = sqlite3.connect(path)
@@ -73,7 +80,9 @@ def _make_det_db(path: str) -> None:
     conn.close()
 
 
-def _insert(path: str, display_name: str, frigate_event: str, score: float = 0.9) -> None:
+def _insert(
+    path: str, display_name: str, frigate_event: str, score: float = 0.9
+) -> None:
     conn = sqlite3.connect(path)
     conn.execute(
         """INSERT INTO detections
@@ -95,6 +104,7 @@ def fresh_db(tmp_path):
 # ---------------------------------------------------------------------------
 # publish_new_species helper
 # ---------------------------------------------------------------------------
+
 
 def test_publish_new_species_publishes_all_six_topics():
     client = MagicMock()
@@ -141,7 +151,9 @@ def test_publish_new_species_correct_payloads():
     )
     payloads = {c.args[0]: c.args[1] for c in client.publish.call_args_list}
     assert payloads["whosatmyfeeder/new_species/common_name"] == "American Robin"
-    assert payloads["whosatmyfeeder/new_species/scientific_name"] == "Turdus migratorius"
+    assert (
+        payloads["whosatmyfeeder/new_species/scientific_name"] == "Turdus migratorius"
+    )
     assert payloads["whosatmyfeeder/new_species/score"] == "0.92"
     assert payloads["whosatmyfeeder/new_species/camera"] == "birdcam"
     assert payloads["whosatmyfeeder/new_species/frigate_event"] == "evt-001"
@@ -178,13 +190,17 @@ def test_publish_new_species_json_topic_payload():
 # First-ever detection DB logic
 # ---------------------------------------------------------------------------
 
+
 def test_new_species_fires_when_count_is_one(fresh_db):
     """After inserting the first row for a species, count==1 → publish should fire."""
     _insert(fresh_db, "Turdus migratorius", "evt-001")
 
     conn = sqlite3.connect(fresh_db)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM detections WHERE display_name = ?", ("Turdus migratorius",))
+    cursor.execute(
+        "SELECT COUNT(*) FROM detections WHERE display_name = ?",
+        ("Turdus migratorius",),
+    )
     count = cursor.fetchone()[0]
     conn.close()
 
@@ -198,7 +214,10 @@ def test_new_species_does_not_fire_on_second_detection(fresh_db):
 
     conn = sqlite3.connect(fresh_db)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM detections WHERE display_name = ?", ("Turdus migratorius",))
+    cursor.execute(
+        "SELECT COUNT(*) FROM detections WHERE display_name = ?",
+        ("Turdus migratorius",),
+    )
     count = cursor.fetchone()[0]
     conn.close()
 
@@ -213,10 +232,16 @@ def test_different_species_each_trigger_independently(fresh_db):
     conn = sqlite3.connect(fresh_db)
     cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) FROM detections WHERE display_name = ?", ("Turdus migratorius",))
+    cursor.execute(
+        "SELECT COUNT(*) FROM detections WHERE display_name = ?",
+        ("Turdus migratorius",),
+    )
     assert cursor.fetchone()[0] == 1
 
-    cursor.execute("SELECT COUNT(*) FROM detections WHERE display_name = ?", ("Cyanocitta cristata",))
+    cursor.execute(
+        "SELECT COUNT(*) FROM detections WHERE display_name = ?",
+        ("Cyanocitta cristata",),
+    )
     assert cursor.fetchone()[0] == 1
 
     conn.close()
@@ -235,7 +260,10 @@ def test_score_update_does_not_add_row(fresh_db):
 
     conn = sqlite3.connect(fresh_db)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM detections WHERE display_name = ?", ("Turdus migratorius",))
+    cursor.execute(
+        "SELECT COUNT(*) FROM detections WHERE display_name = ?",
+        ("Turdus migratorius",),
+    )
     count = cursor.fetchone()[0]
     conn.close()
 
@@ -245,81 +273,109 @@ def test_score_update_does_not_add_row(fresh_db):
 def test_bridge_notification_runs_after_successful_commit():
     conn = MagicMock()
 
-    with patch('speciesid.post_observation_event') as mock_bridge:
+    with patch("speciesid.post_observation_event") as mock_bridge:
         mock_bridge.side_effect = lambda *args, **kwargs: (
             conn.commit.assert_called_once_with()
         )
-        speciesid.config = {'bridge': {'enabled': True}}
-        speciesid.commit_detection(conn, {'common_name': 'American Robin'})
+        speciesid.config = {"bridge": {"enabled": True}}
+        speciesid.commit_detection(conn, {"common_name": "American Robin"})
 
     mock_bridge.assert_called_once()
 
 
 def test_bridge_notification_not_run_when_commit_fails():
     conn = MagicMock()
-    conn.commit.side_effect = sqlite3.OperationalError('commit failed')
+    conn.commit.side_effect = sqlite3.OperationalError("commit failed")
 
-    with patch('speciesid.post_observation_event') as mock_bridge, \
-         pytest.raises(sqlite3.OperationalError):
-        speciesid.commit_detection(conn, {'common_name': 'American Robin'})
+    with patch("speciesid.post_observation_event") as mock_bridge, pytest.raises(
+        sqlite3.OperationalError
+    ):
+        speciesid.commit_detection(conn, {"common_name": "American Robin"})
 
     mock_bridge.assert_not_called()
+
+
+def test_health_monitor_starts_in_flask_process():
+    speciesid.config = {"webui": {"host": "127.0.0.1", "port": 7766}}
+
+    with patch("speciesid.start_health_monitor") as mock_start, patch.object(
+        speciesid.app, "run"
+    ) as mock_run:
+        speciesid.run_webui()
+
+    mock_start.assert_called_once_with()
+    mock_run.assert_called_once_with(
+        debug=False,
+        host="127.0.0.1",
+        port=7766,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Threshold gating
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("score,threshold,expect_write", [
-    (0.13, 0.7, False),   # below threshold (real-world: Night Heron scored 0.13)
-    (0.70, 0.7, False),   # exactly at threshold — strict > means no write
-    (0.92, 0.7, True),    # above threshold — should write to DB
-])
+
+@pytest.mark.parametrize(
+    "score,threshold,expect_write",
+    [
+        (0.13, 0.7, False),  # below threshold (real-world: Night Heron scored 0.13)
+        (0.70, 0.7, False),  # exactly at threshold — strict > means no write
+        (0.92, 0.7, True),  # above threshold — should write to DB
+    ],
+)
 def test_threshold_gating(fresh_db, score, threshold, expect_write):
     """score must be strictly > threshold for a detection to be written to the DB."""
     speciesid.firstmessage = False
     speciesid.config = {
-        'frigate': {
-            'camera': ['birdcam'],
-            'frigate_url': 'http://localhost:5000',
+        "frigate": {
+            "camera": ["birdcam"],
+            "frigate_url": "http://localhost:5000",
         },
-        'classification': {'threshold': threshold},
+        "classification": {"threshold": threshold},
     }
 
     message = MagicMock()
-    message.payload = json.dumps({
-        'type': 'new',
-        'after': {
-            'camera': 'birdcam',
-            'label': 'bird',
-            'id': 'evt-threshold-test',
-            'start_time': 1700000000.0,
+    message.payload = json.dumps(
+        {
+            "type": "new",
+            "after": {
+                "camera": "birdcam",
+                "label": "bird",
+                "id": "evt-threshold-test",
+                "start_time": 1700000000.0,
+            },
         }
-    })
+    )
 
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.content = b'fakejpegdata'
+    mock_response.content = b"fakejpegdata"
 
     mock_image = MagicMock()
     mock_image.size = (100, 100)
 
     fake_category = MagicMock()
-    fake_category.index = 42          # not 964 (background)
+    fake_category.index = 42  # not 964 (background)
     fake_category.score = score
-    fake_category.display_name = 'Turdus migratorius'
-    fake_category.category_name = 'bird'
+    fake_category.display_name = "Turdus migratorius"
+    fake_category.category_name = "bird"
 
     client = MagicMock()
 
-    with patch.object(speciesid, 'DBPATH', fresh_db), \
-         patch('speciesid.requests.get', return_value=mock_response), \
-         patch('speciesid.Image') as mock_Image, \
-         patch('speciesid.classify', return_value=[fake_category]), \
-         patch('speciesid.get_common_name', return_value='American Robin'), \
-         patch('speciesid.archive_snapshot', return_value=None), \
-         patch('speciesid.archive_clip', return_value=None), \
-         patch('speciesid.set_sublabel'):
+    with patch.object(speciesid, "DBPATH", fresh_db), patch(
+        "speciesid.requests.get", return_value=mock_response
+    ), patch("speciesid.Image") as mock_Image, patch(
+        "speciesid.classify", return_value=[fake_category]
+    ), patch(
+        "speciesid.get_common_name", return_value="American Robin"
+    ), patch(
+        "speciesid.archive_snapshot", return_value=None
+    ), patch(
+        "speciesid.archive_clip", return_value=None
+    ), patch(
+        "speciesid.set_sublabel"
+    ):
         mock_Image.open.return_value = mock_image
         speciesid.on_message(client, None, message)
 

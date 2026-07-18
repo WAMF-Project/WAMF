@@ -317,8 +317,10 @@ pytest tests/ -v
 
 When enabled, the Bridge integration emits events for newly committed
 observations and for overall health state changes. Health events are sent only
-when WAMF moves between healthy, degraded, and unhealthy states. Delivery is
-best effort; Bridge outages never interrupt WAMF processing or health checks.
+when WAMF's background monitor detects a move between healthy, degraded, and
+unhealthy states. The monitor runs every 60 seconds by default, including when
+Bridge delivery is disabled. Delivery is best effort; Bridge outages never
+interrupt WAMF processing or health checks.
 
 ## WAMF currently supports:
 

@@ -1,4 +1,5 @@
 import logging
+import math
 import sqlite3
 import threading
 
@@ -16,6 +17,9 @@ DB_PATH = None
 logger = logging.getLogger(__name__)
 _previous_health_state = None
 _health_state_lock = threading.Lock()
+_health_monitor_thread = None
+_health_monitor_start_lock = threading.Lock()
+DEFAULT_HEALTH_CHECK_INTERVAL_SECONDS = 60
 
 
 def _overall_health_state(health):
@@ -95,11 +99,12 @@ def load_config():
         return yaml.safe_load(f)
 
 
-def get_system_health():
+def calculate_system_health(config=None):
+    """Calculate current health without publishing state transitions."""
 
     health = {}
 
-    config = load_config()
+    config = config or load_config()
 
     mqtt_host = config["frigate"]["mqtt_server"]
     mqtt_port = config["frigate"]["mqtt_port"]
@@ -168,9 +173,60 @@ def get_system_health():
 
     health["overall_state"] = _overall_health_state(health)
 
-    try:
-        record_health_transition(health, config.get("bridge", {}))
-    except Exception as exc:
-        logger.warning("Bridge health transition handling failed: %s", exc)
-
     return health
+
+
+def get_system_health():
+    """Return current health for request-driven routes and templates."""
+    return calculate_system_health()
+
+
+def _health_check_interval(bridge_config):
+    value = (bridge_config or {}).get(
+        "health_check_interval_seconds",
+        DEFAULT_HEALTH_CHECK_INTERVAL_SECONDS,
+    )
+    try:
+        interval = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_HEALTH_CHECK_INTERVAL_SECONDS
+
+    if isinstance(value, bool) or not math.isfinite(interval) or interval <= 0:
+        return DEFAULT_HEALTH_CHECK_INTERVAL_SECONDS
+
+    return interval
+
+
+def health_monitor_loop(stop_event=None):
+    """Continuously calculate health and publish overall state transitions."""
+    stop_event = stop_event or threading.Event()
+
+    while not stop_event.is_set():
+        config = {}
+        try:
+            config = load_config() or {}
+            health = calculate_system_health(config)
+            record_health_transition(health, config.get("bridge", {}))
+        except Exception as exc:
+            logger.warning("Health monitor iteration failed: %s", exc)
+
+        interval = _health_check_interval(config.get("bridge", {}))
+        if stop_event.wait(interval):
+            break
+
+
+def start_health_monitor():
+    """Start the Flask process health monitor exactly once."""
+    global _health_monitor_thread
+
+    with _health_monitor_start_lock:
+        if _health_monitor_thread is not None and _health_monitor_thread.is_alive():
+            return _health_monitor_thread
+
+        _health_monitor_thread = threading.Thread(
+            target=health_monitor_loop,
+            name="wamf-health-monitor",
+            daemon=True,
+        )
+        _health_monitor_thread.start()
+        return _health_monitor_thread

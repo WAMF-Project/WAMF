@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime
 import time
 import multiprocessing
-import cv2
+
 from tflite_support.task import core
 from tflite_support.task import processor
 from tflite_support.task import vision
@@ -14,7 +14,7 @@ from webui import app
 import sys
 import json
 import requests
-from PIL import Image, ImageOps
+from PIL import Image
 from io import BytesIO
 from app.queries import get_common_name, get_scientific_name
 from app.archive_media import (
@@ -27,6 +27,7 @@ from app.db import connect_db, ensure_schema
 from app.config_editor import get_config_path
 from wamf_paths import ensure_storage_paths
 from integrations.bridge import post_observation_event
+from app.health import start_health_monitor
 
 classifier = None
 config = None
@@ -739,13 +740,14 @@ def load_config():
 
 
 def run_webui():
-
     logger.info("Starting Flask app")
+
+    start_health_monitor()
 
     app.run(
         debug=False,
-        host=config['webui']['host'],
-        port=config['webui']['port']
+        host=config["webui"]["host"],
+        port=config["webui"]["port"],
     )
 
 

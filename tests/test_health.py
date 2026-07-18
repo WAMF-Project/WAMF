@@ -1,17 +1,26 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
 import app.health as health_module
-from app.health import load_config, record_health_transition
+from app.health import (
+    calculate_system_health,
+    get_system_health,
+    health_monitor_loop,
+    load_config,
+    record_health_transition,
+    start_health_monitor,
+)
 
 
 @pytest.fixture(autouse=True)
 def reset_previous_health_state():
     health_module._previous_health_state = None
+    health_module._health_monitor_thread = None
     yield
     health_module._previous_health_state = None
+    health_module._health_monitor_thread = None
 
 
 def _health(state):
@@ -102,3 +111,126 @@ def test_overall_health_state_uses_existing_check_results():
     assert health_module._overall_health_state(_health("healthy")) == "healthy"
     assert health_module._overall_health_state(_health("degraded")) == "degraded"
     assert health_module._overall_health_state(_health("unhealthy")) == "unhealthy"
+
+
+def test_health_calculation_does_not_record_transition():
+    with patch("app.health.load_config", return_value={"frigate": {}}), patch(
+        "app.health.record_health_transition"
+    ) as mock_record, patch("app.health.requests.get"), patch(
+        "app.health.mqtt.Client"
+    ), patch(
+        "app.health.connect_db"
+    ), patch(
+        "app.health.shutil.disk_usage", return_value=(100, 10, 90)
+    ), patch(
+        "app.health.get_snapshots_path"
+    ) as snapshots, patch(
+        "app.health.get_clips_path"
+    ) as clips:
+        snapshots.return_value.exists.return_value = True
+        clips.return_value.exists.return_value = True
+        calculate_system_health(
+            {
+                "frigate": {
+                    "mqtt_server": "mqtt",
+                    "mqtt_port": 1883,
+                    "frigate_url": "http://frigate",
+                }
+            }
+        )
+
+    mock_record.assert_not_called()
+
+
+def test_get_system_health_does_not_record_transition():
+    with patch(
+        "app.health.calculate_system_health", return_value=_health("healthy")
+    ) as mock_calculate, patch("app.health.record_health_transition") as mock_record:
+        assert get_system_health()["overall_state"] == "healthy"
+
+    mock_calculate.assert_called_once_with()
+    mock_record.assert_not_called()
+
+
+class _StopAfterWaits:
+    def __init__(self, wait_results):
+        self.wait_results = iter(wait_results)
+        self.wait_calls = []
+
+    def is_set(self):
+        return False
+
+    def wait(self, interval):
+        self.wait_calls.append(interval)
+        return next(self.wait_results)
+
+
+def test_monitor_records_initial_state_then_publishes_transition():
+    stop_event = _StopAfterWaits([False, True])
+    config = {"bridge": {"enabled": True, "health_check_interval_seconds": 12}}
+
+    with patch("app.health.load_config", return_value=config), patch(
+        "app.health.calculate_system_health",
+        side_effect=[_health("healthy"), _health("degraded")],
+    ), patch("app.health.post_health_event", return_value=True) as mock_post:
+        health_monitor_loop(stop_event)
+
+    mock_post.assert_called_once()
+    assert mock_post.call_args.kwargs["title"] == "WAMF health degraded"
+    assert stop_event.wait_calls == [12.0, 12.0]
+
+
+def test_monitor_continues_after_health_check_exception():
+    stop_event = _StopAfterWaits([False, True])
+
+    with patch("app.health.load_config", return_value={}), patch(
+        "app.health.calculate_system_health",
+        side_effect=[RuntimeError("check failed"), _health("healthy")],
+    ) as mock_calculate, patch("app.health.record_health_transition") as mock_record:
+        health_monitor_loop(stop_event)
+
+    assert mock_calculate.call_count == 2
+    mock_record.assert_called_once()
+
+
+def test_monitor_continues_after_bridge_delivery_failure():
+    stop_event = _StopAfterWaits([False, True])
+
+    with patch("app.health.load_config", return_value={}), patch(
+        "app.health.calculate_system_health", return_value=_health("healthy")
+    ), patch("app.health.record_health_transition", return_value=False) as mock_record:
+        health_monitor_loop(stop_event)
+
+    assert mock_record.call_count == 2
+
+
+@pytest.mark.parametrize(
+    "bridge_config,expected",
+    [
+        ({}, 60),
+        ({"health_check_interval_seconds": "15"}, 15.0),
+        ({"health_check_interval_seconds": 0}, 60),
+        ({"health_check_interval_seconds": -1}, 60),
+        ({"health_check_interval_seconds": "invalid"}, 60),
+        ({"health_check_interval_seconds": float("nan")}, 60),
+        ({"health_check_interval_seconds": True}, 60),
+    ],
+)
+def test_health_check_interval_validation(bridge_config, expected):
+    assert health_module._health_check_interval(bridge_config) == expected
+
+
+def test_health_monitor_starts_only_once():
+    thread = MagicMock()
+    thread.is_alive.return_value = True
+
+    with patch("app.health.threading.Thread", return_value=thread) as thread_class:
+        assert start_health_monitor() is thread
+        assert start_health_monitor() is thread
+
+    thread_class.assert_called_once_with(
+        target=health_monitor_loop,
+        name="wamf-health-monitor",
+        daemon=True,
+    )
+    thread.start.assert_called_once_with()
