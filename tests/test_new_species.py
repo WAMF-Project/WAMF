@@ -38,6 +38,13 @@ for _mod in [
 
 import speciesid  # noqa: E402
 
+@pytest.fixture(autouse=True)
+def preserve_health_worker_state(monkeypatch):
+    import app.health as health
+    monkeypatch.setattr(health, '_detection_worker_enabled', None)
+    monkeypatch.setattr(speciesid, 'configure_worker_signals', lambda: None)
+
+
 # ---------------------------------------------------------------------------
 # Config loading
 # ---------------------------------------------------------------------------
@@ -326,7 +333,6 @@ def test_health_monitor_starts_in_flask_process():
 )
 def test_threshold_gating(fresh_db, score, threshold, expect_write):
     """score must be strictly > threshold for a detection to be written to the DB."""
-    speciesid.firstmessage = False
     speciesid.config = {
         "frigate": {
             "camera": ["birdcam"],
@@ -336,6 +342,8 @@ def test_threshold_gating(fresh_db, score, threshold, expect_write):
     }
 
     message = MagicMock()
+    message.retain = False
+    message.topic = "frigate/events"
     message.payload = json.dumps(
         {
             "type": "new",
@@ -390,3 +398,75 @@ def test_threshold_gating(fresh_db, score, threshold, expect_write):
     else:
         assert count == 0
         client.publish.assert_not_called()
+
+
+def test_webui_default_port_is_7767(monkeypatch):
+    monkeypatch.setattr(speciesid, 'config', {})
+    with patch('speciesid.start_health_monitor'), patch.object(speciesid.app, 'run') as run:
+        speciesid.run_webui()
+    run.assert_called_once_with(debug=False, host='0.0.0.0', port=7767)
+
+
+def test_classifier_and_callbacks_ready_before_mqtt_connect(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(speciesid, 'config', {
+        'classification': {'model': 'model.tflite'},
+        'frigate': {'mqtt_server': 'localhost'},
+    })
+    with patch('speciesid.vision.ImageClassifier.create_from_options') as create, patch('speciesid.core.BaseOptions') as base, patch('speciesid.mqtt.Client') as factory:
+        client = factory.return_value
+        def connected(*args):
+            create.assert_called_once()
+            assert speciesid.classifier is create.return_value
+            assert client.on_connect is speciesid.on_connect
+            assert client.on_message is speciesid.on_message
+            assert client.on_subscribe is speciesid.on_subscribe
+            assert client.on_disconnect is speciesid.on_disconnect
+        client.connect.side_effect = connected
+        speciesid.run_mqtt_client()
+        client.connect.assert_called_once_with('localhost', 1883)
+        client.loop_forever.assert_called_once()
+        assert base.call_args.kwargs['file_name'] == str(speciesid.REPO_ROOT / 'model.tflite')
+
+
+def test_refused_mqtt_connection_is_not_reported_as_connected():
+    client = MagicMock()
+    with patch('speciesid.log_system_event') as event:
+        speciesid.on_connect(client, None, {}, 5)
+    client.subscribe.assert_not_called()
+    event.assert_not_called()
+
+
+def test_successful_mqtt_connection_subscribes_to_configured_topic(monkeypatch):
+    monkeypatch.setattr(speciesid, 'config', {'frigate': {'main_topic': 'custom'}})
+    client = MagicMock()
+    with patch('speciesid.log_system_event'):
+        speciesid.on_connect(client, None, {}, 0)
+    client.subscribe.assert_called_once_with('custom/events')
+
+
+def test_parent_initializes_config_and_schema_before_spawning_workers(monkeypatch):
+    calls = []
+    monkeypatch.setattr(speciesid, 'config', {
+        'frigate': {'frigate_url': 'http://frigate', 'mqtt_server': 'mqtt',
+                    'main_topic': 'frigate', 'camera': ['birdcam']},
+        'classification': {'model': 'model.tflite', 'threshold': 0.7},
+    })
+    monkeypatch.setattr(speciesid, 'load_config', lambda: calls.append('config'))
+    monkeypatch.setattr(speciesid, 'setupdb', lambda: calls.append('schema'))
+    def process(**kwargs):
+        assert calls == ['config', 'schema']
+        child = MagicMock()
+        child.is_alive.return_value = False
+        return child
+    with patch('speciesid.multiprocessing.Process', side_effect=process) as factory, patch('speciesid.log_system_event'):
+        speciesid.main()
+    assert factory.call_count == 2
+
+
+@pytest.mark.parametrize('granted_qos,ready', [([0], True), ([128], False)])
+def test_subscription_readiness_requires_successful_ack(granted_qos, ready):
+    with patch.object(speciesid.logger, 'info') as info, patch.object(speciesid.logger, 'warning') as warning:
+        speciesid.on_subscribe(MagicMock(), None, 1, granted_qos)
+    assert info.called is ready
+    assert warning.called is not ready

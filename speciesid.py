@@ -1,4 +1,11 @@
+from app.bootstrap import DEFAULT_PORT, REPO_ROOT, preflight, prepare_native_startup
+
+# Bootstrap once in the native parent, before webui import creates storage.
+if __name__ == "__main__":
+    prepare_native_startup()
+
 import sqlite3
+from pathlib import Path
 import logging
 import numpy as np
 from datetime import datetime
@@ -25,13 +32,13 @@ from app.system_events import log_system_event
 from version import VERSION
 from app.db import connect_db, ensure_schema
 from app.config_editor import get_config_path
+from app.process_control import WorkerSupervisor, configure_worker_signals
 from wamf_paths import ensure_storage_paths
 from integrations.bridge import post_observation_event
-from app.health import start_health_monitor
+from app.health import start_health_monitor, set_detection_worker_enabled
 
 classifier = None
 config = None
-firstmessage = True
 logger = logging.getLogger(__name__)
 
 # Optional test/explicit override. None keeps config resolution dynamic.
@@ -65,6 +72,9 @@ def classify(image):
 
 
 def on_connect(client, userdata, flags, rc):
+    if rc != 0:
+        logger.warning("MQTT connection refused: %s", rc)
+        return
     logger.info("MQTT connected")
 
     log_system_event(
@@ -75,6 +85,13 @@ def on_connect(client, userdata, flags, rc):
 
     # we are going subscribe to frigate/events and look for bird detections there
     client.subscribe(config['frigate']['main_topic'] + "/events")
+
+
+def on_subscribe(client, userdata, mid, granted_qos):
+    if not granted_qos or any(qos == 128 for qos in granted_qos):
+        logger.warning("MQTT event subscription refused")
+        return
+    logger.info("MQTT event subscription ready")
 
 
 def on_disconnect(client, userdata, rc):
@@ -223,169 +240,208 @@ def on_message(client, userdata, message):
 
 def _on_message_inner(client, userdata, message):
 
+    expected_topic = config['frigate'].get('main_topic', 'frigate') + '/events'
+    if message.retain or message.topic != expected_topic:
+        return
+
     conn = connect_db(DBPATH, row_factory=False)
 
     try:
 
-        global firstmessage
+        payload_dict = json.loads(
+            message.payload
+        )
 
-        if not firstmessage:
+        event_type = payload_dict.get("type")
 
-            payload_dict = json.loads(
-                message.payload
+        if event_type != "new":
+            return
+
+        after_data = payload_dict.get(
+            'after',
+            {}
+        )
+
+        if (
+            after_data['camera'] in config['frigate']['camera']
+            and after_data['label'] == 'bird'
+        ):
+
+            frigate_event = after_data['id']
+
+            frigate_url = config['frigate']['frigate_url']
+
+            snapshot_url = (
+                frigate_url
+                + "/api/events/"
+                + frigate_event
+                + "/snapshot.jpg"
             )
 
-            event_type = payload_dict.get("type")
+            logger.info("Getting image for event: %s", frigate_event)
+            logger.debug("Snapshot URL: %s", snapshot_url)
 
-            if event_type != "new":
-               return
+            params = {
+                "crop": 1,
+                "quality": 95
+            }
 
-            after_data = payload_dict.get(
-                'after',
-                {}
-            )
+            logger.info("Fetching snapshot")
 
-            if (
-                after_data['camera'] in config['frigate']['camera']
-                and after_data['label'] == 'bird'
-            ):
+            try:
 
-                frigate_event = after_data['id']
-
-                frigate_url = config['frigate']['frigate_url']
-
-                snapshot_url = (
-                    frigate_url
-                    + "/api/events/"
-                    + frigate_event
-                    + "/snapshot.jpg"
+                response = requests.get(
+                    snapshot_url,
+                    params=params,
+                    timeout=2
                 )
 
-                logger.info("Getting image for event: %s", frigate_event)
-                logger.debug("Snapshot URL: %s", snapshot_url)
+            except requests.exceptions.RequestException as e:
 
-                params = {
-                    "crop": 1,
-                    "quality": 95
-                }
+                logger.warning("Could not retrieve image due to request error: %s", e)
 
-                logger.info("Fetching snapshot")
+                return
 
-                try:
+            logger.info("Snapshot HTTP %s", response.status_code)
 
-                    response = requests.get(
-                        snapshot_url,
-                        params=params,
-                        timeout=2
+            if response.status_code == 200:
+
+                image = Image.open(
+                    BytesIO(response.content)
+                ).convert("RGB")
+
+                # Resize while preserving aspect ratio
+                image.thumbnail((224, 224))
+
+                # Create fixed-size canvas
+                canvas = Image.new(
+                    "RGB",
+                    (224, 224),
+                    (0, 0, 0)
+                )
+
+                # Center image
+                x = (224 - image.width) // 2
+                y = (224 - image.height) // 2
+
+                canvas.paste(
+                    image,
+                    (x, y)
+                )
+
+                # Convert to numpy
+                np_arr = np.array(
+                    canvas,
+                    dtype=np.uint8
+                )
+
+                # Ensure contiguous memory
+                np_arr = np.ascontiguousarray(
+                    np_arr
+                )
+
+                logger.debug("Image shape: %s dtype: %s", np_arr.shape, np_arr.dtype)
+                logger.info("Classifying snapshot")
+
+                categories = classify(np_arr)
+
+                category = categories[0]
+
+                index = category.index
+
+                score = float(category.score)
+
+                display_name = (
+                    category.display_name
+                    or "Unknown"
+                )
+
+                category_name = (
+                    category.category_name
+                    or "Unknown"
+                )
+
+                start_time = datetime.fromtimestamp(
+                    after_data['start_time']
+                )
+
+                formatted_start_time = (
+                    start_time.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                )
+
+                result_text = (
+                    formatted_start_time
+                    + "\n"
+                    + str(category)
+                )
+
+                logger.info("Classification result: %s", result_text)
+
+                # 964 = background
+                if (
+                    index != 964
+                    and score > config['classification']['threshold']
+                ):
+
+                    common_name = (
+                        get_common_name(display_name)
+                        or display_name
                     )
 
-                except requests.exceptions.RequestException as e:
-
-                    logger.warning("Could not retrieve image due to request error: %s", e)
-
-                    return
-
-                logger.info("Snapshot HTTP %s", response.status_code)
-
-                if response.status_code == 200:
-
-                    image = Image.open(
-                        BytesIO(response.content)
-                    ).convert("RGB")
-
-                    # Resize while preserving aspect ratio
-                    image.thumbnail((224, 224))
-
-                    # Create fixed-size canvas
-                    canvas = Image.new(
-                        "RGB",
-                        (224, 224),
-                        (0, 0, 0)
+                    client.publish(
+                        'whosatmyfeeder/detections',
+                        common_name,
+                        qos=0,
+                        retain=False
                     )
 
-                    # Center image
-                    x = (224 - image.width) // 2
-                    y = (224 - image.height) // 2
+                    cursor = conn.cursor()
 
-                    canvas.paste(
-                        image,
-                        (x, y)
+                    cursor.execute(
+                        """
+                        SELECT
+                            id,
+                            detection_time,
+                            detection_index,
+                            score,
+                            display_name,
+                            category_name,
+                            frigate_event,
+                            camera_name,
+                            wamf_snapshot_path,
+                            wamf_clip_path
+                        FROM detections
+                        WHERE frigate_event = ?
+                        """,
+                        (frigate_event,)
                     )
 
-                    # Convert to numpy
-                    np_arr = np.array(
-                        canvas,
-                        dtype=np.uint8
-                    )
+                    result = cursor.fetchone()
 
-                    # Ensure contiguous memory
-                    np_arr = np.ascontiguousarray(
-                        np_arr
-                    )
+                    pending_observation = None
 
-                    logger.debug("Image shape: %s dtype: %s", np_arr.shape, np_arr.dtype)
-                    logger.info("Classifying snapshot")
+                    if result is None:
 
-                    categories = classify(np_arr)
+                        logger.info("No record yet for event %s. Storing.", frigate_event)
 
-                    category = categories[0]
 
-                    index = category.index
 
-                    score = float(category.score)
-
-                    display_name = (
-                        category.display_name
-                        or "Unknown"
-                    )
-
-                    category_name = (
-                        category.category_name
-                        or "Unknown"
-                    )
-
-                    start_time = datetime.fromtimestamp(
-                        after_data['start_time']
-                    )
-
-                    formatted_start_time = (
-                        start_time.strftime(
-                            "%Y-%m-%d %H:%M:%S"
+                        wamf_snapshot_path = archive_snapshot(
+                            frigate_url,
+                            frigate_event
                         )
-                    )
 
-                    result_text = (
-                        formatted_start_time
-                        + "\n"
-                        + str(category)
-                    )
-
-                    logger.info("Classification result: %s", result_text)
-
-                    # 964 = background
-                    if (
-                        index != 964
-                        and score > config['classification']['threshold']
-                    ):
-
-                        common_name = (
-                            get_common_name(display_name)
-                            or display_name
+                        wamf_clip_path = archive_clip(
+                            frigate_url,
+                            frigate_event
                         )
-
-                        client.publish(
-                            'whosatmyfeeder/detections',
-                            common_name,
-                            qos=0,
-                            retain=False
-                        )
-
-                        cursor = conn.cursor()
 
                         cursor.execute(
                             """
-                            SELECT
-                                id,
+                            INSERT INTO detections
+                            (
                                 detection_time,
                                 detection_index,
                                 score,
@@ -395,36 +451,162 @@ def _on_message_inner(client, userdata, message):
                                 camera_name,
                                 wamf_snapshot_path,
                                 wamf_clip_path
-                            FROM detections
-                            WHERE frigate_event = ?
+                            )
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
-                            (frigate_event,)
+                            (
+                                formatted_start_time,
+                                index,
+                                score,
+                                display_name,
+                                category_name,
+                                frigate_event,
+                                after_data['camera'],
+                                wamf_snapshot_path,
+                                wamf_clip_path
+                            )
                         )
 
-                        result = cursor.fetchone()
+                        pending_observation = {
+                            'common_name': common_name,
+                            'scientific_name': display_name,
+                            'confidence': score,
+                            'camera': after_data.get('camera'),
+                            'frigate_event': frigate_event,
+                        }
 
-                        pending_observation = None
+                        set_sublabel(
+                            frigate_url,
+                            frigate_event,
+                            common_name
+                        )
 
-                        if result is None:
+                        cursor.execute(
+                            """
+                            SELECT COUNT(*)
+                            FROM detections
+                            WHERE display_name = ?
+                            """,
+                            (display_name,)
+                        )
 
-                            logger.info("No record yet for event %s. Storing.", frigate_event)
+                        if cursor.fetchone()[0] == 1:
 
-                            
+                            logger.info(
+                                "New species detected for the first time: %s",
+                                common_name,
+                            )
 
-                            wamf_snapshot_path = archive_snapshot(
-                                frigate_url,
+                            publish_new_species(
+                                client,
+                                common_name,
+                                display_name,
+                                score,
+                                after_data['camera'],
                                 frigate_event
                             )
 
-                            wamf_clip_path = archive_clip(
-                                frigate_url,
-                                frigate_event
-                            )
+                    else:
+
+                        logger.info(
+                            "Record already exists for event %s. Checking score.",
+                            frigate_event,
+                        )
+
+                        existing_score = result[3]
+
+                        if score > existing_score:
+
+                            logger.info("New score is higher. Updating record.")
 
                             cursor.execute(
                                 """
-                                INSERT INTO detections
+                                UPDATE detections
+                                SET detection_time = ?,
+                                    detection_index = ?,
+                                    score = ?,
+                                    display_name = ?,
+                                    category_name = ?
+                                WHERE frigate_event = ?
+                                """,
                                 (
+                                    formatted_start_time,
+                                    index,
+                                    score,
+                                    display_name,
+                                    category_name,
+                                    frigate_event
+                                )
+                            )
+
+                            set_sublabel(
+                                frigate_url,
+                                frigate_event,
+                                common_name
+                            )
+
+                        else:
+
+                            logger.info("New score is lower. Keeping existing record.")
+
+                    commit_detection(conn, pending_observation)
+
+                else:
+
+                    sub_label_data = after_data.get(
+                        'sub_label'
+                    )
+
+                    # sub_label is ["Common Name", score]
+                    # or a plain string
+
+                    if (
+                        isinstance(sub_label_data, list)
+                        and len(sub_label_data) >= 2
+                        and sub_label_data[1] is not None
+                    ):
+
+                        frigate_common = sub_label_data[0]
+
+                        frigate_score = float(
+                            sub_label_data[1]
+                        )
+
+                    elif (
+                        isinstance(sub_label_data, str)
+                        and sub_label_data
+                    ):
+
+                        frigate_common = sub_label_data
+
+                        frigate_score = score
+
+                    else:
+
+                        frigate_common = None
+                        frigate_score = None
+
+                    if frigate_common:
+
+                        scientific_name = get_scientific_name(
+                            frigate_common
+                        )
+
+                        if scientific_name:
+
+                            logger.info(
+                                "WAMF below threshold; using Frigate sub_label: "
+                                "%s (WAMF score: %.2f)",
+                                frigate_common,
+                                frigate_score,
+                            )
+
+                            cursor = conn.cursor()
+
+                            cursor.execute(
+                                """
+                                SELECT
+                                    id,
                                     detection_time,
                                     detection_index,
                                     score,
@@ -434,215 +616,103 @@ def _on_message_inner(client, userdata, message):
                                     camera_name,
                                     wamf_snapshot_path,
                                     wamf_clip_path
-                                )
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                                (
-                                    formatted_start_time,
-                                    index,
-                                    score,
-                                    display_name,
-                                    category_name,
-                                    frigate_event,
-                                    after_data['camera'],
-                                    wamf_snapshot_path,
-                                    wamf_clip_path
-                                )
-                            )
-
-                            pending_observation = {
-                                'common_name': common_name,
-                                'scientific_name': display_name,
-                                'confidence': score,
-                                'camera': after_data.get('camera'),
-                                'frigate_event': frigate_event,
-                            }
-
-                            set_sublabel(
-                                frigate_url,
-                                frigate_event,
-                                common_name
-                            )
-
-                            cursor.execute(
-                                """
-                                SELECT COUNT(*)
                                 FROM detections
-                                WHERE display_name = ?
+                                WHERE frigate_event = ?
                                 """,
-                                (display_name,)
+                                (frigate_event,)
                             )
 
-                            if cursor.fetchone()[0] == 1:
+                            result = cursor.fetchone()
 
-                                logger.info(
-                                    "New species detected for the first time: %s",
-                                    common_name,
-                                )
+                            pending_observation = None
 
-                                publish_new_species(
-                                    client,
-                                    common_name,
-                                    display_name,
-                                    score,
-                                    after_data['camera'],
-                                    frigate_event
-                                )
-
-                        else:
-
-                            logger.info(
-                                "Record already exists for event %s. Checking score.",
-                                frigate_event,
-                            )
-
-                            existing_score = result[3]
-
-                            if score > existing_score:
-
-                                logger.info("New score is higher. Updating record.")
+                            if result is None:
 
                                 cursor.execute(
                                     """
-                                    UPDATE detections
-                                    SET detection_time = ?,
-                                        detection_index = ?,
-                                        score = ?,
-                                        display_name = ?,
-                                        category_name = ?
-                                    WHERE frigate_event = ?
-                                    """,
+                                    INSERT INTO detections
                                     (
-                                        formatted_start_time,
-                                        index,
-                                        score,
-                                        display_name,
-                                        category_name,
-                                        frigate_event
-                                    )
-                                )
-
-                                set_sublabel(
-                                    frigate_url,
-                                    frigate_event,
-                                    common_name
-                                )
-
-                            else:
-
-                                logger.info("New score is lower. Keeping existing record.")
-
-                        commit_detection(conn, pending_observation)
-
-                    else:
-
-                        sub_label_data = after_data.get(
-                            'sub_label'
-                        )
-
-                        # sub_label is ["Common Name", score]
-                        # or a plain string
-
-                        if (
-                            isinstance(sub_label_data, list)
-                            and len(sub_label_data) >= 2
-                            and sub_label_data[1] is not None
-                        ):
-
-                            frigate_common = sub_label_data[0]
-
-                            frigate_score = float(
-                                sub_label_data[1]
-                            )
-
-                        elif (
-                            isinstance(sub_label_data, str)
-                            and sub_label_data
-                        ):
-
-                            frigate_common = sub_label_data
-
-                            frigate_score = score
-
-                        else:
-
-                            frigate_common = None
-                            frigate_score = None
-
-                        if frigate_common:
-
-                            scientific_name = get_scientific_name(
-                                frigate_common
-                            )
-
-                            if scientific_name:
-
-                                logger.info(
-                                    "WAMF below threshold; using Frigate sub_label: "
-                                    "%s (WAMF score: %.2f)",
-                                    frigate_common,
-                                    frigate_score,
-                                )
-
-                                cursor = conn.cursor()
-
-                                cursor.execute(
-                                    """
-                                    SELECT
-                                        id,
                                         detection_time,
                                         detection_index,
                                         score,
                                         display_name,
                                         category_name,
                                         frigate_event,
-                                        camera_name,
-                                        wamf_snapshot_path,
-                                        wamf_clip_path
-                                    FROM detections
-                                    WHERE frigate_event = ?
+                                        camera_name
+                                    )
+                                    VALUES (?, ?, ?, ?, ?, ?, ?)
                                     """,
-                                    (frigate_event,)
+                                    (
+                                        formatted_start_time,
+                                        -1,
+                                        frigate_score,
+                                        scientific_name,
+                                        'frigate_classified',
+                                        frigate_event,
+                                        after_data['camera']
+                                    )
                                 )
 
-                                result = cursor.fetchone()
+                                pending_observation = {
+                                    'common_name': frigate_common,
+                                    'scientific_name': scientific_name,
+                                    'confidence': frigate_score,
+                                    'camera': after_data.get('camera'),
+                                    'frigate_event': frigate_event,
+                                }
 
-                                pending_observation = None
+                                set_sublabel(
+                                    frigate_url,
+                                    frigate_event,
+                                    frigate_common
+                                )
 
-                                if result is None:
+                                cursor.execute(
+                                    """
+                                    SELECT COUNT(*)
+                                    FROM detections
+                                    WHERE display_name = ?
+                                    """,
+                                    (scientific_name,)
+                                )
+
+                                if cursor.fetchone()[0] == 1:
+
+                                    logger.info(
+                                        "New species via Frigate sub_label: %s",
+                                        frigate_common,
+                                    )
+
+                                    publish_new_species(
+                                        client,
+                                        frigate_common,
+                                        scientific_name,
+                                        frigate_score,
+                                        after_data['camera'],
+                                        frigate_event
+                                    )
+
+                            else:
+
+                                existing_score = result[3]
+
+                                if frigate_score > existing_score:
 
                                     cursor.execute(
                                         """
-                                        INSERT INTO detections
-                                        (
-                                            detection_time,
-                                            detection_index,
-                                            score,
-                                            display_name,
-                                            category_name,
-                                            frigate_event,
-                                            camera_name
-                                        )
-                                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                                        UPDATE detections
+                                        SET score = ?,
+                                            display_name = ?,
+                                            category_name = ?
+                                        WHERE frigate_event = ?
                                         """,
                                         (
-                                            formatted_start_time,
-                                            -1,
                                             frigate_score,
                                             scientific_name,
                                             'frigate_classified',
-                                            frigate_event,
-                                            after_data['camera']
+                                            frigate_event
                                         )
                                     )
-
-                                    pending_observation = {
-                                        'common_name': frigate_common,
-                                        'scientific_name': scientific_name,
-                                        'confidence': frigate_score,
-                                        'camera': after_data.get('camera'),
-                                        'frigate_event': frigate_event,
-                                    }
 
                                     set_sublabel(
                                         frigate_url,
@@ -650,73 +720,14 @@ def _on_message_inner(client, userdata, message):
                                         frigate_common
                                     )
 
-                                    cursor.execute(
-                                        """
-                                        SELECT COUNT(*)
-                                        FROM detections
-                                        WHERE display_name = ?
-                                        """,
-                                        (scientific_name,)
-                                    )
+                            commit_detection(conn, pending_observation)
 
-                                    if cursor.fetchone()[0] == 1:
+            else:
 
-                                        logger.info(
-                                            "New species via Frigate sub_label: %s",
-                                            frigate_common,
-                                        )
-
-                                        publish_new_species(
-                                            client,
-                                            frigate_common,
-                                            scientific_name,
-                                            frigate_score,
-                                            after_data['camera'],
-                                            frigate_event
-                                        )
-
-                                else:
-
-                                    existing_score = result[3]
-
-                                    if frigate_score > existing_score:
-
-                                        cursor.execute(
-                                            """
-                                            UPDATE detections
-                                            SET score = ?,
-                                                display_name = ?,
-                                                category_name = ?
-                                            WHERE frigate_event = ?
-                                            """,
-                                            (
-                                                frigate_score,
-                                                scientific_name,
-                                                'frigate_classified',
-                                                frigate_event
-                                            )
-                                        )
-
-                                        set_sublabel(
-                                            frigate_url,
-                                            frigate_event,
-                                            frigate_common
-                                        )
-
-                                commit_detection(conn, pending_observation)
-
-                else:
-
-                    logger.warning(
-                        "Could not retrieve image. Status code: %s",
-                        response.status_code,
-                    )
-
-        else:
-
-            firstmessage = False
-
-            logger.info("Skipping first MQTT message")
+                logger.warning(
+                    "Could not retrieve image. Status code: %s",
+                    response.status_code,
+                )
 
     finally:
         conn.close()
@@ -740,23 +751,26 @@ def load_config():
 
 
 def run_webui():
+    configure_worker_signals()
     logger.info("Starting Flask app")
 
+    set_detection_worker_enabled(not preflight(config))
     start_health_monitor()
 
     app.run(
         debug=False,
-        host=config["webui"]["host"],
-        port=config["webui"]["port"],
+        host=config.get("webui", {}).get("host", "0.0.0.0"),
+        port=config.get("webui", {}).get("port", DEFAULT_PORT),
     )
 
 
 def run_mqtt_client():
+    configure_worker_signals()
 
     global classifier
 
     base_options = core.BaseOptions(
-        file_name=config['classification']['model'],
+        file_name=str(REPO_ROOT / Path(config['classification']['model']).expanduser()),
         use_coral=False,
         num_threads=4
     )
@@ -792,10 +806,11 @@ def run_mqtt_client():
     )
 
     client.on_message = on_message
+    client.on_subscribe = on_subscribe
     client.on_disconnect = on_disconnect
     client.on_connect = on_connect
 
-    if config['frigate']['mqtt_auth']:
+    if config['frigate'].get('mqtt_auth', False):
 
         username = config['frigate']['mqtt_username']
 
@@ -862,38 +877,41 @@ def main():
 
     load_config()
 
+    setup_issues = preflight(config)
     setupdb()
 
-    logger.info("Starting processes for Flask and MQTT")
-
-    flask_process = multiprocessing.Process(
-        target=run_webui
-    )
-
-    mqtt_process = multiprocessing.Process(
-        target=run_mqtt_client
-    )
-
-    flask_process.start()
-    mqtt_process.start()
-
-    # Watchdog
-    while flask_process.is_alive():
-
-        mqtt_process.join(timeout=30)
-
-        if not mqtt_process.is_alive():
-
-            logger.warning("MQTT subprocess exited unexpectedly; restarting")
-
-            mqtt_process = multiprocessing.Process(
-                target=run_mqtt_client
+    with WorkerSupervisor(multiprocessing.Process) as workers:
+        if setup_issues:
+            logger.warning(
+                "WAMF setup/configuration required: %s. Starting web/admin UI on port %s; "
+                "MQTT/classification worker is disabled. Complete Configuration in the Admin UI "
+                "and restart WAMF to start detection.",
+                ', '.join(setup_issues),
+                config.get('webui', {}).get('port', DEFAULT_PORT),
             )
+            flask_process = workers.start(run_webui)
+            while not workers.stopping and flask_process.is_alive():
+                flask_process.join(timeout=0.5)
+        else:
+            logger.info("Starting processes for Flask and MQTT")
+            flask_process = workers.start(run_webui)
+            mqtt_process = workers.start(run_mqtt_client)
 
-            mqtt_process.start()
+            # Keep the normal MQTT watchdog, but never respawn during shutdown
+            # or after the Flask worker has exited.
+            while not workers.stopping and flask_process.is_alive():
+                mqtt_process.join(timeout=0.5)
+                if workers.stopping or not flask_process.is_alive():
+                    break
+                if not mqtt_process.is_alive():
+                    workers.reap(mqtt_process)
+                    logger.warning("MQTT subprocess exited unexpectedly; restarting")
+                    mqtt_process = workers.start(run_mqtt_client)
 
-    flask_process.join()
-    mqtt_process.join()
+        if workers.received_signal is not None:
+            logger.info("Shutdown requested by signal %s; stopping all workers", workers.received_signal)
+
+    logger.info("WAMF stopped; all child processes joined")
 
 
 if __name__ == '__main__':

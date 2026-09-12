@@ -8,6 +8,7 @@ import yaml
 import paho.mqtt.client as mqtt
 import shutil
 from app.config_editor import get_config_path
+from app.bootstrap import preflight
 from app.db import connect_db
 from wamf_paths import get_clips_path, get_snapshots_path
 from integrations.bridge import post_health_event
@@ -20,6 +21,13 @@ _health_state_lock = threading.Lock()
 _health_monitor_thread = None
 _health_monitor_start_lock = threading.Lock()
 DEFAULT_HEALTH_CHECK_INTERVAL_SECONDS = 60
+_detection_worker_enabled = None
+
+
+def set_detection_worker_enabled(enabled):
+    """Remember whether this web process was started with a detection worker."""
+    global _detection_worker_enabled
+    _detection_worker_enabled = enabled
 
 
 def _overall_health_state(health):
@@ -29,6 +37,9 @@ def _overall_health_state(health):
         or health["disk_used_percent"] >= 90
     ):
         return "unhealthy"
+
+    if health.get("setup_required"):
+        return "setup_required"
 
     if (
         not health["frigate_online"]
@@ -41,6 +52,10 @@ def _overall_health_state(health):
 
 
 def _health_details(health):
+    if health.get('setup_required'):
+        if health.get('restart_required'):
+            return 'Configuration saved; restart WAMF to start detection'
+        return 'Setup/configuration required: ' + ', '.join(health.get('configuration_issues', []))
     details = []
     checks = (
         ("frigate_online", "Frigate offline"),
@@ -72,7 +87,10 @@ def record_health_transition(health, bridge_config):
     if previous_state is None or previous_state == current_state:
         return False
 
-    if current_state == "healthy":
+    if current_state == "setup_required":
+        level = "info"
+        title = "WAMF setup required"
+    elif current_state == "healthy":
         level = "info"
         title = "WAMF health recovered"
     elif current_state == "unhealthy":
@@ -104,43 +122,50 @@ def calculate_system_health(config=None):
 
     health = {}
 
-    config = config or load_config()
+    config = load_config() if config is None else config
 
-    mqtt_host = config["frigate"]["mqtt_server"]
-    mqtt_port = config["frigate"]["mqtt_port"]
+    issues = preflight(config)
+    health['configuration_issues'] = issues
+    health['restart_required'] = not issues and _detection_worker_enabled is False
+    health['setup_required'] = bool(issues) or health['restart_required']
+    # Not checked in setup mode: placeholders are not service outages.
+    health['frigate_online'] = None
+    health['mqtt_online'] = None
+    health['frigate_disk_percent'] = None
 
-    frigate_url = config["frigate"]["frigate_url"]
+    if not health['setup_required']:
+        mqtt_host = config["frigate"]["mqtt_server"]
+        mqtt_port = config["frigate"].get("mqtt_port", 1883)
 
-    # Frigate connectivity
-    try:
+        frigate_url = config["frigate"]["frigate_url"]
 
-        response = requests.get(f"{frigate_url}/api/version", timeout=5)
+        # Frigate connectivity
+        try:
 
-        health["frigate_online"] = response.status_code == 200
+            response = requests.get(f"{frigate_url}/api/version", timeout=5)
 
-    except requests.exceptions.RequestException as exc:
-        logger.debug("Frigate health check failed: %s", exc)
+            health["frigate_online"] = response.status_code == 200
 
-        health["frigate_online"] = False
+        except requests.exceptions.RequestException as exc:
+            logger.debug("Frigate health check failed: %s", exc)
 
-    # Retain the API field for compatibility; Frigate storage is not local to WAMF.
-    health["frigate_disk_percent"] = None
+            health["frigate_online"] = False
 
-    # MQTT connectivity
-    try:
+        # MQTT connectivity
+        try:
 
-        client = mqtt.Client()
+            client = mqtt.Client()
 
-        client.connect(mqtt_host, mqtt_port, 5)
+            client.connect(mqtt_host, mqtt_port, 5)
 
-        client.disconnect()
+            client.disconnect()
 
-        health["mqtt_online"] = True
+            health["mqtt_online"] = True
 
-    except OSError as exc:
-        logger.debug("MQTT health check failed: %s", exc)
+        except OSError as exc:
+            logger.debug("MQTT health check failed: %s", exc)
 
-        health["mqtt_online"] = False
+            health["mqtt_online"] = False
 
     # Database connectivity
     try:

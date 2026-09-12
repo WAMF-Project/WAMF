@@ -15,7 +15,8 @@ from app.health import (
 
 
 @pytest.fixture(autouse=True)
-def reset_previous_health_state():
+def reset_previous_health_state(monkeypatch):
+    monkeypatch.setattr(health_module, "_detection_worker_enabled", None)
     health_module._previous_health_state = None
     health_module._health_monitor_thread = None
     yield
@@ -135,7 +136,10 @@ def test_health_calculation_does_not_record_transition():
                     "mqtt_server": "mqtt",
                     "mqtt_port": 1883,
                     "frigate_url": "http://frigate",
-                }
+                    "main_topic": "frigate",
+                    "camera": ["birdcam"],
+                },
+                "classification": {"model": "model.tflite", "threshold": 0.7},
             }
         )
 

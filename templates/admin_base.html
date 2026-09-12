@@ -108,8 +108,26 @@
       </nav>
     </header>
 
-    <main class="admin-main">{% block content %}{% endblock %}</main>
+    <main class="admin-main">
+      {% if health.setup_required %}
+      <div class="wamf-panel" role="status">
+        <h2>Setup / configuration required</h2>
+        {% if health.restart_required %}
+        <p>Configuration saved. Restart WAMF to start detection.</p>
+        {% else %}
+        <p>Detection is paused until configuration is complete.</p>
+        <ul>{% for issue in health.configuration_issues %}<li>{{ issue }}</li>{% endfor %}</ul>
+        {% endif %}
+        <p><a href="{{ url_for('admin.admin_config') }}">Open Configuration</a>,
+          then use Save &amp; Restart to apply your settings.</p>
+      </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
     <footer class="admin-status-bar">
+      {% if health.setup_required %}
+      <span>🟡 Setup required — detection paused</span>
+      {% else %}
       <span>
         {% if health.frigate_online %} 🟢 Frigate {% else %} 🔴 Frigate {% endif
         %}
@@ -119,6 +137,7 @@
         {% if health.mqtt_online %} 🟢 MQTT {% else %} 🔴 MQTT {% endif %}
       </span>
 
+      {% endif %}
       <span>
         {% if health.database_healthy %} 🟢 Database {% else %} 🔴 Database {%
         endif %}

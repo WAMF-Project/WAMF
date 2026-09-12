@@ -31,7 +31,7 @@ bridge:
   timeout_seconds: 1
   health_check_interval_seconds: 60
 webui:
-  port: 7766
+  port: 7767
   host: 0.0.0.0
 
 live_view:

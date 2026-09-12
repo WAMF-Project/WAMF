@@ -38,7 +38,7 @@
     <h2>Frigate</h2>
 
     <p>
-      {% if health.frigate_online %} 🟢 Online {% else %} 🔴 Offline {% endif %}
+      {% if health.setup_required %} 🟡 Setup required {% elif health.frigate_online %} 🟢 Online {% else %} 🔴 Offline {% endif %}
     </p>
   </div>
 
@@ -64,7 +64,7 @@
     <h2>MQTT</h2>
 
     <p>
-      {% if health.mqtt_online %} 🟢 Online {% else %} 🔴 Offline {% endif %}
+      {% if health.setup_required %} 🟡 Setup required {% elif health.mqtt_online %} 🟢 Online {% else %} 🔴 Offline {% endif %}
     </p>
   </div>
 

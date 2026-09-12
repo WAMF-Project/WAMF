@@ -198,7 +198,8 @@ cameras:
 
 # Configuration
 
-Copy:
+Native startup creates `config/config.yml` from the example when absent. You can
+also prepare it beforehand by copying:
 
 ```text
 
@@ -236,7 +237,7 @@ classification:
   threshold: 0.7
 
 webui:
-  port: 7766
+  port: 7767
   host: 0.0.0.0
 ```
 
@@ -286,21 +287,56 @@ http://<server-ip>:7766
 
 ```bash
 
-python3 -m venv .venv
+python3.11 -m venv .venv
 
 source .venv/bin/activate
 
-pip install -r requirements/base.txt
+pip install -r requirements.txt
 
 ```
 
-Run Flask:
+Run the native application:
 
 ```bash
-
-python webui.py
-
+python speciesid.py
 ```
+
+On first native start, WAMF creates `config/config.yml` from the native example
+if it is missing. If Frigate, MQTT, or camera settings are incomplete, WAMF
+starts the web/admin UI in setup mode on port 7767 (or your configured port).
+The detection worker stays disabled, and health reports setup required instead
+of treating placeholder settings as service outages.
+
+Sign in and open Configuration to enter the Frigate URL, MQTT broker/topic,
+camera names, and any required MQTT credentials/TLS options. Save & Restart
+uses the existing restart mechanism; a supervised installation must be configured
+to restart the application. When running directly in a terminal, save the config,
+then stop and start WAMF yourself. Saving alone shows a restart-required message
+and does not start detection. Advanced users can still edit the YAML file directly.
+Structurally invalid configuration or invalid web bind settings remain startup errors.
+
+With admin authentication enabled, missing or invalid bootstrap credentials are
+replaced automatically. WAMF prints a random temporary admin password once to
+the startup console, stores only its hash, and generates a session secret when
+needed. Keep the temporary password, then sign in at `http://<server-ip>:7767/login`
+and change it at `/admin/password`. Subsequent starts preserve valid credentials
+and do not display the password again. Generated credentials are saved before
+the web UI starts, so keep the password shown on that first run.
+A config updated by credential bootstrap is restricted to its owner (mode 0600).
+
+The native default port is 7767; existing configured ports are preserved. The
+config, bundled model, and taxonomy database resolve from the application
+location. `WHOSATMYFEEDER_CONFIG` can select another existing file (relative paths
+are relative to the caller's working directory); a missing override is an error.
+`WAMF_SECRET_KEY`, when set to a valid value, continues to override the configured
+session secret. Runtime storage directories and the SQLite schema are created
+automatically. The runtime account needs write access for bootstrap and admin
+configuration changes.
+
+Wait for `MQTT event subscription ready` in the console before testing a new
+bird event. This message follows the broker subscription acknowledgement.
+MQTT retained deliveries are skipped explicitly. The first live `new` bird event
+on the configured topic and camera is processed, including after a cold start.
 
 Run tests:
 

@@ -3,6 +3,7 @@ import glob
 import os
 import re
 import shutil
+from pathlib import Path
 
 import yaml
 
@@ -13,10 +14,10 @@ BACKUP_TIMESTAMP_FORMAT = '%Y%m%d-%H%M%S-%f'
 
 
 def get_config_path():
-    return os.environ.get(
-        'WHOSATMYFEEDER_CONFIG',
-        './config/config.yml'
-    )
+    override = os.environ.get('WHOSATMYFEEDER_CONFIG')
+    if override is not None:
+        return str(Path(override).expanduser().resolve())
+    return str(Path(__file__).resolve().parent.parent / 'config/config.yml')
 
 
 def strip_sensitive_config_blocks(config_content):

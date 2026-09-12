@@ -133,9 +133,10 @@ def test_get_scientific_name_truncated_ambiguous(names_db):
 # ---------------------------------------------------------------------------
 
 def _run_on_message(fresh_db, wamf_score, sub_label=None, event_id='evt-fallback-001',
-                    threshold=0.7, scientific_name_return='Turdus migratorius'):
+                    threshold=0.7, scientific_name_return='Turdus migratorius',
+                    retained=False, topic='frigate/events', event_type='new',
+                    camera='birdcam', label='bird', deliveries=1):
     """Run on_message with a mocked classifier result and optional Frigate sub_label."""
-    speciesid.firstmessage = False
     speciesid.config = {
         'frigate': {
             'camera': ['birdcam'],
@@ -145,11 +146,13 @@ def _run_on_message(fresh_db, wamf_score, sub_label=None, event_id='evt-fallback
     }
 
     msg = MagicMock()
+    msg.retain = retained
+    msg.topic = topic
     msg.payload = json.dumps({
-        'type': 'new',
+        'type': event_type,
         'after': {
-            'camera': 'birdcam',
-            'label': 'bird',
+            'camera': camera,
+            'label': label,
             'id': event_id,
             'start_time': 1700000000.0,
             'sub_label': sub_label,
@@ -182,7 +185,8 @@ def _run_on_message(fresh_db, wamf_score, sub_label=None, event_id='evt-fallback
          patch('speciesid.set_sublabel'), \
          patch('speciesid.publish_new_species') as mock_publish:
         mock_Image.open.return_value = mock_image
-        speciesid.on_message(client, None, msg)
+        for _ in range(deliveries):
+            speciesid.on_message(client, None, msg)
 
     return client, mock_publish
 
@@ -325,3 +329,44 @@ def test_duplicate_observation_does_not_use_bridge(fresh_db):
         _run_on_message(fresh_db, wamf_score=0.92)
 
     mock_bridge.assert_not_called()
+
+
+def test_first_live_event_after_cold_start_is_stored(fresh_db, monkeypatch):
+    # Reproduce the previous cold-start state without depending on test order.
+    monkeypatch.setattr(speciesid, 'firstmessage', True, raising=False)
+    _, publish = _run_on_message(fresh_db, wamf_score=0.92)
+    with sqlite3.connect(fresh_db) as conn:
+        assert conn.execute("SELECT frigate_event FROM detections").fetchall() == [('evt-fallback-001',)]
+    publish.assert_called_once()
+
+
+@pytest.mark.parametrize('options', [
+    {'retained': True},
+    {'topic': 'unrelated/events'},
+    {'event_type': 'update'},
+    {'event_type': 'end'},
+    {'camera': 'other-camera'},
+    {'label': 'person'},
+])
+def test_event_filters_preserved(fresh_db, options):
+    client, publish = _run_on_message(fresh_db, wamf_score=0.92, **options)
+    with sqlite3.connect(fresh_db) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM detections').fetchone()[0] == 0
+    client.publish.assert_not_called()
+    publish.assert_not_called()
+
+
+def test_retained_delivery_does_not_consume_next_live_event(fresh_db):
+    _run_on_message(fresh_db, wamf_score=0.92, retained=True)
+    _run_on_message(fresh_db, wamf_score=0.92)
+    with sqlite3.connect(fresh_db) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM detections').fetchone()[0] == 1
+
+
+def test_repeated_live_event_does_not_duplicate_detection(fresh_db):
+    with patch('speciesid.post_observation_event') as bridge:
+        _, publish = _run_on_message(fresh_db, wamf_score=0.92, deliveries=2)
+    with sqlite3.connect(fresh_db) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM detections').fetchone()[0] == 1
+    publish.assert_called_once()
+    bridge.assert_called_once()
