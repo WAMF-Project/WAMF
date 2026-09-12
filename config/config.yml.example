@@ -44,9 +44,7 @@ media:
   snapshots_path: ./media/wamf/snapshots
   clips_path: ./media/wamf/clips
 
-api:
-  token_auth_enabled: true
-  token_hash: ""
+
 
 retention:
   enabled: true
@@ -70,3 +68,7 @@ admin:
   # Generate with:
   # python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('change-me'))"
   password_hash: "<generated werkzeug password hash>"
+
+api:
+  token_auth_enabled: true
+  token_hash: ""
