@@ -12,7 +12,7 @@ from app.config_editor import (
     strip_admin_config_block,
 )
 from app.system_events import log_system_event
-from app.process_control import schedule_restart
+from app.process_control import INSTANCE_ID, schedule_restart
 
 
 admin_bp = Blueprint('admin', __name__)
@@ -169,7 +169,8 @@ def admin_config():
         config_path=metadata['config_path'],
         file_size=metadata['file_size'],
         last_modified=metadata['last_modified'],
-        backup_count=metadata['backup_count']
+        backup_count=metadata['backup_count'],
+        restart_instance_id=INSTANCE_ID
     )
 
 
@@ -197,7 +198,8 @@ def save_config():
 
         return {
             "success": True,
-            "message": "Configuration updated"
+            "message": "Configuration saved. Restart WAMF to apply deployment changes.",
+            "restart_required": True,
         }
 
     except yaml.YAMLError as e:
@@ -207,6 +209,13 @@ def save_config():
         }
 
 
+@admin_bp.route('/admin/config/restart-status')
+def restart_status():
+    # A new value proves the parent re-executed, rather than just the old UI
+    # continuing to answer during the response grace period.
+    return {"instance_id": INSTANCE_ID}, 200, {"Cache-Control": "no-store"}
+
+
 @admin_bp.route('/admin/config/restart', methods=['POST'])
 def restart_wamf():
     log_system_event(
@@ -214,7 +223,10 @@ def restart_wamf():
         "SYSTEM",
         "WAMF restart requested via admin editor"
     )
-    schedule_restart()
+    try:
+        schedule_restart()
+    except RuntimeError as exc:
+        return {"success": False, "error": str(exc)}, 409
 
     return {
         "success": True,
@@ -243,6 +255,8 @@ def save_and_restart_wamf():
             "success": True,
             "message": "Configuration saved. WAMF will restart shortly."
         }
+    except RuntimeError as exc:
+        return {"success": False, "error": str(exc)}, 409
     except yaml.YAMLError as e:
         return {
             "success": False,

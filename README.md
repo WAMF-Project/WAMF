@@ -309,10 +309,12 @@ of treating placeholder settings as service outages.
 
 Sign in and open Configuration to enter the Frigate URL, MQTT broker/topic,
 camera names, and any required MQTT credentials/TLS options. Save & Restart
-uses the existing restart mechanism; a supervised installation must be configured
-to restart the application. When running directly in a terminal, save the config,
-then stop and start WAMF yourself. Saving alone shows a restart-required message
-and does not start detection. Advanced users can still edit the YAML file directly.
+saves the configuration, stops and joins the workers, and re-executes the current
+Python command in the same parent process. Restart applies the existing saved
+configuration the same way. Both actions work directly in a terminal and under
+systemd, without requiring an external supervisor to relaunch WAMF. The browser
+waits for the new application instance, then reloads the Admin UI. Saving alone
+shows a restart-required message and does not start detection. Advanced users can still edit the YAML file directly.
 Structurally invalid configuration or invalid web bind settings remain startup errors.
 
 With admin authentication enabled, missing or invalid bootstrap credentials are

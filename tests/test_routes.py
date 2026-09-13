@@ -794,7 +794,10 @@ def test_config_editor_save_and_restart_writes_config(
     config_path.write_text("webui:\n  port: 7766\n")
     monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
     scheduled = []
-    monkeypatch.setattr(admin_routes, "schedule_restart", lambda: scheduled.append(True))
+    def schedule_after_save():
+        assert yaml.safe_load(config_path.read_text())["webui"]["port"] == 8877
+        scheduled.append(True)
+    monkeypatch.setattr(admin_routes, "schedule_restart", schedule_after_save)
 
     response = flask_client.post(
         "/admin/config/save-and-restart",

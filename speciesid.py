@@ -909,7 +909,8 @@ def main():
                     mqtt_process = workers.start(run_mqtt_client)
 
         if workers.received_signal is not None:
-            logger.info("Shutdown requested by signal %s; stopping all workers", workers.received_signal)
+            action = "Restart" if workers.restart_requested else "Shutdown"
+            logger.info("%s requested by signal %s; stopping all workers", action, workers.received_signal)
 
     logger.info("WAMF stopped; all child processes joined")
 
