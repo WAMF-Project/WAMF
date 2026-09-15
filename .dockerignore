@@ -1,10 +1,10 @@
 .git
-.venv/
-.venv311/
+.venv*/
 __pycache__/
 **/__pycache__/
 .pytest_cache/
-config/
+config/*
+!config/config.yml.example
 data/
 media/
 logs/

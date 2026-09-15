@@ -6,9 +6,9 @@ services:
       context: .
     image: wamf:0.4.0-beta.3
     volumes:
-      - ./config/config.yml:/app/config/config.yml
-      - ./data:/data
-      - ./media:/media
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./media:/app/media
     ports:
       - "7767:7767"
     environment:

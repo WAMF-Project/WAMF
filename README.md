@@ -243,43 +243,18 @@ webui:
 
 # Docker Compose
 
-```yaml
-version: "3.6"
-
-services:
-  whosatmyfeeder:
-    container_name: whosatmyfeeder
-
-    restart: unless-stopped
-
-    image: ghcr.io/k1n6b0b/whosatmyfeeder:latest
-
-    volumes:
-      - ./config:/config
-      - ./data:/data
-
-    ports:
-      - 7766:7766
-
-    environment:
-      - TZ=Europe/London
-```
-
-# Run
+Build and run the current checkout:
 
 ```bash
-
-docker compose up -d
-
+docker compose -f docker-compose.yml.example up -d --build
+docker compose -f docker-compose.yml.example logs -f
 ```
 
-The observatory UI will be available at:
-
-```text
-
-http://<server-ip>:7766
-
-```
+Open `http://<server-ip>:7767`. First startup creates configuration and prints a
+temporary admin password. Sign in and configure Frigate/MQTT through the Admin UI.
+Config, database, and media persist in `./config`, `./data`, and `./media`, mounted
+beneath `/app`. See [Docker installation and testing](docs/docker-testing.md) for
+setup, existing-install migration, and validation details.
 
 ---
 
