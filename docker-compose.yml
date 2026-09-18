@@ -2,7 +2,7 @@ services:
   wamf:
     container_name: wamf
     restart: unless-stopped
-    image: ghcr.io/k1n6b0b/wamf:latest
+    image: ghcr.io/wamf-project/wamf:latest
     volumes:
       - ./config:/app/config
       - ./data:/app/data
