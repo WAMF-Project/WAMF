@@ -15,7 +15,7 @@ versioning for releases.
 
 ---
 
-## [0.4.0] - Unreleased
+## [0.4.0] - 2026-09-18
 
 ### Added
 
