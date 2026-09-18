@@ -3,6 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update \
+&& apt-get upgrade -y \
     && apt-get install --no-install-recommends -y ffmpeg libsm6 libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
