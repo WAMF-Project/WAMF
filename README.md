@@ -186,7 +186,7 @@ cameras:
 
 ```text
 
-/whosatmyfeeder/
+/WAMF/
 ├── docker-compose.yml
 ├── config/
 │   └── config.yml
