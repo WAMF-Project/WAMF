@@ -117,9 +117,25 @@ Flask Observatory UI
 
 ---
 
-# Screenshots
+## Screenshots
 
-TO BE ADDED SOON
+### Dashboard
+
+An overview of recent wildlife observations and activity recorded by WAMF.
+
+![WAMF dashboard overview](docs/assets/dashboard-overview.png)
+
+### Recent Observations
+
+Recent bird detections with species identification and observation media.
+
+![WAMF recent observations](docs/assets/dashboard-recent-feed.png)
+
+### Activity
+
+Bird activity over time, showing when wildlife is most active.
+
+![WAMF activity view](docs/assets/activity.png)
 
 ---
 
