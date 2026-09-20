@@ -6,7 +6,7 @@
 
 ## Project Background
 
-WAMF is a personal fork of:
+WAMF is a fork of:
 
 - https://github.com/k1n6b0b/whosatmyfeeder
 
