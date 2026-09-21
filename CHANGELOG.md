@@ -12,6 +12,19 @@ versioning for releases.
 ### Changed
 
 ### Fixed
+---
+## [0.4.5] - Unreleased
+
+### Changed
+
+- Migrated the species classifier from the deprecated `tflite-support` runtime to LiteRT (`ai-edge-litert`), enabling WAMF to run natively on Python 3.12.
+- Updated classifier model loading and inference while preserving the existing model, labels, confidence thresholds, and species-name database mappings.
+- Corrected classifier image preprocessing to resize Frigate object snapshots directly to the model's required 224×224 input instead of preserving aspect ratio with black letterboxing.
+
+### Fixed
+
+- Fixed a long-standing image preprocessing issue where black padding could dominate the classifier input and cause valid bird detections to be classified as `__background__`.
+- Added regression coverage for the complete event preprocessing path to prevent letterboxed classifier input from being reintroduced.
 
 ---
 
