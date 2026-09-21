@@ -1,7 +1,7 @@
 """
 Tests for the MQTT new-species-ever notification feature.
 
-speciesid.py has heavy ML imports (numpy, cv2, tflite_support, PIL) that are
+speciesid.py has heavy ML imports (numpy, cv2, ai-edge-litert, PIL) that are
 not available in the test environment. We patch them in sys.modules before
 importing speciesid so only the functions we care about are exercised.
 """
@@ -22,11 +22,8 @@ os.environ.setdefault("WHOSATMYFEEDER_CONFIG", "config/config.yml.example")
 for _mod in [
     "numpy",
     "cv2",
-    "tflite_support",
-    "tflite_support.task",
-    "tflite_support.task.core",
-    "tflite_support.task.processor",
-    "tflite_support.task.vision",
+    "ai_edge_litert",
+    "ai_edge_litert.interpreter",
     "PIL",
     "PIL.Image",
     "PIL.ImageOps",
@@ -413,11 +410,10 @@ def test_classifier_and_callbacks_ready_before_mqtt_connect(monkeypatch, tmp_pat
         'classification': {'model': 'model.tflite'},
         'frigate': {'mqtt_server': 'localhost'},
     })
-    with patch('speciesid.vision.ImageClassifier.create_from_options') as create, patch('speciesid.core.BaseOptions') as base, patch('speciesid.mqtt.Client') as factory:
+    with patch('speciesid.initialize_classifier') as initialize, patch('speciesid.mqtt.Client') as factory:
         client = factory.return_value
         def connected(*args):
-            create.assert_called_once()
-            assert speciesid.classifier is create.return_value
+            initialize.assert_called_once()
             assert client.on_connect is speciesid.on_connect
             assert client.on_message is speciesid.on_message
             assert client.on_subscribe is speciesid.on_subscribe
@@ -426,7 +422,7 @@ def test_classifier_and_callbacks_ready_before_mqtt_connect(monkeypatch, tmp_pat
         speciesid.run_mqtt_client()
         client.connect.assert_called_once_with('localhost', 1883)
         client.loop_forever.assert_called_once()
-        assert base.call_args.kwargs['file_name'] == str(speciesid.REPO_ROOT / 'model.tflite')
+        initialize.assert_called_once_with(speciesid.REPO_ROOT / 'model.tflite')
 
 
 def test_refused_mqtt_connection_is_not_reported_as_connected():

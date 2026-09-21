@@ -90,7 +90,7 @@ import runpy
 import sys
 from unittest.mock import MagicMock, patch
 
-for name in ('numpy', 'tflite_support', 'tflite_support.task', 'PIL', 'PIL.Image', 'PIL.ImageOps'):
+for name in ('PIL', 'PIL.Image', 'PIL.ImageOps'):
     sys.modules[name] = MagicMock()
 from flask import Flask
 passwords = []

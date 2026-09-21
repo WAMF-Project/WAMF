@@ -105,7 +105,7 @@ import sys
 import time
 from unittest.mock import MagicMock
 
-for name in ('numpy', 'tflite_support', 'tflite_support.task', 'PIL', 'PIL.Image', 'PIL.ImageOps'):
+for name in ('PIL', 'PIL.Image', 'PIL.ImageOps'):
     sys.modules[name] = MagicMock()
 
 def worker(role):

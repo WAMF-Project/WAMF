@@ -13,6 +13,7 @@ htmlcov/
 .venv/
 venv/
 .venv311/
+.venv312/
 .venv-test/
 
 # Config and secrets

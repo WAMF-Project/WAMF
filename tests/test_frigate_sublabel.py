@@ -21,11 +21,8 @@ os.environ.setdefault('WHOSATMYFEEDER_CONFIG', 'config/config.yml.example')
 
 for _mod in [
     "numpy", "cv2",
-    "tflite_support",
-    "tflite_support.task",
-    "tflite_support.task.core",
-    "tflite_support.task.processor",
-    "tflite_support.task.vision",
+    "ai_edge_litert",
+    "ai_edge_litert.interpreter",
     "PIL", "PIL.Image", "PIL.ImageOps",
     "paho", "paho.mqtt", "paho.mqtt.client",
 ]:

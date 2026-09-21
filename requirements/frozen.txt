@@ -20,6 +20,6 @@ pycparser==3.0
 PyYAML==6.0.3
 requests==2.30.0
 sounddevice==0.5.5
-tflite-support==0.4.4
+ai-edge-litert==2.2.0
 urllib3==2.7.0
 Werkzeug==3.1.8

@@ -146,7 +146,7 @@ for row in previous:
         assert not Path('/proc/' + str(row['pid'])).exists(), 'Restart left an old worker alive or unreaped'
 record('parent', interpreter=sys.executable, argv=sys.orig_argv, config_path=os.environ['WHOSATMYFEEDER_CONFIG'], marker=os.environ['ENV_MARKER'])
 
-for name in ('numpy', 'tflite_support', 'tflite_support.task', 'PIL', 'PIL.Image', 'PIL.ImageOps'):
+for name in ('PIL', 'PIL.Image', 'PIL.ImageOps'):
     sys.modules[name] = MagicMock()
 import paho.mqtt.client as mqtt
 class Client:

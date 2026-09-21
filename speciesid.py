@@ -5,6 +5,7 @@ if __name__ == "__main__":
     prepare_native_startup()
 
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 import logging
 import numpy as np
@@ -12,9 +13,7 @@ from datetime import datetime
 import time
 import multiprocessing
 
-from tflite_support.task import core
-from tflite_support.task import processor
-from tflite_support.task import vision
+from ai_edge_litert.interpreter import Interpreter
 import paho.mqtt.client as mqtt
 import yaml
 from webui import app
@@ -38,6 +37,10 @@ from integrations.bridge import post_observation_event
 from app.health import start_health_monitor, set_detection_worker_enabled
 
 classifier = None
+classifier_input = None
+classifier_output = None
+classifier_display_names = None
+classifier_category_names = None
 config = None
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,16 @@ logger = logging.getLogger(__name__)
 DBPATH = None
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_INSECURE_TLS = False
+CLASSIFIER_MAX_RESULTS = 5
+CLASSIFIER_SCORE_THRESHOLD = 0.05
+
+
+@dataclass(frozen=True)
+class Category:
+    index: int
+    score: float
+    display_name: str
+    category_name: str
 
 
 def configure_logging():
@@ -55,20 +68,72 @@ def configure_logging():
 
 
 def classify(image):
+    expected_shape = tuple(int(size) for size in classifier_input['shape'][1:])
+    image = np.asarray(image, dtype=np.uint8)
+    if image.shape != expected_shape:
+        raise ValueError(
+            f"Classifier image must have shape {expected_shape}, got {image.shape}"
+        )
 
-    image = np.ascontiguousarray(
-        image.astype(np.uint8)
-    )
+    input_tensor = np.ascontiguousarray(image[np.newaxis, ...])
+    classifier.set_tensor(classifier_input['index'], input_tensor)
+    classifier.invoke()
 
-    tensor_image = vision.TensorImage.create_from_array(
-        image
-    )
+    raw_scores = classifier.get_tensor(classifier_output['index']).reshape(-1)
+    scale, zero_point = classifier_output['quantization']
+    if scale <= 0:
+        raise ValueError("Classifier output tensor has no valid quantization scale")
+    scores = (raw_scores.astype(np.float32) - zero_point) * scale
 
-    result = classifier.classify(
-        tensor_image
-    )
+    ranked_indexes = np.argsort(-scores, kind='stable')
+    return [
+        Category(
+            index=int(index),
+            score=float(scores[index]),
+            display_name=classifier_display_names[index],
+            category_name=classifier_category_names[index],
+        )
+        for index in ranked_indexes
+        if scores[index] >= CLASSIFIER_SCORE_THRESHOLD
+    ][:CLASSIFIER_MAX_RESULTS]
 
-    return result.classifications[0].categories
+
+def initialize_classifier(model_path):
+    import zipfile
+
+    global classifier
+    global classifier_input
+    global classifier_output
+    global classifier_display_names
+    global classifier_category_names
+
+    model_path = Path(model_path)
+    new_classifier = Interpreter(model_path=str(model_path), num_threads=4)
+    new_classifier.allocate_tensors()
+    input_details = new_classifier.get_input_details()[0]
+    output_details = new_classifier.get_output_details()[0]
+
+    if input_details['dtype'] != np.uint8:
+        raise ValueError("Classifier input tensor must use uint8 data")
+    if tuple(input_details['shape']) != (1, 224, 224, 3):
+        raise ValueError(
+            "Classifier input tensor must have shape (1, 224, 224, 3)"
+        )
+
+    with zipfile.ZipFile(model_path) as model:
+        display_names = model.read('probability-labels-en.txt').decode('utf-8').splitlines()
+        category_names = model.read('probability-labels.txt').decode('utf-8').splitlines()
+
+    output_size = int(np.prod(output_details['shape']))
+    if len(display_names) != output_size or len(category_names) != output_size:
+        raise ValueError("Classifier labels do not match the output tensor size")
+
+    classifier = new_classifier
+    classifier_input = input_details
+    classifier_output = output_details
+    classifier_display_names = display_names
+    classifier_category_names = category_names
+    return classifier
 
 
 def on_connect(client, userdata, flags, rc):
@@ -767,26 +832,8 @@ def run_webui():
 def run_mqtt_client():
     configure_worker_signals()
 
-    global classifier
-
-    base_options = core.BaseOptions(
-        file_name=str(REPO_ROOT / Path(config['classification']['model']).expanduser()),
-        use_coral=False,
-        num_threads=4
-    )
-
-    classification_options = processor.ClassificationOptions(
-        max_results=5,
-        score_threshold=0.05
-    )
-
-    options = vision.ImageClassifierOptions(
-        base_options=base_options,
-        classification_options=classification_options
-    )
-
-    classifier = vision.ImageClassifier.create_from_options(
-        options
+    initialize_classifier(
+        REPO_ROOT / Path(config['classification']['model']).expanduser()
     )
 
     logger.info("Classifier initialized in MQTT subprocess")
