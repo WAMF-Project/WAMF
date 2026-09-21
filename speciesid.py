@@ -375,28 +375,11 @@ def _on_message_inner(client, userdata, message):
                     BytesIO(response.content)
                 ).convert("RGB")
 
-                # Resize while preserving aspect ratio
-                image.thumbnail((224, 224))
-
-                # Create fixed-size canvas
-                canvas = Image.new(
-                    "RGB",
-                    (224, 224),
-                    (0, 0, 0)
-                )
-
-                # Center image
-                x = (224 - image.width) // 2
-                y = (224 - image.height) // 2
-
-                canvas.paste(
-                    image,
-                    (x, y)
-                )
+                image = image.resize((224, 224))
 
                 # Convert to numpy
                 np_arr = np.array(
-                    canvas,
+                    image,
                     dtype=np.uint8
                 )
 

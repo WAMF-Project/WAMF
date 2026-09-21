@@ -1,5 +1,6 @@
+import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 from PIL import Image
@@ -9,6 +10,9 @@ import speciesid
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = REPO_ROOT / 'model.tflite'
+GOLDEN_SNAPSHOT_PATH = (
+    REPO_ROOT / 'media/wamf/snapshots/1779981851.294031-5nvuxv.jpg'
+)
 
 
 class FakeInterpreter:
@@ -102,10 +106,74 @@ def test_classifier_filters_sorts_and_limits_results():
     assert 10 not in [category.index for category in categories]
 
 
+def test_event_pipeline_directly_resizes_golden_snapshot(tmp_path):
+    response = MagicMock(
+        status_code=200,
+        content=GOLDEN_SNAPSHOT_PATH.read_bytes(),
+    )
+    message = MagicMock(
+        retain=False,
+        topic='frigate/events',
+        payload=json.dumps({
+            'type': 'new',
+            'after': {
+                'camera': 'birdcam',
+                'label': 'bird',
+                'id': 'golden-preprocessing',
+                'start_time': 1700000000.0,
+            },
+        }),
+    )
+    background = speciesid.Category(
+        index=964,
+        score=0.82421875,
+        display_name='None',
+        category_name='__background__',
+    )
+    config = {
+        'frigate': {
+            'camera': ['birdcam'],
+            'frigate_url': 'http://localhost:5000',
+            'main_topic': 'frigate',
+        },
+        'classification': {'threshold': 0.7},
+    }
+
+    with patch.object(speciesid, 'config', config), patch.object(
+        speciesid, 'DBPATH', tmp_path / 'speciesid.db'
+    ), patch('speciesid.requests.get', return_value=response), patch(
+        'speciesid.classify', return_value=[background]
+    ) as classify:
+        speciesid._on_message_inner(MagicMock(), None, message)
+
+    classified_image = classify.call_args.args[0]
+    source = Image.open(GOLDEN_SNAPSHOT_PATH).convert('RGB')
+    expected = np.ascontiguousarray(
+        np.array(source.resize((224, 224)), dtype=np.uint8)
+    )
+
+    thumbnail = source.copy()
+    thumbnail.thumbnail((224, 224))
+    letterboxed = Image.new('RGB', (224, 224), (0, 0, 0))
+    letterboxed.paste(
+        thumbnail,
+        ((224 - thumbnail.width) // 2, (224 - thumbnail.height) // 2),
+    )
+    letterboxed = np.ascontiguousarray(
+        np.array(letterboxed, dtype=np.uint8)
+    )
+
+    assert classified_image.shape == (224, 224, 3)
+    assert classified_image.dtype == np.uint8
+    assert classified_image.flags.c_contiguous
+    assert np.array_equal(classified_image, expected)
+    assert not np.array_equal(classified_image, letterboxed)
+
+
 def test_golden_image_matches_existing_classification_and_name_database():
     speciesid.initialize_classifier(MODEL_PATH)
     image = Image.open(
-        REPO_ROOT / 'media/wamf/snapshots/1779981851.294031-5nvuxv.jpg'
+        GOLDEN_SNAPSHOT_PATH
     ).convert('RGB').resize((224, 224))
 
     categories = speciesid.classify(np.asarray(image, dtype=np.uint8))
