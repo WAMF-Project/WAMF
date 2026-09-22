@@ -136,6 +136,37 @@ def test_index_contains_html(flask_client):
     assert b"<!DOCTYPE html>" in response.data or b"<html" in response.data
 
 
+def test_index_renders_overview_dashboard_regions_and_existing_data(flask_client):
+    response = flask_client.get("/")
+
+    assert response.status_code == 200
+    assert b'class="overview-dashboard"' in response.data
+    assert b'class="overview-main"' in response.data
+    assert b'class="overview-context-rail"' in response.data
+    assert b"Recent detections" in response.data
+    assert b"Detection summary" in response.data
+    assert b"Latest visitor" in response.data
+    assert b"Most active species" in response.data
+    assert b"American Robin" in response.data
+    assert b"Turdus migratorius" in response.data
+    assert b"birdcam" in response.data
+    assert b"92% confidence" in response.data
+
+
+def test_index_preserves_overview_links_modals_and_live_polling(flask_client):
+    response = flask_client.get("/")
+
+    assert response.status_code == 200
+    assert b'href="/recent"' in response.data
+    assert b'href="/activity"' in response.data
+    assert b"/detections/by_scientific_name/Turdus%20migratorius/2024-06-01" in response.data
+    assert b'id="date-picker"' in response.data
+    assert b'id="snapshotModal"' in response.data
+    assert b'id="videoModal"' in response.data
+    assert b"/api/detections/recent?limit=${LIMIT}" in response.data
+    assert b"setInterval(poll, POLL_MS)" in response.data
+
+
 def test_public_shell_uses_canonical_stylesheet_and_mobile_navigation(flask_client):
     response = flask_client.get("/")
 
