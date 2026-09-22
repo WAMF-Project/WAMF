@@ -64,6 +64,25 @@ def test_get_earliest_detection_date_returns_string(patched_queries):
     assert result == "2024-06-01"
 
 
+def test_get_adjacent_activity_dates_on_activity_date(patched_queries):
+    result = patched_queries.get_adjacent_activity_dates("2024-06-01")
+
+    assert result == {
+        "previous_date": None,
+        "next_date": None,
+    }
+
+
+def test_get_adjacent_activity_dates_around_empty_date(patched_queries):
+    before = patched_queries.get_adjacent_activity_dates("2024-05-31")
+    after = patched_queries.get_adjacent_activity_dates("2024-06-02")
+
+    assert before["previous_date"] is None
+    assert before["next_date"] == "2024-06-01"
+    assert after["previous_date"] == "2024-06-01"
+    assert after["next_date"] is None
+
+
 # ---------------------------------------------------------------------------
 # get_daily_summary
 # ---------------------------------------------------------------------------

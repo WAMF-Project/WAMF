@@ -1847,7 +1847,8 @@ a:hover {
 }
 
 .overview-boundary .dashboard-card,
-.recent-feed .dashboard-card {
+.recent-feed .dashboard-card,
+.activity-page .dashboard-card {
   min-width: 0;
   padding: clamp(1rem, 2vw, 1.5rem);
   border: 1px solid var(--wamf-border);
@@ -1861,7 +1862,8 @@ a:hover {
 }
 
 .overview-boundary .dashboard-card-header,
-.recent-feed .dashboard-card-header {
+.recent-feed .dashboard-card-header,
+.activity-page .dashboard-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1870,7 +1872,8 @@ a:hover {
 }
 
 .overview-boundary .dashboard-eyebrow,
-.recent-feed .dashboard-eyebrow {
+.recent-feed .dashboard-eyebrow,
+.activity-page .dashboard-eyebrow {
   margin: 0 0 0.25rem;
   color: var(--wamf-moss-600);
   font-size: 0.75rem;
@@ -1881,14 +1884,16 @@ a:hover {
 }
 
 .overview-boundary .dashboard-card-title,
-.recent-feed .dashboard-card-title {
+.recent-feed .dashboard-card-title,
+.activity-page .dashboard-card-title {
   margin: 0;
   color: var(--wamf-forest-900);
   font-size: clamp(1.2rem, 2vw, 1.5rem);
   line-height: 1.2;
 }
 
-.overview-boundary .dashboard-card-action {
+.overview-boundary .dashboard-card-action,
+.activity-page .dashboard-card-action {
   display: inline-flex;
   min-height: 44px;
   flex: 0 0 auto;
@@ -2105,7 +2110,8 @@ a:hover {
 }
 
 .overview-boundary .dashboard-empty-state,
-.recent-feed .dashboard-empty-state {
+.recent-feed .dashboard-empty-state,
+.activity-page .dashboard-empty-state {
   grid-column: 1 / -1;
   padding: 1rem;
   border: 1px dashed var(--wamf-border);
@@ -2116,7 +2122,8 @@ a:hover {
 
 @media (hover: hover) {
   .overview-detection-heading h3 a:hover,
-  .overview-boundary .dashboard-card-action:hover {
+  .overview-boundary .dashboard-card-action:hover,
+  .activity-page .dashboard-card-action:hover {
     color: var(--wamf-forest-950);
   }
 
@@ -2221,6 +2228,338 @@ a:hover {
   }
 }
 
+.activity-date-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.activity-date-picker label {
+  color: var(--wamf-text-muted);
+  font-size: 0.825rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.activity-date-picker .form-control {
+  min-height: 44px;
+}
+
+.activity-page {
+  display: grid;
+  min-width: 0;
+  gap: 1.25rem;
+}
+
+.activity-date-navigation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--wamf-border);
+}
+
+.activity-date-navigation-slot {
+  display: flex;
+  min-width: 0;
+}
+
+.activity-date-navigation-next {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.activity-date-navigation-slot a,
+.activity-today-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--wamf-forest-700);
+  font-weight: 700;
+}
+
+.activity-date-navigation-slot a {
+  flex-direction: column;
+  align-items: flex-start;
+  text-decoration: none;
+}
+
+.activity-date-navigation-next a {
+  align-items: flex-end;
+}
+
+.activity-date-navigation-slot span {
+  font-size: 0.825rem;
+}
+
+.activity-date-navigation-slot strong {
+  color: var(--wamf-text-muted);
+  font-size: 0.75rem;
+}
+
+.activity-today-link {
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--wamf-border);
+  background: var(--wamf-surface-muted);
+  text-decoration: none;
+}
+
+.activity-today-link[aria-current="date"] {
+  border-color: var(--wamf-sage-300);
+  background: var(--wamf-sage-200);
+  color: var(--wamf-forest-950);
+}
+
+.activity-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 1rem;
+}
+
+.activity-metric-card {
+  display: flex;
+  min-width: 0;
+  min-height: 9rem;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.125rem;
+  border: 1px solid var(--wamf-border);
+  border-radius: 12px;
+  background: var(--wamf-surface);
+  box-shadow: 0 6px 18px rgba(32, 53, 40, 0.05);
+}
+
+.activity-metric-card > span {
+  color: var(--wamf-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.activity-metric-card > strong {
+  margin-top: 0.35rem;
+  color: var(--wamf-forest-900);
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  line-height: 1;
+}
+
+.activity-metric-card > small,
+.activity-metric-card > a {
+  margin-top: 0.6rem;
+  color: var(--wamf-text-muted);
+  font-size: 0.825rem;
+}
+
+.activity-metric-card > a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--wamf-forest-700);
+  font-weight: 700;
+}
+
+.activity-chart-note {
+  max-width: 16rem;
+  margin: 0;
+  color: var(--wamf-text-muted);
+  font-size: 0.825rem;
+  text-align: right;
+}
+
+.activity-chart-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.5rem;
+  overscroll-behavior-inline: contain;
+}
+
+.activity-chart-plot {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(1.6rem, 1fr));
+  gap: 0.4rem;
+  width: 100%;
+  min-width: 46rem;
+  height: 300px;
+  padding: 0.5rem 0.25rem 0;
+  border-bottom: 1px solid var(--wamf-border);
+}
+
+.activity-hour-column {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: 1.25rem minmax(0, 1fr) 1.75rem;
+  align-items: end;
+  text-align: center;
+}
+
+.activity-hour-value {
+  min-height: 1.25rem;
+  color: var(--wamf-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.activity-hour-track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.activity-hour-target {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.activity-hour-bar {
+  display: block;
+  width: min(100%, 1.5rem);
+  height: max(0.5rem, var(--activity-level));
+  max-height: 100%;
+  border-radius: 6px 6px 2px 2px;
+  background: var(--wamf-fern-500);
+  box-shadow: inset 0 -3px 0 rgba(32, 53, 40, 0.18);
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.activity-hour-bar-empty {
+  height: 2px;
+  background: var(--wamf-border);
+  box-shadow: none;
+}
+
+.activity-hour-label {
+  padding-top: 0.45rem;
+  color: var(--wamf-text-muted);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-chart-empty {
+  margin: 0.75rem 0 0;
+  color: var(--wamf-text-muted);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.activity-supporting-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.activity-species-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: activity-species;
+}
+
+.activity-species-list li {
+  counter-increment: activity-species;
+  border-top: 1px solid var(--wamf-border);
+}
+
+.activity-species-list li:first-child {
+  border-top: 0;
+}
+
+.activity-species-list a {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  min-height: 54px;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--wamf-text);
+  text-decoration: none;
+}
+
+.activity-species-list a::before {
+  content: counter(activity-species) ".";
+  color: var(--wamf-text-muted);
+  font-size: 0.825rem;
+}
+
+.activity-species-list a > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.activity-species-list small {
+  overflow-wrap: anywhere;
+  color: var(--wamf-text-muted);
+  font-style: italic;
+}
+
+.activity-species-list b {
+  color: var(--wamf-forest-700);
+}
+
+.activity-peak-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.75rem;
+}
+
+.activity-peak-card {
+  display: flex;
+  min-width: 0;
+  min-height: 7rem;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.875rem;
+  border: 1px solid var(--wamf-border);
+  border-radius: 10px;
+  background: var(--wamf-surface-muted);
+}
+
+.activity-peak-card strong {
+  overflow-wrap: anywhere;
+  color: var(--wamf-forest-900);
+}
+
+.activity-peak-card span {
+  margin-top: 0.3rem;
+  color: var(--wamf-forest-700);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.activity-peak-card small {
+  margin-top: 0.2rem;
+  color: var(--wamf-text-muted);
+}
+
+@media (hover: hover) {
+  .activity-hour-target:hover .activity-hour-bar {
+    background: var(--wamf-forest-700);
+    transform: translateY(-2px);
+  }
+
+  .activity-species-list a:hover,
+  .activity-date-navigation-slot a:hover {
+    color: var(--wamf-forest-700);
+  }
+
+  .activity-today-link:hover {
+    border-color: var(--wamf-sage-300);
+    background: var(--wamf-sage-100);
+  }
+}
+
 @media (max-width: 720px) {
   .overview-dashboard,
   .overview-main,
@@ -2230,6 +2569,7 @@ a:hover {
 
   .overview-boundary .dashboard-card-header,
   .recent-feed .dashboard-card-header,
+  .activity-page .dashboard-card-header,
   .overview-detection-heading {
     align-items: flex-start;
     flex-direction: column;
@@ -2264,5 +2604,38 @@ a:hover {
 
   .wamf-pagination a {
     width: 100%;
+  }
+
+  .activity-date-picker {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .activity-date-navigation {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .activity-today-link {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .activity-date-navigation-slot {
+    grid-row: 2;
+  }
+
+  .activity-date-navigation-slot a {
+    width: 100%;
+  }
+
+  .activity-metric-grid,
+  .activity-supporting-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .activity-chart-note {
+    max-width: none;
+    text-align: left;
   }
 }

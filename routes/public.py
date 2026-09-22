@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for
 
 
 public_bp = Blueprint('public', __name__)
@@ -184,34 +184,79 @@ def show_daily_summary(date):
     )
 
 
-@public_bp.route('/activity')
-def activity():
+@public_bp.route('/activity', defaults={'date': None})
+@public_bp.route('/activity/<date>')
+def activity(date):
     import webui
 
     today = datetime.now()
-    date_str = today.strftime('%Y-%m-%d')
+    today_str = today.strftime('%Y-%m-%d')
+
+    if date is None:
+        target = url_for('public.activity', date=today_str)
+        query = request.query_string.decode('utf-8')
+        if query:
+            target = f'{target}?{query}'
+        return redirect(target)
+
+    try:
+        selected_date = datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        abort(404)
+
+    if selected_date.strftime('%Y-%m-%d') != date:
+        abort(404)
+
+    if selected_date.date() > today.date():
+        return redirect(url_for('public.activity', date=today_str))
+
+    date_str = selected_date.strftime('%Y-%m-%d')
     activity_by_hour = webui.get_activity_by_hour(date_str)
     top_species = webui.get_top_species(date_str)
     species_peak_hours = webui.get_species_peak_hours(date_str)
+    daily_summary = webui.get_daily_summary(selected_date)
+    activity_dates = webui.get_adjacent_activity_dates(date_str)
+    next_activity_date = activity_dates['next_date']
+
+    if next_activity_date and next_activity_date > today_str:
+        next_activity_date = None
+
+    totals_by_hour = {
+        int(item['hour']): item['total']
+        for item in activity_by_hour
+    }
+    hourly_activity = [
+        {
+            'hour': f'{hour:02d}',
+            'total': totals_by_hour.get(hour, 0),
+        }
+        for hour in range(24)
+    ]
     total_detections = sum(
         item['total']
         for item in activity_by_hour
     )
-    busiest_hour = max(
-        activity_by_hour,
-        key=lambda x: x['total'],
-        default=None
+    busiest_hour = (
+        max(activity_by_hour, key=lambda item: item['total'])
+        if total_detections
+        else None
     )
 
     return render_template(
         'activity.html',
-        activity_by_hour=activity_by_hour,
+        activity_by_hour=hourly_activity,
+        max_hourly_detections=max(totals_by_hour.values(), default=0),
         top_species=top_species,
         total_detections=total_detections,
         busiest_hour=busiest_hour,
-        species_count=len(top_species),
+        species_count=len(daily_summary),
         species_peak_hours=species_peak_hours,
-        date=date_str
+        date=date_str,
+        display_date=selected_date.strftime('%A, %d %B %Y'),
+        today=today_str,
+        earliest_date=webui.get_earliest_detection_date(),
+        previous_activity_date=activity_dates['previous_date'],
+        next_activity_date=next_activity_date,
     )
 
 

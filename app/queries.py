@@ -405,6 +405,29 @@ def get_earliest_detection_date():
         return None
 
 
+def get_adjacent_activity_dates(date_str):
+    conn = connect_db(DBPATH)
+    row = conn.execute(
+        """
+        SELECT
+            MAX(CASE
+                WHEN date(detection_time) < ? THEN date(detection_time)
+            END) AS previous_date,
+            MIN(CASE
+                WHEN date(detection_time) > ? THEN date(detection_time)
+            END) AS next_date
+        FROM detections
+        """,
+        (date_str, date_str),
+    ).fetchone()
+    conn.close()
+
+    return {
+        'previous_date': row['previous_date'],
+        'next_date': row['next_date'],
+    }
+
+
 def get_activity_by_hour(date_str):
     conn = connect_db(DBPATH)
     

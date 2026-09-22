@@ -2,6 +2,7 @@
 import json
 import re
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -255,6 +256,134 @@ def test_public_pages_do_not_run_admin_health_checks(flask_client, monkeypatch):
     monkeypatch.setattr(webui, "get_system_health", fail_health_check)
     response = flask_client.get("/")
     assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Activity
+# ---------------------------------------------------------------------------
+
+def test_activity_default_redirects_to_today(flask_client):
+    response = flask_client.get("/activity")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(
+        f"/activity/{datetime.now().strftime('%Y-%m-%d')}"
+    )
+
+
+def test_activity_historical_date_uses_selected_date_data(flask_client):
+    response = flask_client.get("/activity/2024-06-01")
+
+    assert response.status_code == 200
+    assert b"Saturday, 01 June 2024" in response.data
+    assert b'value="2024-06-01"' in response.data
+    assert b"Total detections" in response.data
+    assert re.search(rb"Total detections.*?<strong>3</strong>", response.data, re.DOTALL)
+    assert re.search(rb"Species seen.*?<strong>2</strong>", response.data, re.DOTALL)
+    assert re.search(rb"Peak activity.*?<strong>09:00</strong>", response.data, re.DOTALL)
+    assert b'href="/daily_summary/2024-06-01"' in response.data
+    assert b'href="/detections/by_hour/2024-06-01/9"' in response.data
+    assert b"/detections/by_scientific_name/Turdus%20migratorius/2024-06-01" in response.data
+
+
+def test_activity_queries_use_selected_date_not_today(flask_client, monkeypatch):
+    import webui
+
+    selected_dates = []
+    monkeypatch.setattr(
+        webui,
+        "get_activity_by_hour",
+        lambda date: selected_dates.append(("hours", date)) or [],
+    )
+    monkeypatch.setattr(
+        webui,
+        "get_top_species",
+        lambda date: selected_dates.append(("top", date)) or [],
+    )
+    monkeypatch.setattr(
+        webui,
+        "get_species_peak_hours",
+        lambda date: selected_dates.append(("peaks", date)) or [],
+    )
+    monkeypatch.setattr(
+        webui,
+        "get_daily_summary",
+        lambda date: selected_dates.append(("summary", date.strftime("%Y-%m-%d"))) or {},
+    )
+    monkeypatch.setattr(
+        webui,
+        "get_adjacent_activity_dates",
+        lambda date: selected_dates.append(("adjacent", date)) or {
+            "previous_date": None,
+            "next_date": None,
+        },
+    )
+
+    response = flask_client.get("/activity/2024-06-01")
+
+    assert response.status_code == 200
+    assert selected_dates == [
+        ("hours", "2024-06-01"),
+        ("top", "2024-06-01"),
+        ("peaks", "2024-06-01"),
+        ("summary", "2024-06-01"),
+        ("adjacent", "2024-06-01"),
+    ]
+
+
+def test_activity_empty_historical_date_is_safe(flask_client):
+    response = flask_client.get("/activity/2000-01-01")
+
+    assert response.status_code == 200
+    assert b"No activity was recorded" in response.data
+    assert re.search(rb"Total detections.*?<strong>0</strong>", response.data, re.DOTALL)
+    assert re.search(rb"Species seen.*?<strong>0</strong>", response.data, re.DOTALL)
+
+
+def test_activity_malformed_date_returns_404(flask_client):
+    assert flask_client.get("/activity/not-a-date").status_code == 404
+    assert flask_client.get("/activity/2024-6-1").status_code == 404
+    assert flask_client.get("/activity/2024-02-30").status_code == 404
+
+
+def test_activity_future_date_redirects_to_today(flask_client):
+    response = flask_client.get("/activity/2999-01-01")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(
+        f"/activity/{datetime.now().strftime('%Y-%m-%d')}"
+    )
+
+
+def test_activity_navigation_uses_dates_with_detections(flask_client, monkeypatch):
+    import webui
+
+    monkeypatch.setattr(
+        webui,
+        "get_adjacent_activity_dates",
+        lambda _date: {
+            "previous_date": "2024-05-28",
+            "next_date": "2024-06-03",
+        },
+    )
+
+    response = flask_client.get("/activity/2024-06-01")
+
+    assert response.status_code == 200
+    assert b'href="/activity/2024-05-28"' in response.data
+    assert b'href="/activity/2024-06-03"' in response.data
+    assert b"Previous activity" in response.data
+    assert b"Next activity" in response.data
+
+
+def test_activity_renders_compact_24_hour_chart(flask_client):
+    response = flask_client.get("/activity/2024-06-01")
+
+    assert response.status_code == 200
+    assert b'class="activity-chart-scroll"' in response.data
+    assert response.data.count(b'class="activity-hour-column"') == 24
+    assert b"--activity-level:" in response.data
+    assert b"navigateToActivityDate" in response.data
 
 
 # ---------------------------------------------------------------------------

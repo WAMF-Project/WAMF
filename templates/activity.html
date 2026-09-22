@@ -1,97 +1,194 @@
-{% extends "base.html" %} {% block title %} Activity {% endblock %}
-{% block page_title %}Observatory Activity{% endblock %}
+{% extends "base.html" %} {% block title %} Activity for {{ date }} {% endblock %}
+{% block page_title %}Activity{% endblock %}
+{% block date_picker %}
+<form class="activity-date-picker" onsubmit="return navigateToActivityDate(this.elements.date);">
+  <label for="activity-date">Activity date</label>
+  <input
+    type="date"
+    id="activity-date"
+    name="date"
+    class="form-control"
+    value="{{ date }}"
+    {% if earliest_date and date >= earliest_date %}min="{{ earliest_date }}"{% endif %}
+    max="{{ today }}"
+    onchange="navigateToActivityDate(this)"
+  />
+</form>
+{% endblock %}
 {% block content %}
 
-<section class="wamf-panel">
-  <div class="wamf-summary-grid">
-    <div class="wamf-summary-card">
-      <h3>Total Detections</h3>
-
-      <div class="wamf-summary-total">{{ total_detections }}</div>
+<div class="activity-page">
+  <section class="dashboard-card activity-date-card" aria-labelledby="activity-date-heading">
+    <div class="dashboard-card-header">
+      <div>
+        <p class="dashboard-eyebrow">Daily wildlife patterns</p>
+        <h2 class="dashboard-card-title" id="activity-date-heading">{{ display_date }}</h2>
+      </div>
+      <a class="dashboard-card-action" href="{{ url_for('public.show_daily_summary', date=date) }}">
+        View daily summary
+      </a>
     </div>
 
-    <div class="wamf-summary-card">
-      <h3>Species Seen</h3>
+    <nav class="activity-date-navigation" aria-label="Activity date navigation">
+      <div class="activity-date-navigation-slot">
+        {% if previous_activity_date %}
+        <a href="{{ url_for('public.activity', date=previous_activity_date) }}" rel="prev">
+          <span>← Previous activity</span>
+          <strong>{{ previous_activity_date }}</strong>
+        </a>
+        {% endif %}
+      </div>
 
-      <div class="wamf-summary-total">{{ species_count }}</div>
+      <a
+        class="activity-today-link"
+        href="{{ url_for('public.activity', date=today) }}"
+        {% if date == today %}aria-current="date"{% endif %}
+      >Today</a>
+
+      <div class="activity-date-navigation-slot activity-date-navigation-next">
+        {% if next_activity_date %}
+        <a href="{{ url_for('public.activity', date=next_activity_date) }}" rel="next">
+          <span>Next activity →</span>
+          <strong>{{ next_activity_date }}</strong>
+        </a>
+        {% endif %}
+      </div>
+    </nav>
+  </section>
+
+  <section class="activity-metric-grid" aria-label="Daily activity summary">
+    <article class="activity-metric-card">
+      <span>Total detections</span>
+      <strong>{{ total_detections }}</strong>
+      <small>Recorded on this day</small>
+    </article>
+
+    <article class="activity-metric-card">
+      <span>Species seen</span>
+      <strong>{{ species_count }}</strong>
+      <small>Distinct identified species</small>
+    </article>
+
+    <article class="activity-metric-card">
+      <span>Peak activity</span>
+      {% if busiest_hour %}
+      <strong>{{ busiest_hour.hour }}:00</strong>
+      <a href="{{ url_for('public.show_detections_by_hour', date=date, hour=busiest_hour.hour|int) }}">
+        {{ busiest_hour.total }} detection{% if busiest_hour.total != 1 %}s{% endif %}
+      </a>
+      {% else %}
+      <strong>—</strong>
+      <small>No activity recorded</small>
+      {% endif %}
+    </article>
+  </section>
+
+  <section class="dashboard-card activity-chart-card" aria-labelledby="activity-chart-heading">
+    <div class="dashboard-card-header">
+      <div>
+        <p class="dashboard-eyebrow">24-hour pattern</p>
+        <h2 class="dashboard-card-title" id="activity-chart-heading">Activity by hour</h2>
+      </div>
+      <p class="activity-chart-note">
+        {% if total_detections %}Select an active hour to view detections{% else %}No hourly activity to display{% endif %}
+      </p>
     </div>
 
-    <div class="wamf-summary-card">
-      <h3>Busiest Hour</h3>
-
-      <div class="wamf-summary-total">
-        {% if busiest_hour %} {{ busiest_hour.hour }}:00 {% else %} — {% endif
-        %}
+    <div class="activity-chart-scroll" role="region" aria-labelledby="activity-chart-heading" tabindex="0">
+      <div class="activity-chart-plot">
+        {% for item in activity_by_hour %}
+        {% set bar_level = (item.total * 100 / max_hourly_detections) if max_hourly_detections else 0 %}
+        <div class="activity-hour-column">
+          <span class="activity-hour-value">{% if item.total %}{{ item.total }}{% endif %}</span>
+          <div class="activity-hour-track">
+            {% if item.total %}
+            <a
+              class="activity-hour-target"
+              href="{{ url_for('public.show_detections_by_hour', date=date, hour=item.hour|int) }}"
+              aria-label="{{ item.total }} detection{% if item.total != 1 %}s{% endif %} at {{ item.hour }}:00"
+              title="{{ item.total }} detection{% if item.total != 1 %}s{% endif %} at {{ item.hour }}:00"
+            >
+              <span class="activity-hour-bar" style="--activity-level: {{ bar_level|round(2) }}%;"></span>
+            </a>
+            {% else %}
+            <span class="activity-hour-bar activity-hour-bar-empty" aria-hidden="true"></span>
+            {% endif %}
+          </div>
+          <span class="activity-hour-label">{{ item.hour }}</span>
+        </div>
+        {% endfor %}
       </div>
     </div>
-  </div>
-</section>
 
-<section class="wamf-panel">
-  <h2 class="wamf-heading">Activity by Hour</h2>
+    {% if total_detections == 0 %}
+    <p class="activity-chart-empty">No activity was recorded on {{ display_date }}.</p>
+    {% endif %}
+  </section>
 
-  <div class="wamf-activity-chart">
-    {% for item in activity_by_hour %}
-
-    <div
-      class="wamf-activity-bar-group {% if item.hour|int <= 5 %} wamf-hour-night {% elif item.hour|int <= 8 %} wamf-hour-dawn {% elif item.hour|int <= 17 %} wamf-hour-day {% elif item.hour|int <= 21 %} wamf-hour-dusk {% else %} wamf-hour-night {% endif %}"
-    >
-      {% set bar_height = item.total * 12 + 24 %}
-
-      <div
-        class="wamf-activity-bar{% if item.total > 0 %} wamf-activity-bar-active{% endif %}"
-        style="height: {{ bar_height }}px;"
-        title="{{ item.total }} detections at {{ item.hour }}:00"
-      ></div>
-      <div class="wamf-activity-label">{{ item.hour }}</div>
-    </div>
-
-    {% endfor %}
-  </div>
-</section>
-
-<section class="wamf-panel">
-  <h2 class="wamf-heading">Top Active Species</h2>
-
-  <div class="wamf-summary-grid">
-    {% for species in top_species %}
-
-    <a
-      href="{{ url_for(
-    'public.show_detections_by_scientific_name',
-    scientific_name=species.scientific_name,
-    date=date,
-    end_date=None
-  ) }}"
-      class="wamf-summary-card-link"
-    >
-      <div class="wamf-summary-card">
-        <h3>{{ species.common_name }}</h3>
-
-        <div class="wamf-summary-total">{{ species.total }}</div>
+  <div class="activity-supporting-grid">
+    <section class="dashboard-card" aria-labelledby="top-species-heading">
+      <div class="dashboard-card-header">
+        <div>
+          <p class="dashboard-eyebrow">Most observed</p>
+          <h2 class="dashboard-card-title" id="top-species-heading">Top active species</h2>
+        </div>
       </div>
-    </a>
 
-    {% endfor %}
+      <ol class="activity-species-list">
+        {% for species in top_species %}
+        <li>
+          <a href="{{ url_for(
+            'public.show_detections_by_scientific_name',
+            scientific_name=species.scientific_name,
+            date=date,
+            end_date=None
+          ) }}">
+            <span>
+              <strong>{{ species.common_name }}</strong>
+              <small>{{ species.scientific_name }}</small>
+            </span>
+            <b>{{ species.total }}</b>
+          </a>
+        </li>
+        {% else %}
+        <li class="dashboard-empty-state">No species activity recorded.</li>
+        {% endfor %}
+      </ol>
+    </section>
+
+    <section class="dashboard-card" aria-labelledby="species-peaks-heading">
+      <div class="dashboard-card-header">
+        <div>
+          <p class="dashboard-eyebrow">Daily rhythms</p>
+          <h2 class="dashboard-card-title" id="species-peaks-heading">Species peak activity</h2>
+        </div>
+      </div>
+
+      <div class="activity-peak-grid">
+        {% for item in species_peak_hours %}
+        {% if loop.index <= 8 %}
+        <article class="activity-peak-card">
+          <strong>{{ item.common_name }}</strong>
+          <span>{{ item.hour }}:00</span>
+          <small>{{ item.total }} detection{% if item.total != 1 %}s{% endif %}</small>
+        </article>
+        {% endif %}
+        {% else %}
+        <div class="dashboard-empty-state">No species peaks recorded.</div>
+        {% endfor %}
+      </div>
+    </section>
   </div>
-</section>
+</div>
 
-<section class="wamf-panel">
-  <h2 class="wamf-heading">Species Peak Activity</h2>
-
-  <div class="wamf-summary-grid">
-    {% for item in species_peak_hours %} {% if loop.index <= 8 %}
-
-    <div class="wamf-summary-card">
-      <h3>{{ item.common_name }}</h3>
-
-      <div class="wamf-summary-total">Peak Activity: {{ item.hour }}:00</div>
-
-      <div class="wamf-meta-secondary">{{ item.total }} detections</div>
-    </div>
-
-    {% endif %} {% endfor %}
-  </div>
-</section>
-
+{% endblock %}
+{% block scripts %}
+<script>
+  function navigateToActivityDate(input) {
+    if (input.value) {
+      window.location.href = `/activity/${input.value}`;
+    }
+    return false;
+  }
+</script>
 {% endblock %}
