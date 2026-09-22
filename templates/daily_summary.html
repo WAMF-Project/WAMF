@@ -53,9 +53,7 @@ endblock %} {% block date_picker %}
 <script>
   function navigateToDailySummary(input) {
     const selectedDate = input.value;
-    const params = new URLSearchParams(window.location.search);
-    const suffix = params.get("embed") === "ha" ? "?embed=ha" : "";
-    window.location.href = `/daily_summary/${selectedDate}${suffix}`;
+    window.location.href = `/daily_summary/${selectedDate}`;
   }
 </script>
 {% endblock %}

@@ -10,7 +10,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles-dev.css') }}"
+      href="{{ url_for('static', filename='css/styles.css') }}"
     />
     <link
       rel="icon"
@@ -53,14 +53,6 @@
       rel="manifest"
       href="{{ url_for('static', filename='images/icons/site.webmanifest') }}"
     />
-    <script>
-      (function () {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get("embed") === "ha") {
-          document.documentElement.classList.add("ha-embed");
-        }
-      })();
-    </script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     {% block head_extra %}{% endblock %}
@@ -149,42 +141,6 @@
       {% block content %}{% endblock %}
     </div>
 
-    <script>
-      (function () {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get("embed") !== "ha") {
-          return;
-        }
-
-        const withEmbed = (href) => {
-          try {
-            const parsed = new URL(href, window.location.origin);
-            if (parsed.origin !== window.location.origin) {
-              return href;
-            }
-            parsed.searchParams.set("embed", "ha");
-            return parsed.pathname + parsed.search + parsed.hash;
-          } catch (_err) {
-            return href;
-          }
-        };
-
-        document.addEventListener("DOMContentLoaded", () => {
-          document.body.classList.add("ha-embed");
-          document.querySelectorAll("a[href]").forEach((anchor) => {
-            const href = anchor.getAttribute("href");
-            if (
-              !href ||
-              href.startsWith("javascript:") ||
-              href.startsWith("#")
-            ) {
-              return;
-            }
-            anchor.setAttribute("href", withEmbed(href));
-          });
-        });
-      })();
-    </script>
     {% block scripts %}{% endblock %}
   </body>
 </html>
