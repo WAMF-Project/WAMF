@@ -198,7 +198,7 @@ def detection_row_to_dict(row):
     return detection
 
 
-def recent_detections(num_detections):
+def recent_detections(num_detections, offset=0):
 
     conn = connect_db(DBPATH)
     attach_names_db(conn, NAMEDBPATH)
@@ -218,8 +218,9 @@ def recent_detections(num_detections):
         ON detections.display_name = birdnames_db.birdnames.scientific_name
         ORDER BY detections.detection_time DESC
         LIMIT ?
+        OFFSET ?
         """,
-        (num_detections,)
+        (num_detections, offset)
     )
 
     results = cursor.fetchall()
@@ -230,6 +231,13 @@ def recent_detections(num_detections):
         detection_row_to_dict(row)
         for row in results
     ]
+
+
+def get_detection_count():
+    conn = connect_db(DBPATH)
+    count = conn.execute("SELECT COUNT(*) FROM detections").fetchone()[0]
+    conn.close()
+    return count
 
 
 def get_daily_summary(date):

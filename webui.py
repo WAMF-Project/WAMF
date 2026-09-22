@@ -4,7 +4,13 @@ from datetime import datetime
 import yaml
 from pathlib import Path
 from app import security
-from app.queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
+from app.queries import (
+    recent_detections,
+    get_detection_count,
+    get_daily_summary,
+    get_common_name,
+    get_records_for_date_hour,
+)
 from app.queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from app.queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
 from app.queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events, get_retention_status

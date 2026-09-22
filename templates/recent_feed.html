@@ -5,64 +5,110 @@
 {% endblock %}
 {% block content %}
 
-<section class="wamf-panel">
-  <div class="wamf-detection-grid">
-    {% for record in recent_detections %}
+<div class="recent-feed">
+  <section class="dashboard-card recent-feed-panel" aria-labelledby="recent-feed-heading">
+    <div class="dashboard-card-header">
+      <div>
+        <p class="dashboard-eyebrow">Newest first</p>
+        <h2 class="dashboard-card-title" id="recent-feed-heading">Detection history</h2>
+      </div>
+      <p class="recent-feed-count">
+        {{ total_records }} detection{% if total_records != 1 %}s{% endif %}
+      </p>
+    </div>
 
-    <a
-      href="{{ url_for(
-    'public.show_detections_by_scientific_name',
-    scientific_name=record.display_name,
-    date=record.detection_time[:10],
-    end_date=None
-  ) }}"
-      class="wamf-detection-card-link"
-    >
-      <div class="wamf-detection-card">
+    <div class="overview-detection-grid recent-feed-grid">
+      {% for record in recent_detections %}
+      <article
+        class="overview-detection-card recent-feed-card"
+        data-frigate-event="{{ record.frigate_event }}"
+        data-detection-time="{{ record.detection_time }}"
+      >
         {% if record.snapshot_file %}
-
-        <img
-          src="{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}"
-          class="wamf-detection-image"
-          onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
-        '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
-        '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
-        '{{ record.frigate_event }}'
-      )"
-        />
-
+        <button
+          class="overview-detection-media"
+          type="button"
+          aria-label="Open snapshot for {{ record.common_name }}"
+          onclick="showSnapshot(
+            '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
+            '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
+            '{{ record.frigate_event }}'
+          )"
+        >
+          <img
+            src="{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}"
+            alt="{{ record.common_name }} detection"
+            class="overview-detection-image"
+            onload="checkTransparentImage(this)"
+          />
+        </button>
         {% else %}
-
-        <img
-          src="{{ url_for('static', filename='images/default-bird.jpg') }}"
-          class="wamf-detection-image"
-          alt="No snapshot available"
-        />
+        <div class="overview-detection-media overview-detection-media-placeholder">
+          <img
+            src="{{ url_for('static', filename='images/default-bird.jpg') }}"
+            alt="No snapshot available"
+            class="overview-detection-image"
+          />
+        </div>
         {% endif %}
 
-        <div class="wamf-detection-content">
-          <h3>{{ record.common_name }}</h3>
-
-          <div class="wamf-confidence">
-            {{ (record.score * 100)|round|int }}%
+        <div class="overview-detection-body">
+          <div class="overview-detection-heading">
+            <div>
+              <h3>
+                <a href="{{ url_for(
+                  'public.show_detections_by_scientific_name',
+                  scientific_name=record.display_name,
+                  date=record.detection_time[:10],
+                  end_date=None
+                ) }}">{{ record.common_name }}</a>
+              </h3>
+              <p class="overview-scientific-name">{{ record.display_name }}</p>
+            </div>
+            <span class="dashboard-status">
+              {{ (record.score * 100)|round|int }}% confidence
+            </span>
           </div>
 
-          <div class="wamf-meta-secondary">
-            {{ record.detection_time[8:10] }} {% set month =
-            record.detection_time[5:7] %} {% if month == '01' %}Jan {% elif
-            month == '02' %}Feb {% elif month == '03' %}Mar {% elif month ==
-            '04' %}Apr {% elif month == '05' %}May {% elif month == '06' %}Jun
-            {% elif month == '07' %}Jul {% elif month == '08' %}Aug {% elif
-            month == '09' %}Sep {% elif month == '10' %}Oct {% elif month ==
-            '11' %}Nov {% elif month == '12' %}Dec {% endif %} · {{
-            record.detection_time[11:16] }}
-          </div>
+          <dl class="overview-detection-meta">
+            <div>
+              <dt>Detected</dt>
+              <dd>
+                {{ record.detection_time[8:10] }} {% set month = record.detection_time[5:7] %}
+                {% if month == '01' %}Jan{% elif month == '02' %}Feb{% elif month == '03' %}Mar{% elif month == '04' %}Apr{% elif month == '05' %}May{% elif month == '06' %}Jun{% elif month == '07' %}Jul{% elif month == '08' %}Aug{% elif month == '09' %}Sep{% elif month == '10' %}Oct{% elif month == '11' %}Nov{% elif month == '12' %}Dec{% endif %}
+                {{ record.detection_time[:4] }} · {{ record.detection_time[11:16] }}
+              </dd>
+            </div>
+            <div>
+              <dt>Camera</dt>
+              <dd>{{ record.camera_name }}</dd>
+            </div>
+          </dl>
         </div>
-      </div>
-    </a>
+      </article>
+      {% else %}
+      <div class="dashboard-empty-state">No detections have been recorded yet.</div>
+      {% endfor %}
+    </div>
+  </section>
 
-    {% endfor %}
-  </div>
-</section>
+  <nav class="wamf-pagination" aria-label="Recent detections pages">
+    <div class="wamf-pagination-slot">
+      {% if page > 1 %}
+      <a href="{{ url_for('public.recent_feed', page=page - 1, **pagination_args) }}" rel="prev">← Previous</a>
+      {% endif %}
+    </div>
+
+    <span class="wamf-pagination-status" aria-live="polite">
+      Page {{ page }} of {{ total_pages }}
+    </span>
+
+    <div class="wamf-pagination-slot wamf-pagination-slot-next">
+      {% if page < total_pages %}
+      <a href="{{ url_for('public.recent_feed', page=page + 1, **pagination_args) }}" rel="next">Next →</a>
+      {% endif %}
+    </div>
+  </nav>
+</div>
 
 {% include "modals_and_scripts.html" %} {% endblock %}

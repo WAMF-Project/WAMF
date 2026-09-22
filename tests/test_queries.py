@@ -43,6 +43,18 @@ def test_recent_detections_sorted_descending(patched_queries):
     assert times == sorted(times, reverse=True)
 
 
+def test_recent_detections_supports_offset(patched_queries):
+    first_page = patched_queries.recent_detections(2, 0)
+    second_page = patched_queries.recent_detections(2, 2)
+
+    assert [row["frigate_event"] for row in first_page] == ["evt-003", "evt-002"]
+    assert [row["frigate_event"] for row in second_page] == ["evt-001"]
+
+
+def test_get_detection_count(patched_queries):
+    assert patched_queries.get_detection_count() == 3
+
+
 # ---------------------------------------------------------------------------
 # get_earliest_detection_date
 # ---------------------------------------------------------------------------

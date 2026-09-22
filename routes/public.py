@@ -40,13 +40,42 @@ def recent_feed():
 
     today = datetime.now()
     date_str = today.strftime('%Y-%m-%d')
+    per_page = 25
+    total_records = webui.get_detection_count()
+    total_pages = max(1, (total_records + per_page - 1) // per_page)
+    raw_page = request.args.get('page')
+    page = request.args.get('page', type=int)
+
+    if (
+        raw_page is not None
+        and (page is None or page < 1)
+    ):
+        query = request.args.to_dict(flat=True)
+        query['page'] = 1
+        return redirect(url_for('public.recent_feed', **query))
+
+    if page is None:
+        page = 1
+
+    if page > total_pages:
+        query = request.args.to_dict(flat=True)
+        query['page'] = total_pages
+        return redirect(url_for('public.recent_feed', **query))
+
+    offset = (page - 1) * per_page
+    pagination_args = request.args.to_dict(flat=True)
+    pagination_args.pop('page', None)
 
     return render_template(
         'recent_feed.html',
-        recent_detections=webui.recent_detections(50),
+        recent_detections=webui.recent_detections(per_page, offset),
         current_hour=today.hour,
         date=date_str,
-        earliest_date=webui.get_earliest_detection_date()
+        earliest_date=webui.get_earliest_detection_date(),
+        page=page,
+        total_pages=total_pages,
+        total_records=total_records,
+        pagination_args=pagination_args,
     )
 
 

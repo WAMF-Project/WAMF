@@ -258,6 +258,129 @@ def test_public_pages_do_not_run_admin_health_checks(flask_client, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Recent Feed
+# ---------------------------------------------------------------------------
+
+def _recent_feed_record(index):
+    return {
+        "display_name": f"Species {index:02d}",
+        "common_name": f"Bird {index:02d}",
+        "score": 0.9,
+        "detection_time": f"2024-06-{index:02d} 10:00:00.000000",
+        "camera_name": "birdcam",
+        "frigate_event": f"evt-feed-{index:02d}",
+        "snapshot_file": None,
+        "clip_file": None,
+    }
+
+
+def test_recent_feed_first_page_uses_server_pagination(flask_client, monkeypatch):
+    import webui
+
+    calls = []
+    records = [_recent_feed_record(index) for index in range(26, 0, -1)]
+    monkeypatch.setattr(webui, "get_detection_count", lambda: len(records))
+    monkeypatch.setattr(
+        webui,
+        "recent_detections",
+        lambda limit, offset=0: calls.append((limit, offset)) or records[offset:offset + limit],
+    )
+
+    response = flask_client.get("/recent")
+
+    assert response.status_code == 200
+    assert calls == [(25, 0)]
+    assert b"Bird 26" in response.data
+    assert b"Bird 01" not in response.data
+    assert b"Page 1 of 2" in response.data
+    assert b'href="/recent?page=2"' in response.data
+    assert b'rel="prev"' not in response.data
+
+
+def test_recent_feed_subsequent_page_and_controls(flask_client, monkeypatch):
+    import webui
+
+    calls = []
+    records = [_recent_feed_record(index) for index in range(26, 0, -1)]
+    monkeypatch.setattr(webui, "get_detection_count", lambda: len(records))
+    monkeypatch.setattr(
+        webui,
+        "recent_detections",
+        lambda limit, offset=0: calls.append((limit, offset)) or records[offset:offset + limit],
+    )
+
+    response = flask_client.get("/recent?page=2")
+
+    assert response.status_code == 200
+    assert calls == [(25, 25)]
+    assert b"Bird 01" in response.data
+    assert b"Bird 26" not in response.data
+    assert b"Page 2 of 2" in response.data
+    assert b'href="/recent?page=1"' in response.data
+    assert b'rel="next"' not in response.data
+
+
+def test_recent_feed_empty_state(flask_client, monkeypatch):
+    import webui
+
+    monkeypatch.setattr(webui, "get_detection_count", lambda: 0)
+    monkeypatch.setattr(webui, "recent_detections", lambda _limit, _offset=0: [])
+
+    response = flask_client.get("/recent")
+
+    assert response.status_code == 200
+    assert b"No detections have been recorded yet." in response.data
+    assert b"Page 1 of 1" in response.data
+
+
+def test_recent_feed_redirects_invalid_pages_safely(flask_client, monkeypatch):
+    import webui
+
+    monkeypatch.setattr(webui, "get_detection_count", lambda: 26)
+
+    invalid = flask_client.get("/recent?page=invalid")
+    zero = flask_client.get("/recent?page=0")
+    out_of_range = flask_client.get("/recent?page=999&future=kept")
+
+    assert invalid.status_code == 302
+    assert invalid.headers["Location"].endswith("/recent?page=1")
+    assert zero.status_code == 302
+    assert zero.headers["Location"].endswith("/recent?page=1")
+    assert out_of_range.status_code == 302
+    assert "page=2" in out_of_range.headers["Location"]
+    assert "future=kept" in out_of_range.headers["Location"]
+
+
+def test_recent_feed_preserves_detection_card_actions(flask_client, monkeypatch):
+    import webui
+
+    record = _recent_feed_record(1)
+    record.update({
+        "display_name": "Turdus migratorius",
+        "common_name": "American Robin",
+        "snapshot_file": "event.jpg",
+        "clip_file": "event.mp4",
+    })
+    monkeypatch.setattr(webui, "get_detection_count", lambda: 1)
+    monkeypatch.setattr(webui, "recent_detections", lambda _limit, _offset=0: [record])
+
+    response = flask_client.get("/recent")
+
+    assert response.status_code == 200
+    assert b'class="overview-detection-grid recent-feed-grid"' in response.data
+    assert b"American Robin" in response.data
+    assert b"Turdus migratorius" in response.data
+    assert b"birdcam" in response.data
+    assert b"event.jpg" in response.data
+    assert b"event.mp4" in response.data
+    assert b"Open snapshot for American Robin" in response.data
+    assert b"showSnapshot(" in response.data
+    assert b'id="snapshotModal"' in response.data
+    assert b'id="videoModal"' in response.data
+    assert b"deleteDetection()" in response.data
+
+
+# ---------------------------------------------------------------------------
 # /daily_summary redirect
 # ---------------------------------------------------------------------------
 
