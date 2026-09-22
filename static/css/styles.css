@@ -1848,7 +1848,8 @@ a:hover {
 
 .overview-boundary .dashboard-card,
 .recent-feed .dashboard-card,
-.activity-page .dashboard-card {
+.activity-page .dashboard-card,
+.daily-summary-page .dashboard-card {
   min-width: 0;
   padding: clamp(1rem, 2vw, 1.5rem);
   border: 1px solid var(--wamf-border);
@@ -1863,7 +1864,8 @@ a:hover {
 
 .overview-boundary .dashboard-card-header,
 .recent-feed .dashboard-card-header,
-.activity-page .dashboard-card-header {
+.activity-page .dashboard-card-header,
+.daily-summary-page .dashboard-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1873,7 +1875,8 @@ a:hover {
 
 .overview-boundary .dashboard-eyebrow,
 .recent-feed .dashboard-eyebrow,
-.activity-page .dashboard-eyebrow {
+.activity-page .dashboard-eyebrow,
+.daily-summary-page .dashboard-eyebrow {
   margin: 0 0 0.25rem;
   color: var(--wamf-moss-600);
   font-size: 0.75rem;
@@ -1885,7 +1888,8 @@ a:hover {
 
 .overview-boundary .dashboard-card-title,
 .recent-feed .dashboard-card-title,
-.activity-page .dashboard-card-title {
+.activity-page .dashboard-card-title,
+.daily-summary-page .dashboard-card-title {
   margin: 0;
   color: var(--wamf-forest-900);
   font-size: clamp(1.2rem, 2vw, 1.5rem);
@@ -1893,7 +1897,8 @@ a:hover {
 }
 
 .overview-boundary .dashboard-card-action,
-.activity-page .dashboard-card-action {
+.activity-page .dashboard-card-action,
+.daily-summary-page .dashboard-card-action {
   display: inline-flex;
   min-height: 44px;
   flex: 0 0 auto;
@@ -2123,7 +2128,8 @@ a:hover {
 @media (hover: hover) {
   .overview-detection-heading h3 a:hover,
   .overview-boundary .dashboard-card-action:hover,
-  .activity-page .dashboard-card-action:hover {
+  .activity-page .dashboard-card-action:hover,
+  .daily-summary-page .dashboard-card-action:hover {
     color: var(--wamf-forest-950);
   }
 
@@ -2560,6 +2566,199 @@ a:hover {
   }
 }
 
+.daily-summary-page {
+  display: grid;
+  min-width: 0;
+  gap: 1.25rem;
+}
+
+.daily-summary-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+  color: var(--wamf-text-muted);
+  font-size: 0.875rem;
+}
+
+.daily-summary-activity-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--wamf-border);
+  border-radius: 8px;
+  background: var(--wamf-surface-muted);
+  color: var(--wamf-forest-700);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.daily-species-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 23rem), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.daily-summary-page .daily-species-card {
+  padding: 1rem;
+}
+
+.daily-species-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.daily-species-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+
+.daily-species-header h2 a {
+  color: var(--wamf-forest-900);
+  text-decoration: none;
+}
+
+.daily-species-header p {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+  color: var(--wamf-text-muted);
+  font-size: 0.825rem;
+  font-style: italic;
+}
+
+.daily-species-header > strong {
+  display: inline-flex;
+  min-width: 2rem;
+  min-height: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: var(--wamf-sage-200);
+  color: var(--wamf-forest-900);
+  font-size: 0.825rem;
+}
+
+.daily-species-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.875rem 0;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--wamf-border);
+  border-bottom: 1px solid var(--wamf-border);
+}
+
+.daily-species-meta dt {
+  color: var(--wamf-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.daily-species-meta dd {
+  margin: 0.15rem 0 0;
+  color: var(--wamf-forest-900);
+  font-weight: 700;
+}
+
+.daily-hour-strip-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  overscroll-behavior-inline: contain;
+}
+
+.daily-hour-strip {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(1.5rem, 1fr));
+  gap: 0.25rem;
+  min-width: 20rem;
+}
+
+.daily-hour-cell {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.daily-hour-cell > span {
+  font-size: 0.625rem;
+}
+
+.daily-hour-active {
+  border-color: var(--wamf-sage-300);
+  color: var(--wamf-forest-950);
+  text-decoration: none;
+}
+
+.daily-hour-active strong {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.daily-hour-low {
+  background: var(--wamf-sage-100);
+}
+
+.daily-hour-medium {
+  background: var(--wamf-sage-200);
+}
+
+.daily-hour-high {
+  border-color: var(--wamf-fern-500);
+  background: var(--wamf-fern-500);
+  color: var(--wamf-on-forest);
+}
+
+.daily-hour-inactive {
+  background: var(--wamf-surface-muted);
+  color: var(--wamf-text-muted);
+  opacity: 0.62;
+}
+
+.daily-summary-empty {
+  padding-block: clamp(2rem, 6vw, 4rem) !important;
+  text-align: center;
+}
+
+.daily-summary-empty p:last-child {
+  margin: 0.75rem 0 0;
+  color: var(--wamf-text-muted);
+}
+
+@media (hover: hover) {
+  .daily-summary-activity-link:hover {
+    border-color: var(--wamf-sage-300);
+    background: var(--wamf-sage-100);
+    color: var(--wamf-forest-950);
+  }
+
+  .daily-species-header h2 a:hover {
+    color: var(--wamf-forest-700);
+  }
+
+  .daily-hour-active:hover {
+    border-color: var(--wamf-forest-700);
+    box-shadow: inset 0 0 0 1px var(--wamf-forest-700);
+  }
+}
+
 @media (max-width: 720px) {
   .overview-dashboard,
   .overview-main,
@@ -2570,6 +2769,7 @@ a:hover {
   .overview-boundary .dashboard-card-header,
   .recent-feed .dashboard-card-header,
   .activity-page .dashboard-card-header,
+  .daily-summary-page .dashboard-card-header,
   .overview-detection-heading {
     align-items: flex-start;
     flex-direction: column;
@@ -2629,6 +2829,11 @@ a:hover {
     width: 100%;
   }
 
+  .daily-summary-activity-link {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
   .activity-metric-grid,
   .activity-supporting-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -2637,5 +2842,9 @@ a:hover {
   .activity-chart-note {
     max-width: none;
     text-align: left;
+  }
+
+  .daily-species-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

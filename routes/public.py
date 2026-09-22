@@ -170,17 +170,68 @@ def show_daily_summary_today():
 def show_daily_summary(date):
     import webui
 
-    date_datetime = datetime.strptime(date, "%Y-%m-%d")
+    now = datetime.now()
+    today = now.strftime('%Y-%m-%d')
+
+    try:
+        date_datetime = datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        abort(404)
+
+    if date_datetime.strftime('%Y-%m-%d') != date:
+        abort(404)
+
+    if date_datetime.date() > now.date():
+        return redirect(url_for('public.show_daily_summary', date=today))
+
     daily_summary = webui.get_daily_summary(date_datetime)
-    today = datetime.now().strftime('%Y-%m-%d')
     earliest_date = webui.get_earliest_detection_date()
+    activity_dates = webui.get_adjacent_activity_dates(date)
+    next_activity_date = activity_dates['next_date']
+
+    if next_activity_date and next_activity_date > today:
+        next_activity_date = None
+
+    total_detections = sum(
+        species['total_detections']
+        for species in daily_summary.values()
+    )
+    hourly_totals = [
+        sum(
+            species['hourly_detections'][hour]
+            for species in daily_summary.values()
+        )
+        for hour in range(24)
+    ]
+    peak_hour = (
+        max(range(24), key=lambda hour: hourly_totals[hour])
+        if total_detections
+        else None
+    )
+
+    for species in daily_summary.values():
+        species['max_hourly_detections'] = max(species['hourly_detections'])
+        species['peak_hour'] = (
+            max(
+                range(24),
+                key=lambda hour: species['hourly_detections'][hour],
+            )
+            if species['total_detections']
+            else None
+        )
 
     return render_template(
         'daily_summary.html',
         daily_summary=daily_summary,
         date=date,
         today=today,
-        earliest_date=earliest_date
+        earliest_date=earliest_date,
+        display_date=date_datetime.strftime('%A, %d %B %Y'),
+        total_detections=total_detections,
+        species_count=len(daily_summary),
+        peak_hour=peak_hour,
+        previous_activity_date=activity_dates['previous_date'],
+        next_activity_date=next_activity_date,
     )
 
 

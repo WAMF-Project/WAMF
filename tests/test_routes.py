@@ -530,6 +530,86 @@ def test_daily_summary_date_returns_200(flask_client):
     assert response.status_code == 200
 
 
+def test_daily_summary_selected_date_metrics_and_species_cards(flask_client):
+    response = flask_client.get("/daily_summary/2024-06-01")
+
+    assert response.status_code == 200
+    assert b"Saturday, 01 June 2024" in response.data
+    assert b'value="2024-06-01"' in response.data
+    assert b"3 detections" in response.data
+    assert b"2 species" in response.data
+    assert b"Peak activity 09:00" in response.data
+    assert b"American Robin" in response.data
+    assert b"Turdus migratorius" in response.data
+    assert b"Blue Jay" in response.data
+    assert b"Cyanocitta cristata" in response.data
+    assert b"/detections/by_scientific_name/Turdus%20migratorius/2024-06-01" in response.data
+
+
+def test_daily_summary_renders_24_hours_per_species(flask_client):
+    response = flask_client.get("/daily_summary/2024-06-01")
+
+    assert response.status_code == 200
+    assert response.data.count(b'class="daily-hour-cell') == 48
+    assert response.data.count(b"daily-hour-active") == 3
+    assert response.data.count(b"daily-hour-inactive") == 45
+
+
+def test_daily_summary_active_hours_link_and_inactive_hours_do_not(flask_client):
+    response = flask_client.get("/daily_summary/2024-06-01")
+
+    assert response.status_code == 200
+    assert b'href="/detections/by_hour/2024-06-01/8"' in response.data
+    assert b'href="/detections/by_hour/2024-06-01/9"' in response.data
+    assert b"1 detection of American Robin at 08:00" in response.data
+    assert b'href="/detections/by_hour/2024-06-01/0"' not in response.data
+
+
+def test_daily_summary_navigation_uses_activity_dates(flask_client, monkeypatch):
+    import webui
+
+    monkeypatch.setattr(
+        webui,
+        "get_adjacent_activity_dates",
+        lambda _date: {
+            "previous_date": "2024-05-28",
+            "next_date": "2024-06-03",
+        },
+    )
+
+    response = flask_client.get("/daily_summary/2024-06-01")
+
+    assert response.status_code == 200
+    assert b'href="/daily_summary/2024-05-28"' in response.data
+    assert b'href="/daily_summary/2024-06-03"' in response.data
+    assert b'href="/activity/2024-06-01"' in response.data
+    assert b"Previous activity" in response.data
+    assert b"Next activity" in response.data
+    assert b"Activity overview" in response.data
+
+
+def test_daily_summary_empty_date_has_deliberate_empty_state(flask_client):
+    response = flask_client.get("/daily_summary/2000-01-01")
+
+    assert response.status_code == 200
+    assert b"0 detections" in response.data
+    assert b"0 species" in response.data
+    assert b"No peak activity" in response.data
+    assert b"No wildlife activity was recorded" in response.data
+    assert b'class="daily-species-grid"' not in response.data
+
+
+def test_daily_summary_invalid_and_future_dates_are_safe(flask_client):
+    assert flask_client.get("/daily_summary/not-a-date").status_code == 404
+    assert flask_client.get("/daily_summary/2024-6-1").status_code == 404
+
+    future = flask_client.get("/daily_summary/2999-01-01")
+    assert future.status_code == 302
+    assert future.headers["Location"].endswith(
+        f"/daily_summary/{datetime.now().strftime('%Y-%m-%d')}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # /api/detections/recent
 # ---------------------------------------------------------------------------

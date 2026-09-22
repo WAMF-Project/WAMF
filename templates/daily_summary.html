@@ -1,60 +1,143 @@
-{% extends "base.html" %} {% block title %} Daily Summary for {{ date }} {%
-endblock %}
-{% block page_title %}Daily Summary for {{ date }}{% endblock %}
+{% extends "base.html" %} {% block title %} Daily Summary for {{ date }} {% endblock %}
+{% block page_title %}Daily Summary{% endblock %}
 {% block date_picker %}
-<form class="d-flex">
+<form class="activity-date-picker" onsubmit="return navigateToDailySummary(this.elements.date);">
+  <label for="daily-summary-date">Summary date</label>
   <input
     type="date"
-    id="date-picker"
+    id="daily-summary-date"
+    name="date"
     class="form-control"
     value="{{ date }}"
-    min="{{ earliest_date }}"
+    {% if earliest_date and date >= earliest_date %}min="{{ earliest_date }}"{% endif %}
     max="{{ today }}"
     onchange="navigateToDailySummary(this)"
   />
 </form>
-{% endblock %} {% block content %}
-<section class="wamf-panel">
-  <div class="wamf-summary-grid">
-    {% for species in daily_summary.values() %}
-    <div class="wamf-summary-card">
-      <a
-        href="{{ url_for('public.show_detections_by_scientific_name',
-      scientific_name=species.scientific_name,
-      date=date,
-      end_date=None) }}"
-        class="wamf-summary-link"
-      >
-        <h3>{{ species.common_name }}</h3>
+{% endblock %}
+{% block content %}
+
+<div class="daily-summary-page">
+  <section class="dashboard-card daily-summary-header" aria-labelledby="daily-summary-date-heading">
+    <div class="dashboard-card-header">
+      <div>
+        <p class="dashboard-eyebrow">Selected day</p>
+        <h2 class="dashboard-card-title" id="daily-summary-date-heading">{{ display_date }}</h2>
+        <p class="daily-summary-metrics">
+          {{ total_detections }} detection{% if total_detections != 1 %}s{% endif %}
+          <span aria-hidden="true">·</span>
+          {{ species_count }} species
+          <span aria-hidden="true">·</span>
+          {% if peak_hour is not none %}Peak activity {{ '%02d'|format(peak_hour) }}:00{% else %}No peak activity{% endif %}
+        </p>
+      </div>
+      {% if date != today %}
+      <a class="dashboard-card-action" href="{{ url_for('public.show_daily_summary', date=today) }}">Today</a>
+      {% endif %}
+    </div>
+
+    <nav class="activity-date-navigation" aria-label="Daily Summary date navigation">
+      <div class="activity-date-navigation-slot">
+        {% if previous_activity_date %}
+        <a href="{{ url_for('public.show_daily_summary', date=previous_activity_date) }}" rel="prev">
+          <span>← Previous activity</span>
+          <strong>{{ previous_activity_date }}</strong>
+        </a>
+        {% endif %}
+      </div>
+
+      <a class="daily-summary-activity-link" href="{{ url_for('public.activity', date=date) }}">
+        Activity overview
       </a>
 
-      <div class="wamf-summary-total">
-        {{ species.total_detections }} detections
-      </div>
-
-      <div class="wamf-hour-grid">
-        {% for hour in range(24) %} {% set count =
-        species.hourly_detections[hour] %}
-
-        <a
-          href="{{ url_for('public.show_detections_by_hour', date=date, hour=hour) }}"
-          class="wamf-hour-chip {% if count > 0 %}active{% endif %}"
-        >
-          {{ hour }} {% if count > 0 %}
-          <span>{{ count }}</span>
-          {% endif %}
+      <div class="activity-date-navigation-slot activity-date-navigation-next">
+        {% if next_activity_date %}
+        <a href="{{ url_for('public.show_daily_summary', date=next_activity_date) }}" rel="next">
+          <span>Next activity →</span>
+          <strong>{{ next_activity_date }}</strong>
         </a>
-        {% endfor %}
+        {% endif %}
       </div>
-    </div>
+    </nav>
+  </section>
+
+  {% if daily_summary %}
+  <section class="daily-species-grid" aria-label="Species activity on {{ display_date }}">
+    {% for species in daily_summary.values() %}
+    <article class="dashboard-card daily-species-card">
+      <div class="daily-species-header">
+        <div>
+          <h2>
+            <a href="{{ url_for(
+              'public.show_detections_by_scientific_name',
+              scientific_name=species.scientific_name,
+              date=date,
+              end_date=None
+            ) }}">{{ species.common_name }}</a>
+          </h2>
+          <p>{{ species.scientific_name }}</p>
+        </div>
+        <strong>{{ species.total_detections }}</strong>
+      </div>
+
+      <dl class="daily-species-meta">
+        <div>
+          <dt>Detections</dt>
+          <dd>{{ species.total_detections }}</dd>
+        </div>
+        <div>
+          <dt>Peak hour</dt>
+          <dd>{% if species.peak_hour is not none %}{{ '%02d'|format(species.peak_hour) }}:00{% else %}—{% endif %}</dd>
+        </div>
+      </dl>
+
+      <div
+        class="daily-hour-strip-scroll"
+        role="region"
+        aria-label="24-hour activity for {{ species.common_name }}"
+        tabindex="0"
+      >
+        <div class="daily-hour-strip">
+          {% for hour in range(24) %}
+          {% set count = species.hourly_detections[hour] %}
+          {% if count > 0 %}
+          <a
+            href="{{ url_for('public.show_detections_by_hour', date=date, hour=hour) }}"
+            class="daily-hour-cell daily-hour-active {% if count * 3 >= species.max_hourly_detections * 2 %}daily-hour-high{% elif count * 3 >= species.max_hourly_detections %}daily-hour-medium{% else %}daily-hour-low{% endif %}"
+            aria-label="{{ count }} detection{% if count != 1 %}s{% endif %} of {{ species.common_name }} at {{ '%02d'|format(hour) }}:00"
+            title="{{ count }} detection{% if count != 1 %}s{% endif %} at {{ '%02d'|format(hour) }}:00"
+          >
+            <span>{{ '%02d'|format(hour) }}</span>
+            <strong>{{ count }}</strong>
+          </a>
+          {% else %}
+          <span class="daily-hour-cell daily-hour-inactive" aria-hidden="true">
+            <span>{{ '%02d'|format(hour) }}</span>
+          </span>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </article>
     {% endfor %}
-  </div>
-</section>
-{% endblock %} {% block scripts %}
+  </section>
+  {% else %}
+  <section class="dashboard-card daily-summary-empty" aria-labelledby="daily-summary-empty-heading">
+    <p class="dashboard-eyebrow">No detections</p>
+    <h2 class="dashboard-card-title" id="daily-summary-empty-heading">No wildlife activity was recorded</h2>
+    <p>There are no species detections to summarise for {{ display_date }}.</p>
+  </section>
+  {% endif %}
+</div>
+
+{% endblock %}
+{% block scripts %}
 <script>
   function navigateToDailySummary(input) {
-    const selectedDate = input.value;
-    window.location.href = `/daily_summary/${selectedDate}`;
+    if (input.value) {
+      window.location.href = `/daily_summary/${input.value}`;
+    }
+    return false;
   }
 </script>
 {% endblock %}
