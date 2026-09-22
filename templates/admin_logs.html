@@ -1,5 +1,7 @@
 {% extends "admin_base.html" %} {% block title %} WAMF | System Logs {% endblock
-%} {% block content %}
+%}
+{% block page_title %}System Logs{% endblock %}
+{% block page_actions %}
 
 <div class="log-filters">
   <a
@@ -42,8 +44,9 @@
     Config
   </a>
 </div>
+{% endblock %}
+{% block content %}
 
-<h1 class="wamf-heading">System Logs</h1>
 <div class="admin-card">
   <table class="log-table">
     <thead>

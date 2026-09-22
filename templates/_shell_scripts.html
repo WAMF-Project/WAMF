@@ -1,0 +1,61 @@
+<script>
+  (function () {
+    const shell = document.querySelector(".app-shell");
+    const sidebar = document.getElementById("app-sidebar");
+    const openButton = document.querySelector("[data-nav-open]");
+    const closeButton = document.querySelector("[data-nav-close]");
+    const backdrop = document.querySelector("[data-nav-backdrop]");
+    const main = document.querySelector(".app-main");
+    const mobileQuery = window.matchMedia("(max-width: 720px)");
+
+    if (!shell || !sidebar || !openButton || !closeButton || !backdrop) {
+      return;
+    }
+
+    function setNavigationOpen(open, returnFocus) {
+      const mobile = mobileQuery.matches;
+      const shouldOpen = mobile && open;
+
+      shell.classList.toggle("nav-open", shouldOpen);
+      openButton.setAttribute("aria-expanded", String(shouldOpen));
+      sidebar.setAttribute("aria-hidden", String(mobile && !shouldOpen));
+      document.body.classList.toggle("nav-drawer-open", shouldOpen);
+
+      if (main) {
+        main.inert = shouldOpen;
+      }
+
+      if (shouldOpen) {
+        closeButton.focus();
+      } else if (returnFocus && mobile) {
+        openButton.focus();
+      }
+    }
+
+    openButton.addEventListener("click", function () {
+      setNavigationOpen(true, false);
+    });
+    closeButton.addEventListener("click", function () {
+      setNavigationOpen(false, true);
+    });
+    backdrop.addEventListener("click", function () {
+      setNavigationOpen(false, true);
+    });
+    sidebar.querySelectorAll("a").forEach(function (link) {
+      link.addEventListener("click", function () {
+        setNavigationOpen(false, false);
+      });
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && shell.classList.contains("nav-open")) {
+        setNavigationOpen(false, true);
+      }
+    });
+    mobileQuery.addEventListener("change", function () {
+      setNavigationOpen(false, false);
+    });
+
+    setNavigationOpen(false, false);
+  })();
+</script>
+

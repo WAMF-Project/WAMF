@@ -52,79 +52,39 @@
   </head>
 
   <body class="admin-body">
-    <header class="admin-header">
-      <div class="admin-title">WAMF Admin</div>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="app-shell app-shell-admin">
+      {% set shell_admin = true %}
+      {% include "_shell_sidebar.html" %}
+      <button class="app-drawer-backdrop" type="button" data-nav-backdrop tabindex="-1" aria-label="Close navigation"></button>
 
-      <nav class="admin-nav">
-        <a href="{{ url_for('public.index') }}" class="admin-nav-btn">
-          ← Back to WAMF
-        </a>
+      <div class="app-main">
+        {% include "_shell_mobile_header.html" %}
+        <header class="app-page-header">
+          <div class="app-page-title-group">
+            <span class="app-page-section">Administration</span>
+            <h1>{% block page_title %}Admin{% endblock %}</h1>
+          </div>
+          <div class="app-page-actions">{% block page_actions %}{% endblock %}</div>
+        </header>
 
-        <a
-          href="{{ url_for('admin.admin_dashboard') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin.admin_dashboard' %}active{% endif %}"
-        >
-          Dashboard
-        </a>
-
-        <a
-          href="{{ url_for('admin.admin_species') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin.admin_species' %}active{% endif %}"
-        >
-          Species
-        </a>
-
-        <a
-          href="{{ url_for('admin.admin_logs') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin.admin_logs' %}active{% endif %}"
-        >
-          Logs
-        </a>
-
-        <a
-          href="{{ url_for('admin.admin_config') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin.admin_config' %}active{% endif %}"
-        >
-          Configuration
-        </a>
-
-        <a
-          href="{{ url_for('admin.change_password') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin.change_password' %}active{% endif %}"
-        >
-          Password
-        </a>
-
-        <a
-          href="{{ url_for('admin.admin_api_token') }}"
-          class="admin-nav-btn {% if request.endpoint == 'admin.admin_api_token' %}active{% endif %}"
-        >
-          API Token
-        </a>
-
-        <a href="{{ url_for('auth.logout') }}" class="admin-nav-btn">
-          Logout
-        </a>
-      </nav>
-    </header>
-
-    <main class="admin-main">
-      {% if health.setup_required %}
-      <div class="wamf-panel" role="status">
-        <h2>Setup / configuration required</h2>
-        {% if health.restart_required %}
-        <p>Configuration saved. Restart WAMF to start detection.</p>
-        {% else %}
-        <p>Detection is paused until configuration is complete.</p>
-        <ul>{% for issue in health.configuration_issues %}<li>{{ issue }}</li>{% endfor %}</ul>
-        {% endif %}
-        <p><a href="{{ url_for('admin.admin_config') }}">Open Configuration</a>,
-          then use Save &amp; Restart to apply your settings.</p>
-      </div>
-      {% endif %}
-      {% block content %}{% endblock %}
-    </main>
-    <footer class="admin-status-bar">
+        <main class="admin-main app-content" id="main-content">
+          {% if health.setup_required %}
+          <div class="wamf-panel" role="status">
+            <h2>Setup / configuration required</h2>
+            {% if health.restart_required %}
+            <p>Configuration saved. Restart WAMF to start detection.</p>
+            {% else %}
+            <p>Detection is paused until configuration is complete.</p>
+            <ul>{% for issue in health.configuration_issues %}<li>{{ issue }}</li>{% endfor %}</ul>
+            {% endif %}
+            <p><a href="{{ url_for('admin.admin_config') }}">Open Configuration</a>,
+              then use Save &amp; Restart to apply your settings.</p>
+          </div>
+          {% endif %}
+          {% block content %}{% endblock %}
+        </main>
+        <footer class="admin-status-bar">
       {% if health.setup_required %}
       <span>🟡 Setup required — detection paused</span>
       {% else %}
@@ -153,7 +113,10 @@
         Retention {% else %} 🟢 Retention {% endif %}
       </span>
 
-      <span class="footer-version"> WAMF {{ version }} </span>
-    </footer>
+          <span class="footer-version"> WAMF {{ version }} </span>
+        </footer>
+      </div>
+    </div>
+    {% include "_shell_scripts.html" %}
   </body>
 </html>

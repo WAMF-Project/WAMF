@@ -1,9 +1,9 @@
 {% extends "admin_base.html" %} {% block title %} WAMF | Species Metadata {%
-endblock %}{% block content %}
+endblock %}
+{% block page_title %}Species Metadata{% endblock %}
+{% block page_actions %}
 
 <div class="wamf-header-actions">
-  <h1 class="wamf-heading">Species Metadata</h1>
-
   <form method="post" action="{{ url_for('admin.refresh_missing_species') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <button type="submit" class="log-filter-btn">Refresh Missing Metadata</button>
@@ -13,6 +13,8 @@ endblock %}{% block content %}
     <button type="submit" class="log-filter-btn">Refresh All Metadata</button>
   </form>
 </div>
+{% endblock %}
+{% block content %}
 
 <div class="stats-grid">
   <div class="stat-card">

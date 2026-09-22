@@ -1,0 +1,88 @@
+<aside class="app-sidebar" id="app-sidebar" aria-label="Application navigation">
+  <div class="app-sidebar-header">
+    <a class="app-brand" href="{{ url_for('public.index') }}">
+      <span class="app-brand-mark" aria-hidden="true">W</span>
+      <span>
+        <span class="app-brand-name">WAMF</span>
+        <span class="app-brand-tagline">Wildlife activity</span>
+      </span>
+    </a>
+    <button
+      class="app-nav-close"
+      type="button"
+      data-nav-close
+      aria-label="Close navigation"
+    >
+      <span aria-hidden="true">&times;</span>
+    </button>
+  </div>
+
+  <nav class="app-nav" aria-label="Primary navigation">
+    <span class="app-nav-label">Explore</span>
+    <a
+      class="app-nav-link {% if request.endpoint == 'public.index' %}active{% endif %}"
+      href="{{ url_for('public.index') }}"
+      {% if request.endpoint == 'public.index' %}aria-current="page"{% endif %}
+    >Overview</a>
+    <a
+      class="app-nav-link {% if request.endpoint == 'public.recent_feed' %}active{% endif %}"
+      href="{{ url_for('public.recent_feed') }}"
+      {% if request.endpoint == 'public.recent_feed' %}aria-current="page"{% endif %}
+    >Recent Feed</a>
+    <a
+      class="app-nav-link {% if request.endpoint == 'public.activity' %}active{% endif %}"
+      href="{{ url_for('public.activity') }}"
+      {% if request.endpoint == 'public.activity' %}aria-current="page"{% endif %}
+    >Activity</a>
+    <a
+      class="app-nav-link {% if request.endpoint == 'public.live_view' %}active{% endif %}"
+      href="{{ url_for('public.live_view') }}"
+      {% if request.endpoint == 'public.live_view' %}aria-current="page"{% endif %}
+    >Live View</a>
+  </nav>
+
+  <div class="app-sidebar-admin">
+    {% if session.get('admin_authenticated') %}
+    <span class="app-nav-label">Administration</span>
+    {% if shell_admin %}
+    <nav class="app-nav app-admin-nav" aria-label="Admin navigation">
+      <a
+        class="app-nav-link {% if request.endpoint == 'admin.admin_dashboard' %}active{% endif %}"
+        href="{{ url_for('admin.admin_dashboard') }}"
+        {% if request.endpoint == 'admin.admin_dashboard' %}aria-current="page"{% endif %}
+      >Dashboard</a>
+      <a
+        class="app-nav-link {% if request.endpoint == 'admin.admin_species' %}active{% endif %}"
+        href="{{ url_for('admin.admin_species') }}"
+        {% if request.endpoint == 'admin.admin_species' %}aria-current="page"{% endif %}
+      >Species</a>
+      <a
+        class="app-nav-link {% if request.endpoint == 'admin.admin_logs' %}active{% endif %}"
+        href="{{ url_for('admin.admin_logs') }}"
+        {% if request.endpoint == 'admin.admin_logs' %}aria-current="page"{% endif %}
+      >Logs</a>
+      <a
+        class="app-nav-link {% if request.endpoint == 'admin.admin_config' %}active{% endif %}"
+        href="{{ url_for('admin.admin_config') }}"
+        {% if request.endpoint == 'admin.admin_config' %}aria-current="page"{% endif %}
+      >Configuration</a>
+      <a
+        class="app-nav-link {% if request.endpoint == 'admin.change_password' %}active{% endif %}"
+        href="{{ url_for('admin.change_password') }}"
+        {% if request.endpoint == 'admin.change_password' %}aria-current="page"{% endif %}
+      >Password</a>
+      <a
+        class="app-nav-link {% if request.endpoint == 'admin.admin_api_token' %}active{% endif %}"
+        href="{{ url_for('admin.admin_api_token') }}"
+        {% if request.endpoint == 'admin.admin_api_token' %}aria-current="page"{% endif %}
+      >API Token</a>
+    </nav>
+    {% else %}
+    <a class="app-nav-link" href="{{ url_for('admin.admin_dashboard') }}">Admin dashboard</a>
+    {% endif %}
+    <a class="app-nav-link app-logout-link" href="{{ url_for('auth.logout') }}">Log out</a>
+    {% else %}
+    <a class="app-nav-link" href="{{ url_for('auth.login') }}">Admin</a>
+    {% endif %}
+  </div>
+</aside>

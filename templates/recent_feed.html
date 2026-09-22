@@ -1,14 +1,11 @@
-{% extends "base.html" %} {% block title %} Recent Detections {% endblock %} {%
-block content %}
+{% extends "base.html" %} {% block title %} Recent Detections {% endblock %}
+{% block page_title %}Recent Detections{% endblock %}
+{% block page_status %}
+<span class="live-badge" id="live-badge" title="Auto-updating">&#9679; Live</span>
+{% endblock %}
+{% block content %}
 
 <section class="wamf-panel">
-  <h1 class="wamf-heading">
-    Recent Detections
-    <span class="live-badge" id="live-badge" title="Auto-updating">
-      &#9679; Live
-    </span>
-  </h1>
-
   <div class="wamf-detection-grid">
     {% for record in recent_detections %}
 

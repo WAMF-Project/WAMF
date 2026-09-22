@@ -1,8 +1,7 @@
 {% extends "base.html" %} {% block title %} Detections by Hour {% endblock %} {%
-block date_picker %} {% endblock %} {% block content %}
+block page_title %}Activity at {{ hour }}:00{% endblock %}
+{% block date_picker %} {% endblock %} {% block content %}
 <section class="wamf-panel">
-  <h1 class="wamf-heading">Activity at {{ hour }}:00</h1>
-
   <h2 class="wamf-subheading">
     {{ records|length }} detection{% if records|length != 1 %}s{% endif %}
     recorded on {{ date }}

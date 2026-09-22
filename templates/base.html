@@ -58,89 +58,30 @@
     {% block head_extra %}{% endblock %}
   </head>
   <body class="wamf-body">
-    <nav class="navbar navbar-expand-lg wamf-navbar">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="/"
-          ><img
-            class="navbar-logo"
-            src="{{ url_for('static', filename='images/WAMF-Header.png') }}"
-            alt="Logo"
-        /></a>
-        {% if title_text %}
-        <span class="navbar-text">
-          {% if title_link %}
-          <a class="navbar-title" href="{{ title_link }}">{{ title_text }}</a>
-          {% else %}
-          <span class="navbar-title">{{ title_text }}</span>
-          {% endif %}
-        </span>
-        {% endif %} {% block date_picker %}{% endblock %}
-        <button
-          class="navbar-toggler"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarSupportedContent"
-          aria-controls="navbarSupportedContent"
-          aria-expanded="false"
-          aria-label="Toggle navigation"
-        >
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarSupportedContent">
-          <ul class="navbar-nav mb-2 mb-lg-0">
-            <li class="nav-item">
-              <a
-                class="nav-link wamf-nav-btn {% if request.endpoint == 'public.index' %}active{% endif %}"
-                href="{{ url_for('public.index') }}"
-              >
-                Overview
-              </a>
-            </li>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="app-shell">
+      {% set shell_admin = false %}
+      {% include "_shell_sidebar.html" %}
+      <button class="app-drawer-backdrop" type="button" data-nav-backdrop tabindex="-1" aria-label="Close navigation"></button>
 
-            <li class="nav-item">
-              <a
-                class="nav-link wamf-nav-btn {% if request.endpoint == 'public.recent_feed' %}active{% endif %}"
-                href="{{ url_for('public.recent_feed') }}"
-              >
-                Recent Feed
-              </a>
-            </li>
+      <div class="app-main">
+        {% include "_shell_mobile_header.html" %}
+        <header class="app-page-header">
+          <div class="app-page-title-group">
+            <span class="app-page-section">Wildlife monitoring</span>
+            <h1>{% block page_title %}WAMF{% endblock %}</h1>
+            {% block page_status %}{% endblock %}
+          </div>
+          <div class="app-page-actions">{% block date_picker %}{% endblock %}</div>
+        </header>
 
-            <li class="nav-item">
-              <a
-                class="nav-link wamf-nav-btn {% if request.endpoint == 'public.activity' %}active{% endif %}"
-                href="{{ url_for('public.activity') }}"
-              >
-                Activity
-              </a>
-            </li>
-            <li class="nav-item">
-              <a
-                class="nav-link wamf-nav-btn {% if request.endpoint == 'public.live_view' %}active{% endif %}"
-                href="{{ url_for('public.live_view') }}"
-              >
-                Live View
-              </a>
-            </li>
-          </ul>
-          <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-            <li class="nav-item">
-              <a
-                class="nav-link wamf-nav-btn"
-                href="{{ url_for('admin.admin_dashboard') }}"
-              >
-                Admin
-              </a>
-            </li>
-          </ul>
-        </div>
+        <main class="container-fluid wamf-container app-content" id="main-content">
+          {% block content %}{% endblock %}
+        </main>
       </div>
-    </nav>
-
-    <div class="container-fluid wamf-container">
-      {% block content %}{% endblock %}
     </div>
 
+    {% include "_shell_scripts.html" %}
     {% block scripts %}{% endblock %}
   </body>
 </html>

@@ -136,6 +136,52 @@ def test_index_contains_html(flask_client):
     assert b"<!DOCTYPE html>" in response.data or b"<html" in response.data
 
 
+def test_public_shell_uses_canonical_stylesheet_and_mobile_navigation(flask_client):
+    response = flask_client.get("/")
+
+    assert response.status_code == 200
+    assert b"css/styles.css" in response.data
+    assert b"styles-dev.css" not in response.data
+    assert b'aria-controls="app-sidebar"' in response.data
+    assert b'data-nav-open' in response.data
+
+
+def test_public_shell_shows_only_admin_login_entry_when_logged_out(flask_client):
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    response = flask_client.get("/")
+
+    assert response.status_code == 200
+    assert re.search(rb'href="/login"[^>]*>\s*Admin\s*</a>', response.data)
+    assert b"Administration" not in response.data
+    assert b"Admin dashboard" not in response.data
+    assert b'href="/admin"' not in response.data
+    assert b'href="/admin/species"' not in response.data
+    assert b'href="/admin/logs"' not in response.data
+    assert b'href="/admin/config"' not in response.data
+    assert b'href="/admin/password"' not in response.data
+    assert b'href="/admin/api-token"' not in response.data
+
+
+def test_public_shell_shows_admin_navigation_when_authenticated(flask_client):
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+        sess["admin_authenticated"] = True
+
+    response = flask_client.get("/")
+
+    assert response.status_code == 200
+    assert b"Administration" in response.data
+    assert b"Admin dashboard" in response.data
+    assert b'href="/admin"' in response.data
+    assert b'href="/login"' not in response.data
+    assert b'href="/logout"' in response.data
+
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+
 def test_index_handles_empty_database(flask_client, monkeypatch):
     import webui
 

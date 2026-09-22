@@ -1,5 +1,9 @@
-{% extends "base.html" %} {% block title %} Overview {% endblock %} {%
-block date_picker %}
+{% extends "base.html" %} {% block title %} Overview {% endblock %}
+{% block page_title %}Overview{% endblock %}
+{% block page_status %}
+<span class="live-badge" id="live-badge" title="Auto-updating">&#9679; Live</span>
+{% endblock %}
+{% block date_picker %}
 <form class="d-flex">
   <input
     type="date"
@@ -14,12 +18,7 @@ block date_picker %}
 {% endblock %} {% block content %}
 
 <section class="wamf-panel">
-  <h1 class="wamf-heading">
-    Recent Detections
-    <span class="live-badge" id="live-badge" title="Auto-updating">
-      &#9679; Live
-    </span>
-  </h1>
+  <h2 class="wamf-heading">Recent Detections</h2>
 
   <div class="wamf-detection-grid" id="recent-detections-tbody">
     {% for record in recent_detections %}

@@ -1,5 +1,7 @@
 {% extends "base.html" %} {% block title %} Detections of {{ common_name }} on
-{{ date }} {% endblock %} {% block content %}
+{{ date }} {% endblock %}
+{% block page_title %}{{ common_name }}{% endblock %}
+{% block content %}
 <section class="wamf-panel">
   <div class="wamf-species-hero-image">
     {% if records and records[0]['snapshot_file'] %}
@@ -14,8 +16,6 @@
   </div>
 
   <div class="wamf-species-hero-content">
-    <h1 class="wamf-heading">{{ common_name }}</h1>
-
     <div class="wamf-species-scientific">{{ scientific_name }}</div>
 
     <div class="wamf-species-links">
