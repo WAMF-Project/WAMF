@@ -68,12 +68,12 @@
       <div class="daily-species-header">
         <div>
           <h2>
-            <a href="{{ url_for(
-              'public.show_detections_by_scientific_name',
-              scientific_name=species.scientific_name,
-              date=date,
-              end_date=None
-            ) }}">{{ species.common_name }}</a>
+            <a
+              class="has-tooltip"
+              href="{{ url_for('public.species_profile', scientific_name=species.scientific_name) }}"
+              aria-label="View {{ species.common_name }} species profile"
+              data-tooltip="View {{ species.common_name }} species profile"
+            >{{ species.common_name }}</a>
           </h2>
           <p>{{ species.scientific_name }}</p>
         </div>
@@ -103,9 +103,9 @@
           {% if count > 0 %}
           <a
             href="{{ url_for('public.show_detections_by_hour', date=date, hour=hour) }}"
-            class="daily-hour-cell daily-hour-active {% if count * 3 >= species.max_hourly_detections * 2 %}daily-hour-high{% elif count * 3 >= species.max_hourly_detections %}daily-hour-medium{% else %}daily-hour-low{% endif %}"
+            class="daily-hour-cell daily-hour-active has-tooltip {% if count * 3 >= species.max_hourly_detections * 2 %}daily-hour-high{% elif count * 3 >= species.max_hourly_detections %}daily-hour-medium{% else %}daily-hour-low{% endif %}"
             aria-label="{{ count }} detection{% if count != 1 %}s{% endif %} of {{ species.common_name }} at {{ '%02d'|format(hour) }}:00"
-            title="{{ count }} detection{% if count != 1 %}s{% endif %} at {{ '%02d'|format(hour) }}:00"
+            data-tooltip="View {{ count }} {{ species.common_name }} detection{% if count != 1 %}s{% endif %} at {{ '%02d'|format(hour) }}:00"
           >
             <span>{{ '%02d'|format(hour) }}</span>
             <strong>{{ count }}</strong>

@@ -153,3 +153,25 @@ def test_get_records_for_scientific_name_and_date_no_match(patched_queries):
         "Turdus migratorius", "1999-01-01", 1, 25
     )
     assert records == []
+
+
+# ---------------------------------------------------------------------------
+# Species profile statistics
+# ---------------------------------------------------------------------------
+
+def test_get_species_stats_returns_all_history_aggregates(patched_queries):
+    stats = patched_queries.get_species_stats("Turdus migratorius")
+
+    assert stats["total_detections"] == 2
+    assert stats["first_seen"] == "2024-06-01 08:30:00.000000"
+    assert stats["last_seen"] == "2024-06-01 09:45:00.000000"
+    assert stats["active_days"] == 1
+    assert stats["camera_count"] == 1
+
+
+def test_get_species_stats_unknown_species_is_zero(patched_queries):
+    stats = patched_queries.get_species_stats("Unknown species")
+
+    assert stats["total_detections"] == 0
+    assert stats["first_seen"] is None
+    assert stats["last_seen"] is None

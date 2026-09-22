@@ -56,12 +56,12 @@
           <div class="overview-detection-heading">
             <div>
               <h3>
-                <a href="{{ url_for(
-                  'public.show_detections_by_scientific_name',
-                  scientific_name=record.display_name,
-                  date=record.detection_time[:10],
-                  end_date=None
-                ) }}">{{ record.common_name }}</a>
+                <a
+                  class="has-tooltip"
+                  href="{{ url_for('public.species_profile', scientific_name=record.display_name) }}"
+                  aria-label="View {{ record.common_name }} species profile"
+                  data-tooltip="View {{ record.common_name }} species profile"
+                >{{ record.common_name }}</a>
               </h3>
               <p class="overview-scientific-name">{{ record.display_name }}</p>
             </div>

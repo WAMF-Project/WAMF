@@ -574,32 +574,18 @@ def get_species_peak_hours(date_str):
     return rows
 
 def get_species_stats(scientific_name):
-
     conn = connect_db(DBPATH)
-    
     row = conn.execute("""
-
         SELECT
-
             COUNT(*) AS total_detections,
-
             MIN(detection_time) AS first_seen,
-
             MAX(detection_time) AS last_seen,
-
-            strftime(
-                '%H',
-                detection_time
-            ) AS peak_hour
-
+            COUNT(DISTINCT date(detection_time)) AS active_days,
+            COUNT(DISTINCT NULLIF(camera_name, '')) AS camera_count
         FROM detections
-
         WHERE display_name = ?
-
     """, (scientific_name,)).fetchone()
-
     conn.close()
-
     return row
 
 def get_species_stats_for_date(

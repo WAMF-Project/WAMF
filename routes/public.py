@@ -8,6 +8,13 @@ from flask import Blueprint, abort, jsonify, redirect, render_template, request,
 public_bp = Blueprint('public', __name__)
 
 
+def _format_detection_timestamp(value):
+    try:
+        return datetime.fromisoformat(value).strftime('%d %b %Y · %H:%M')
+    except (TypeError, ValueError):
+        return value
+
+
 @public_bp.route('/')
 def index():
     import webui
@@ -90,6 +97,81 @@ def show_detections_by_hour(date, hour):
         hour=hour,
         records=records
     )
+
+
+@public_bp.route('/species/<path:scientific_name>')
+def species_profile(scientific_name):
+    import webui
+
+    if not scientific_name or scientific_name != scientific_name.strip():
+        abort(404)
+
+    stats_row = webui.get_species_stats(scientific_name)
+    if not stats_row or stats_row['total_detections'] == 0:
+        abort(404)
+
+    stats = dict(stats_row)
+    species_info = webui.get_species_info(scientific_name)
+    common_name = (
+        webui.get_common_name(scientific_name)
+        or (species_info.get('common_name') if species_info else None)
+        or scientific_name
+    )
+
+    if webui.species_needs_metadata(species_info):
+        webui.queue_metadata_refresh(scientific_name)
+
+    activity_rows = webui.get_species_activity_by_hour(scientific_name)
+    totals_by_hour = {
+        int(item['hour']): item['total']
+        for item in activity_rows
+    }
+    hourly_activity = [
+        {
+            'hour': f'{hour:02d}',
+            'total': totals_by_hour.get(hour, 0),
+        }
+        for hour in range(24)
+    ]
+    peak_hour = (
+        max(totals_by_hour, key=totals_by_hour.get)
+        if totals_by_hour
+        else None
+    )
+
+    return render_template(
+        'species_profile.html',
+        scientific_name=scientific_name,
+        common_name=common_name,
+        species_info=species_info,
+        stats=stats,
+        first_seen_display=_format_detection_timestamp(stats['first_seen']),
+        last_seen_display=_format_detection_timestamp(stats['last_seen']),
+        hourly_activity=hourly_activity,
+        max_hourly_detections=max(totals_by_hour.values(), default=0),
+        peak_hour=peak_hour,
+        view_detections_url=url_for(
+            'public.species_detections',
+            scientific_name=scientific_name,
+        ),
+    )
+
+
+@public_bp.route('/species/<path:scientific_name>/detections')
+def species_detections(scientific_name):
+    import webui
+
+    stats = webui.get_species_stats(scientific_name)
+    if not stats or stats['total_detections'] == 0:
+        abort(404)
+
+    latest_date = stats['last_seen'][:10]
+    return redirect(url_for(
+        'public.show_detections_by_scientific_name',
+        scientific_name=scientific_name,
+        date=latest_date,
+        end_date=None,
+    ))
 
 
 @public_bp.route(

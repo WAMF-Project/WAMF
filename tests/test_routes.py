@@ -160,12 +160,21 @@ def test_index_preserves_overview_links_modals_and_live_polling(flask_client):
     assert response.status_code == 200
     assert b'href="/recent"' in response.data
     assert b'href="/activity"' in response.data
-    assert b"/detections/by_scientific_name/Turdus%20migratorius/2024-06-01" in response.data
+    assert b'href="/species/Turdus%20migratorius"' in response.data
     assert b'id="date-picker"' in response.data
     assert b'id="snapshotModal"' in response.data
     assert b'id="videoModal"' in response.data
     assert b"/api/detections/recent?limit=${LIMIT}" in response.data
     assert b"setInterval(poll, POLL_MS)" in response.data
+
+
+def test_overview_species_names_link_to_profiles(flask_client):
+    response = flask_client.get("/")
+
+    assert response.status_code == 200
+    assert b'href="/species/Turdus%20migratorius"' in response.data
+    assert b"View American Robin species profile" in response.data
+    assert b"data-tooltip=" in response.data
 
 
 def test_public_shell_uses_canonical_stylesheet_and_mobile_navigation(flask_client):
@@ -284,6 +293,7 @@ def test_activity_historical_date_uses_selected_date_data(flask_client):
     assert b'href="/daily_summary/2024-06-01"' in response.data
     assert b'href="/detections/by_hour/2024-06-01/9"' in response.data
     assert b"/detections/by_scientific_name/Turdus%20migratorius/2024-06-01" in response.data
+    assert b'href="/species/Turdus%20migratorius"' in response.data
 
 
 def test_activity_queries_use_selected_date_not_today(flask_client, monkeypatch):
@@ -504,6 +514,8 @@ def test_recent_feed_preserves_detection_card_actions(flask_client, monkeypatch)
     assert b"event.mp4" in response.data
     assert b"Open snapshot for American Robin" in response.data
     assert b"showSnapshot(" in response.data
+    assert b'href="/species/Turdus%20migratorius"' in response.data
+    assert b"View American Robin species profile" in response.data
     assert b'id="snapshotModal"' in response.data
     assert b'id="videoModal"' in response.data
     assert b"deleteDetection()" in response.data
@@ -543,7 +555,8 @@ def test_daily_summary_selected_date_metrics_and_species_cards(flask_client):
     assert b"Turdus migratorius" in response.data
     assert b"Blue Jay" in response.data
     assert b"Cyanocitta cristata" in response.data
-    assert b"/detections/by_scientific_name/Turdus%20migratorius/2024-06-01" in response.data
+    assert b'href="/species/Turdus%20migratorius"' in response.data
+    assert b"View American Robin species profile" in response.data
 
 
 def test_daily_summary_renders_24_hours_per_species(flask_client):
@@ -774,6 +787,81 @@ def test_configured_snapshot_route_serves_media(flask_client, tmp_path, monkeypa
 
     assert response.status_code == 200
     assert response.data == b"configured snapshot"
+
+
+# ---------------------------------------------------------------------------
+# /species/<scientific_name>
+# ---------------------------------------------------------------------------
+
+def test_species_profile_renders_identity_enrichment_and_statistics(flask_client):
+    response = flask_client.get("/species/Turdus%20migratorius")
+
+    assert response.status_code == 200
+    assert b"American Robin" in response.data
+    assert b"Turdus migratorius" in response.data
+    assert b"A familiar thrush." in response.data
+    assert b"https://example.com/robin.jpg" in response.data
+    assert b"https://example.com/robin" in response.data
+    assert re.search(rb"Total detections.*?<strong>2</strong>", response.data, re.DOTALL)
+    assert b"01 Jun 2024" in response.data
+    assert b"08:30" in response.data
+    assert b"09:45" in response.data
+    assert re.search(rb"Most active in WAMF.*?<strong>08:00</strong>", response.data, re.DOTALL)
+    assert re.search(rb"Active days.*?<strong>1</strong>", response.data, re.DOTALL)
+    assert re.search(rb"Cameras.*?<strong>1</strong>", response.data, re.DOTALL)
+    assert response.data.count(b'class="daily-hour-cell') == 24
+
+
+def test_species_profile_missing_enrichment_still_renders(flask_client, monkeypatch):
+    import webui
+
+    queued = []
+    monkeypatch.setattr(webui, "get_species_info", lambda _name: None)
+    monkeypatch.setattr(webui, "queue_metadata_refresh", lambda name: queued.append(name))
+
+    response = flask_client.get("/species/Turdus%20migratorius")
+
+    assert response.status_code == 200
+    assert b"American Robin" in response.data
+    assert b"Total detections" in response.data
+    assert b"species-profile-reference" not in response.data
+    assert queued == ["Turdus migratorius"]
+
+
+def test_species_profile_unknown_or_malformed_species_returns_404(flask_client):
+    assert flask_client.get("/species/Unknown%20species").status_code == 404
+    assert flask_client.get("/species/%20Turdus%20migratorius").status_code == 404
+
+
+def test_species_profile_view_detections_uses_latest_existing_destination(flask_client):
+    profile = flask_client.get("/species/Turdus%20migratorius")
+
+    assert profile.status_code == 200
+    assert b'href="/species/Turdus%20migratorius/detections"' in profile.data
+    assert b'aria-label="View detections of American Robin"' in profile.data
+
+    bridge = flask_client.get("/species/Turdus%20migratorius/detections")
+    assert bridge.status_code == 302
+    assert bridge.headers["Location"].endswith(
+        "/detections/by_scientific_name/Turdus%20migratorius/2024-06-01"
+    )
+
+
+def test_species_navigation_contract_across_redesigned_pages(flask_client):
+    responses = [
+        flask_client.get("/"),
+        flask_client.get("/recent"),
+        flask_client.get("/activity/2024-06-01"),
+        flask_client.get("/daily_summary/2024-06-01"),
+    ]
+
+    for response in responses:
+        assert response.status_code == 200
+        assert b'href="/species/Turdus%20migratorius"' in response.data
+
+    daily_summary = responses[-1]
+    assert b'href="/detections/by_hour/2024-06-01/8"' in daily_summary.data
+    assert b"data-tooltip=\"View 1 American Robin detection at 08:00\"" in daily_summary.data
 
 
 # ---------------------------------------------------------------------------

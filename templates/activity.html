@@ -103,10 +103,10 @@
           <div class="activity-hour-track">
             {% if item.total %}
             <a
-              class="activity-hour-target"
+              class="activity-hour-target has-tooltip"
               href="{{ url_for('public.show_detections_by_hour', date=date, hour=item.hour|int) }}"
               aria-label="{{ item.total }} detection{% if item.total != 1 %}s{% endif %} at {{ item.hour }}:00"
-              title="{{ item.total }} detection{% if item.total != 1 %}s{% endif %} at {{ item.hour }}:00"
+              data-tooltip="View {{ item.total }} detection{% if item.total != 1 %}s{% endif %} at {{ item.hour }}:00"
             >
               <span class="activity-hour-bar" style="--activity-level: {{ bar_level|round(2) }}%;"></span>
             </a>
@@ -137,18 +137,30 @@
       <ol class="activity-species-list">
         {% for species in top_species %}
         <li>
-          <a href="{{ url_for(
-            'public.show_detections_by_scientific_name',
-            scientific_name=species.scientific_name,
-            date=date,
-            end_date=None
-          ) }}">
-            <span>
-              <strong>{{ species.common_name }}</strong>
-              <small>{{ species.scientific_name }}</small>
-            </span>
-            <b>{{ species.total }}</b>
-          </a>
+          <div class="activity-species-item">
+            <a
+              class="activity-species-profile-link has-tooltip"
+              href="{{ url_for('public.species_profile', scientific_name=species.scientific_name) }}"
+              aria-label="View {{ species.common_name }} species profile"
+              data-tooltip="View {{ species.common_name }} species profile"
+            >
+              <span>
+                <strong>{{ species.common_name }}</strong>
+                <small>{{ species.scientific_name }}</small>
+              </span>
+            </a>
+            <a
+              class="activity-species-count has-tooltip"
+              href="{{ url_for(
+                'public.show_detections_by_scientific_name',
+                scientific_name=species.scientific_name,
+                date=date,
+                end_date=None
+              ) }}"
+              aria-label="View {{ species.total }} {{ species.common_name }} detections"
+              data-tooltip="View detections"
+            >{{ species.total }}</a>
+          </div>
         </li>
         {% else %}
         <li class="dashboard-empty-state">No species activity recorded.</li>

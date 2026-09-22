@@ -1,0 +1,123 @@
+{% extends "base.html" %} {% block title %} {{ common_name }} Species Profile {% endblock %}
+{% block page_title %}{{ common_name }}{% endblock %}
+{% block content %}
+
+<div class="species-profile">
+  <section class="dashboard-card species-profile-identity{% if species_info and species_info.thumbnail_url %} species-profile-identity-with-image{% endif %}">
+    {% if species_info and species_info.thumbnail_url %}
+    <figure class="species-profile-reference">
+      {% if species_info.wikipedia_url %}<a href="{{ species_info.wikipedia_url }}" target="_blank" rel="noopener noreferrer">{% endif %}
+      <img
+        src="{{ species_info.thumbnail_url }}"
+        alt="Reference image of {{ common_name }}"
+      />
+      {% if species_info.wikipedia_url %}</a>{% endif %}
+      {% if species_info.wikipedia_url %}
+      <figcaption>
+        Reference image from
+        <a href="{{ species_info.wikipedia_url }}" target="_blank" rel="noopener noreferrer">Wikipedia</a>
+      </figcaption>
+      {% endif %}
+    </figure>
+    {% endif %}
+
+    <div class="species-profile-introduction">
+      <p class="dashboard-eyebrow">Species profile</p>
+      <h2>{{ common_name }}</h2>
+      <p class="species-profile-scientific">{{ scientific_name }}</p>
+
+      {% if species_info and species_info.description %}
+      <p class="species-profile-description">{{ species_info.description }}</p>
+      {% endif %}
+
+      <div class="species-profile-actions">
+        <a
+          class="species-profile-primary-action has-tooltip"
+          href="{{ view_detections_url }}"
+          aria-label="View detections of {{ common_name }}"
+          data-tooltip="View detections"
+        >View detections</a>
+        {% if species_info and species_info.wikipedia_url %}
+        <a
+          class="species-profile-source-link"
+          href="{{ species_info.wikipedia_url }}"
+          target="_blank"
+          rel="noopener noreferrer"
+        >Read on Wikipedia</a>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="species-profile-stats" aria-label="WAMF observation statistics for {{ common_name }}">
+    <article class="species-profile-stat">
+      <span>Total detections</span>
+      <strong>{{ stats.total_detections }}</strong>
+      <small>Recorded by WAMF</small>
+    </article>
+    <article class="species-profile-stat">
+      <span>First seen</span>
+      <strong>{{ first_seen_display }}</strong>
+      <small>First stored observation</small>
+    </article>
+    <article class="species-profile-stat">
+      <span>Last seen</span>
+      <strong>{{ last_seen_display }}</strong>
+      <small>Most recent observation</small>
+    </article>
+    <article class="species-profile-stat">
+      <span>Most active in WAMF</span>
+      <strong>{% if peak_hour is not none %}{{ '%02d'|format(peak_hour) }}:00{% else %}—{% endif %}</strong>
+      <small>Hour with the most detections</small>
+    </article>
+    <article class="species-profile-stat">
+      <span>Active days</span>
+      <strong>{{ stats.active_days }}</strong>
+      <small>Distinct dates observed</small>
+    </article>
+    <article class="species-profile-stat">
+      <span>Cameras</span>
+      <strong>{{ stats.camera_count }}</strong>
+      <small>Distinct cameras observed</small>
+    </article>
+  </section>
+
+  <section class="dashboard-card species-profile-history" aria-labelledby="species-history-heading">
+    <div class="dashboard-card-header">
+      <div>
+        <p class="dashboard-eyebrow">Observation history</p>
+        <h2 class="dashboard-card-title" id="species-history-heading">Detections by hour</h2>
+      </div>
+      <p class="species-profile-history-note">Across all WAMF observations</p>
+    </div>
+
+    <div
+      class="daily-hour-strip-scroll"
+      role="region"
+      aria-label="All-time hourly activity for {{ common_name }}"
+      tabindex="0"
+    >
+      <div class="daily-hour-strip species-history-strip">
+        {% for item in hourly_activity %}
+        {% if item.total > 0 %}
+        <span
+          class="daily-hour-cell species-history-hour-active {% if item.total * 3 >= max_hourly_detections * 2 %}daily-hour-high{% elif item.total * 3 >= max_hourly_detections %}daily-hour-medium{% else %}daily-hour-low{% endif %}"
+          role="img"
+          aria-label="{{ item.total }} detection{% if item.total != 1 %}s{% endif %} at {{ item.hour }}:00 across WAMF history"
+          title="{{ item.total }} detection{% if item.total != 1 %}s{% endif %} at {{ item.hour }}:00"
+        >
+          <span>{{ item.hour }}</span>
+          <strong>{{ item.total }}</strong>
+        </span>
+        {% else %}
+        <span class="daily-hour-cell daily-hour-inactive" aria-hidden="true">
+          <span>{{ item.hour }}</span>
+        </span>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+</div>
+
+{% endblock %}

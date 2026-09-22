@@ -1849,7 +1849,8 @@ a:hover {
 .overview-boundary .dashboard-card,
 .recent-feed .dashboard-card,
 .activity-page .dashboard-card,
-.daily-summary-page .dashboard-card {
+.daily-summary-page .dashboard-card,
+.species-profile .dashboard-card {
   min-width: 0;
   padding: clamp(1rem, 2vw, 1.5rem);
   border: 1px solid var(--wamf-border);
@@ -1865,7 +1866,8 @@ a:hover {
 .overview-boundary .dashboard-card-header,
 .recent-feed .dashboard-card-header,
 .activity-page .dashboard-card-header,
-.daily-summary-page .dashboard-card-header {
+.daily-summary-page .dashboard-card-header,
+.species-profile .dashboard-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1876,7 +1878,8 @@ a:hover {
 .overview-boundary .dashboard-eyebrow,
 .recent-feed .dashboard-eyebrow,
 .activity-page .dashboard-eyebrow,
-.daily-summary-page .dashboard-eyebrow {
+.daily-summary-page .dashboard-eyebrow,
+.species-profile .dashboard-eyebrow {
   margin: 0 0 0.25rem;
   color: var(--wamf-moss-600);
   font-size: 0.75rem;
@@ -1889,7 +1892,8 @@ a:hover {
 .overview-boundary .dashboard-card-title,
 .recent-feed .dashboard-card-title,
 .activity-page .dashboard-card-title,
-.daily-summary-page .dashboard-card-title {
+.daily-summary-page .dashboard-card-title,
+.species-profile .dashboard-card-title {
   margin: 0;
   color: var(--wamf-forest-900);
   font-size: clamp(1.2rem, 2vw, 1.5rem);
@@ -2044,6 +2048,7 @@ a:hover {
 .overview-latest-name {
   color: var(--wamf-forest-900);
   font-weight: 700;
+  text-decoration: none;
 }
 
 .overview-species-scientific,
@@ -2057,6 +2062,10 @@ a:hover {
 .overview-latest-meta {
   color: var(--wamf-text-muted);
   font-size: 0.825rem;
+}
+
+.overview-species-total {
+  align-self: flex-start;
 }
 
 .overview-stat-list {
@@ -2094,24 +2103,28 @@ a:hover {
   border-top: 0;
 }
 
-.overview-ranking-list a {
+.overview-ranking-item {
   display: grid;
   grid-template-columns: 1.5rem minmax(0, 1fr) auto;
   min-height: 44px;
   align-items: center;
   gap: 0.5rem;
+}
+
+.overview-ranking-item > a {
   color: var(--wamf-text);
   text-decoration: none;
 }
 
-.overview-ranking-list a::before {
+.overview-ranking-item::before {
   content: counter(overview-rank) ".";
   color: var(--wamf-text-muted);
   font-size: 0.825rem;
 }
 
-.overview-ranking-list strong {
+.overview-ranking-count {
   color: var(--wamf-forest-700);
+  font-weight: 700;
 }
 
 .overview-boundary .dashboard-empty-state,
@@ -2482,23 +2495,29 @@ a:hover {
   border-top: 0;
 }
 
-.activity-species-list a {
+.activity-species-item {
   display: grid;
   grid-template-columns: 1.5rem minmax(0, 1fr) auto;
   min-height: 54px;
   align-items: center;
   gap: 0.625rem;
-  color: var(--wamf-text);
-  text-decoration: none;
 }
 
-.activity-species-list a::before {
+.activity-species-item::before {
   content: counter(activity-species) ".";
   color: var(--wamf-text-muted);
   font-size: 0.825rem;
 }
 
-.activity-species-list a > span {
+.activity-species-profile-link {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  color: var(--wamf-text);
+  text-decoration: none;
+}
+
+.activity-species-profile-link > span {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -2510,8 +2529,10 @@ a:hover {
   font-style: italic;
 }
 
-.activity-species-list b {
+.activity-species-count {
   color: var(--wamf-forest-700);
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .activity-peak-grid {
@@ -2759,6 +2780,221 @@ a:hover {
   }
 }
 
+.has-tooltip[data-tooltip] {
+  position: relative;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .has-tooltip[data-tooltip]::after {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    z-index: 30;
+    width: max-content;
+    max-width: min(15rem, calc(100vw - 2rem));
+    padding: 0.4rem 0.55rem;
+    border-radius: 6px;
+    background: var(--wamf-forest-950);
+    color: var(--wamf-on-forest);
+    content: attr(data-tooltip);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.3;
+    opacity: 0;
+    pointer-events: none;
+    text-align: left;
+    transform: translateY(-0.2rem);
+    transition:
+      opacity 0.15s ease,
+      transform 0.15s ease;
+    visibility: hidden;
+    white-space: normal;
+  }
+
+  .has-tooltip[data-tooltip]:hover::after,
+  .has-tooltip[data-tooltip]:focus-visible::after {
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+  }
+}
+
+.species-profile {
+  display: grid;
+  min-width: 0;
+  gap: 1.25rem;
+}
+
+.species-profile-identity {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  gap: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.species-profile-identity-with-image {
+  grid-template-columns: minmax(14rem, 22rem) minmax(0, 1fr);
+}
+
+.species-profile-reference {
+  min-width: 0;
+  margin: 0;
+}
+
+.species-profile-reference a {
+  display: block;
+}
+
+.species-profile-reference img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 30rem;
+  border-radius: 12px;
+  object-fit: contain;
+  object-position: center;
+}
+
+.species-profile-reference figcaption {
+  margin-top: 0.5rem;
+  color: var(--wamf-text-muted);
+  font-size: 0.75rem;
+}
+
+.species-profile-introduction {
+  min-width: 0;
+}
+
+.species-profile-introduction h2 {
+  margin: 0;
+  color: var(--wamf-forest-900);
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  line-height: 1.1;
+}
+
+.species-profile-scientific {
+  margin: 0.45rem 0 0;
+  color: var(--wamf-text-muted);
+  font-size: 1rem;
+  font-style: italic;
+}
+
+.species-profile-description {
+  max-width: 70ch;
+  margin: 1.25rem 0 0;
+  color: var(--wamf-text);
+  line-height: 1.65;
+}
+
+.species-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-top: 1.5rem;
+}
+
+.species-profile-primary-action,
+.species-profile-source-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.species-profile-primary-action {
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--wamf-forest-700);
+  border-radius: 8px;
+  background: var(--wamf-forest-700);
+  color: var(--wamf-on-forest);
+  text-decoration: none;
+}
+
+.species-profile-source-link {
+  color: var(--wamf-forest-700);
+}
+
+.species-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 0.75rem;
+}
+
+.species-profile-stat {
+  display: flex;
+  min-width: 0;
+  min-height: 8.5rem;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1rem;
+  border: 1px solid var(--wamf-border);
+  border-radius: 12px;
+  background: var(--wamf-surface);
+  box-shadow: 0 6px 18px rgba(32, 53, 40, 0.05);
+}
+
+.species-profile-stat > span {
+  color: var(--wamf-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.species-profile-stat > strong {
+  margin-top: 0.35rem;
+  overflow-wrap: anywhere;
+  color: var(--wamf-forest-900);
+  font-size: clamp(1.15rem, 2.5vw, 1.7rem);
+  line-height: 1.2;
+}
+
+.species-profile-stat > small {
+  margin-top: 0.5rem;
+  color: var(--wamf-text-muted);
+}
+
+.species-profile-history-note {
+  margin: 0;
+  color: var(--wamf-text-muted);
+  font-size: 0.825rem;
+}
+
+.species-history-strip {
+  grid-template-columns: repeat(24, minmax(1.5rem, 1fr));
+  min-width: 42rem;
+}
+
+.species-history-hour-active {
+  border-color: var(--wamf-sage-300);
+  color: var(--wamf-forest-950);
+}
+
+.species-history-hour-active strong {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+}
+
+@media (hover: hover) {
+  .species-profile-primary-action:hover {
+    border-color: var(--wamf-forest-900);
+    background: var(--wamf-forest-900);
+    color: var(--wamf-on-forest);
+  }
+}
+
+@media (max-width: 1100px) {
+  .species-profile-identity-with-image {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .species-profile-reference {
+    max-width: 28rem;
+  }
+}
+
 @media (max-width: 720px) {
   .overview-dashboard,
   .overview-main,
@@ -2770,6 +3006,7 @@ a:hover {
   .recent-feed .dashboard-card-header,
   .activity-page .dashboard-card-header,
   .daily-summary-page .dashboard-card-header,
+  .species-profile .dashboard-card-header,
   .overview-detection-heading {
     align-items: flex-start;
     flex-direction: column;
@@ -2846,5 +3083,15 @@ a:hover {
 
   .daily-species-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .species-profile-identity-with-image {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .species-profile-actions,
+  .species-profile-primary-action,
+  .species-profile-source-link {
+    width: 100%;
   }
 }

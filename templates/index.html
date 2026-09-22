@@ -79,12 +79,12 @@
               <div class="overview-detection-heading">
                 <div>
                   <h3>
-                    <a href="{{ url_for(
-                      'public.show_detections_by_scientific_name',
-                      scientific_name=record.display_name,
-                      date=record.detection_time[:10],
-                      end_date=None
-                    ) }}">{{ record.common_name }}</a>
+                    <a
+                      class="has-tooltip"
+                      href="{{ url_for('public.species_profile', scientific_name=record.display_name) }}"
+                      aria-label="View {{ record.common_name }} species profile"
+                      data-tooltip="View {{ record.common_name }} species profile"
+                    >{{ record.common_name }}</a>
                   </h3>
                   <p class="overview-scientific-name">{{ record.display_name }}</p>
                 </div>
@@ -124,21 +124,28 @@
 
         <div class="overview-species-grid">
           {% for species in daily_summary.values() %}
-          <a
-            href="{{ url_for(
-              'public.show_detections_by_scientific_name',
-              scientific_name=species.scientific_name,
-              date=date,
-              end_date=None
-            ) }}"
-            class="overview-species-card"
-          >
-            <span class="overview-species-name">{{ species.common_name }}</span>
+          <div class="overview-species-card">
+            <a
+              class="overview-species-name has-tooltip"
+              href="{{ url_for('public.species_profile', scientific_name=species.scientific_name) }}"
+              aria-label="View {{ species.common_name }} species profile"
+              data-tooltip="View {{ species.common_name }} species profile"
+            >{{ species.common_name }}</a>
             <span class="overview-species-scientific">{{ species.scientific_name }}</span>
-            <span class="overview-species-total">
+            <a
+              class="overview-species-total has-tooltip"
+              href="{{ url_for(
+                'public.show_detections_by_scientific_name',
+                scientific_name=species.scientific_name,
+                date=date,
+                end_date=None
+              ) }}"
+              aria-label="View {{ species.total_detections }} {{ species.common_name }} detections"
+              data-tooltip="View detections"
+            >
               {{ species.total_detections }} detection{% if species.total_detections != 1 %}s{% endif %}
-            </span>
-          </a>
+            </a>
+          </div>
           {% else %}
           <div class="dashboard-empty-state">No detections recorded today.</div>
           {% endfor %}
@@ -178,16 +185,13 @@
           </div>
         </div>
         {% if latest_visitor %}
-        <a
-          href="{{ url_for(
-            'public.show_detections_by_scientific_name',
-            scientific_name=latest_visitor.scientific_name,
-            date=date,
-            end_date=None
-          ) }}"
-          class="overview-latest-link"
-        >
-          <span class="overview-latest-name">{{ latest_visitor.common_name }}</span>
+        <div class="overview-latest-link">
+          <a
+            class="overview-latest-name has-tooltip"
+            href="{{ url_for('public.species_profile', scientific_name=latest_visitor.scientific_name) }}"
+            aria-label="View {{ latest_visitor.common_name }} species profile"
+            data-tooltip="View {{ latest_visitor.common_name }} species profile"
+          >{{ latest_visitor.common_name }}</a>
           <span class="overview-latest-scientific">{{ latest_visitor.scientific_name }}</span>
           <span class="overview-latest-meta">
             {{ latest_visitor.detection_time[8:10] }} {% set latest_month = latest_visitor.detection_time[5:7] %}
@@ -195,7 +199,7 @@
             · {{ latest_visitor.detection_time[11:16] }}
           </span>
           <span class="overview-latest-meta">Camera: {{ latest_visitor.camera_name }}</span>
-        </a>
+        </div>
         {% else %}
         <div class="dashboard-empty-state">No detections yet.</div>
         {% endif %}
@@ -211,15 +215,25 @@
         <ol class="overview-ranking-list">
           {% for species in top_species %}
           <li>
-            <a href="{{ url_for(
-              'public.show_detections_by_scientific_name',
-              scientific_name=species.scientific_name,
-              date=date,
-              end_date=None
-            ) }}">
-              <span>{{ species.common_name }}</span>
-              <strong>{{ species.total }}</strong>
-            </a>
+            <div class="overview-ranking-item">
+              <a
+                class="has-tooltip"
+                href="{{ url_for('public.species_profile', scientific_name=species.scientific_name) }}"
+                aria-label="View {{ species.common_name }} species profile"
+                data-tooltip="View {{ species.common_name }} species profile"
+              >{{ species.common_name }}</a>
+              <a
+                class="overview-ranking-count has-tooltip"
+                href="{{ url_for(
+                  'public.show_detections_by_scientific_name',
+                  scientific_name=species.scientific_name,
+                  date=date,
+                  end_date=None
+                ) }}"
+                aria-label="View {{ species.total }} {{ species.common_name }} detections"
+                data-tooltip="View detections"
+              >{{ species.total }}</a>
+            </div>
           </li>
           {% else %}
           <li class="dashboard-empty-state">No activity recorded today.</li>
@@ -267,8 +281,7 @@
       const thumbUrl = `/frigate/${d.frigate_event}/thumbnail.jpg`;
       const snapUrl = `/frigate/${d.frigate_event}/snapshot.jpg`;
       const clipUrl = `/frigate/${d.frigate_event}/clip.mp4`;
-      const detectionDate = d.detection_time.slice(0, 10);
-      const speciesUrl = `/detections/by_scientific_name/${encodeURIComponent(d.display_name)}/${detectionDate}`;
+      const speciesUrl = `/species/${encodeURIComponent(d.display_name)}`;
       const detectedAt = formatDetectionTime(d.detection_time);
 
       const card = document.createElement("article");
@@ -302,6 +315,9 @@
       const speciesLink = document.createElement("a");
       speciesLink.href = speciesUrl;
       speciesLink.textContent = d.common_name;
+      speciesLink.className = "has-tooltip";
+      speciesLink.setAttribute("aria-label", `View ${d.common_name} species profile`);
+      speciesLink.dataset.tooltip = `View ${d.common_name} species profile`;
       title.append(speciesLink);
 
       const scientificName = document.createElement("p");
