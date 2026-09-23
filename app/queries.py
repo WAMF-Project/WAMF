@@ -315,6 +315,36 @@ def get_records_for_date_hour(date, hour):
     ]
 
 
+def get_records_for_scientific_name(
+    scientific_name,
+    page,
+    per_page,
+):
+    conn = connect_db(DBPATH)
+    attach_names_db(conn, NAMEDBPATH)
+    offset = (page - 1) * per_page
+    rows = conn.execute(
+        f"""
+        SELECT
+            {DETECTION_SELECT},
+            COALESCE(
+                birdnames_db.birdnames.common_name,
+                detections.display_name
+            ) AS common_name
+        FROM detections
+        LEFT JOIN birdnames_db.birdnames
+        ON detections.display_name = birdnames_db.birdnames.scientific_name
+        WHERE detections.display_name = ?
+        ORDER BY detections.detection_time DESC
+        LIMIT ?
+        OFFSET ?
+        """,
+        (scientific_name, per_page, offset),
+    ).fetchall()
+    conn.close()
+    return [detection_row_to_dict(row) for row in rows]
+
+
 def get_records_for_scientific_name_and_date(
     scientific_name,
     date,
@@ -655,6 +685,25 @@ def get_species_activity_by_hour(scientific_name):
 
     conn.close()
 
+    return rows
+
+
+def get_species_activity_by_hour_for_date(scientific_name, date):
+    conn = connect_db(DBPATH)
+    rows = conn.execute(
+        """
+        SELECT
+            strftime('%H', detection_time) AS hour,
+            COUNT(*) AS total
+        FROM detections
+        WHERE display_name = ?
+          AND date(detection_time) = ?
+        GROUP BY hour
+        ORDER BY hour
+        """,
+        (scientific_name, date),
+    ).fetchall()
+    conn.close()
     return rows
 
 def get_admin_stats():

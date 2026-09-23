@@ -1,0 +1,69 @@
+{% macro detection_card(record, variant='') -%}
+<article
+  class="overview-detection-card {{ variant }}"
+  data-frigate-event="{{ record.frigate_event }}"
+  data-detection-time="{{ record.detection_time }}"
+>
+  {% if record.snapshot_file %}
+  <button
+    class="overview-detection-media"
+    type="button"
+    aria-label="Open snapshot for {{ record.common_name }}"
+    onclick="showSnapshot(
+      '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
+      '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
+      '{{ record.frigate_event }}'
+    )"
+  >
+    <img
+      src="{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}"
+      alt="{{ record.common_name }} detection"
+      class="overview-detection-image"
+      onload="checkTransparentImage(this)"
+    />
+  </button>
+  {% else %}
+  <div class="overview-detection-media overview-detection-media-placeholder">
+    <img
+      src="{{ url_for('static', filename='images/default-bird.jpg') }}"
+      alt="No snapshot available"
+      class="overview-detection-image"
+    />
+  </div>
+  {% endif %}
+
+  <div class="overview-detection-body">
+    <div class="overview-detection-heading">
+      <div>
+        <h3>
+          <a
+            class="has-tooltip"
+            href="{{ url_for('public.species_profile', scientific_name=record.display_name) }}"
+            aria-label="View {{ record.common_name }} species profile"
+            data-tooltip="View {{ record.common_name }} species profile"
+          >{{ record.common_name }}</a>
+        </h3>
+        <p class="overview-scientific-name">{{ record.display_name }}</p>
+      </div>
+      <span class="dashboard-status">
+        {{ (record.score * 100)|round|int }}% confidence
+      </span>
+    </div>
+
+    <dl class="overview-detection-meta">
+      <div>
+        <dt>Detected</dt>
+        <dd>
+          {{ record.detection_time[8:10] }} {% set month = record.detection_time[5:7] %}
+          {% if month == '01' %}Jan{% elif month == '02' %}Feb{% elif month == '03' %}Mar{% elif month == '04' %}Apr{% elif month == '05' %}May{% elif month == '06' %}Jun{% elif month == '07' %}Jul{% elif month == '08' %}Aug{% elif month == '09' %}Sep{% elif month == '10' %}Oct{% elif month == '11' %}Nov{% elif month == '12' %}Dec{% endif %}
+          {{ record.detection_time[:4] }} · {{ record.detection_time[11:16] }}
+        </dd>
+      </div>
+      <div>
+        <dt>Camera</dt>
+        <dd>{{ record.camera_name }}</dd>
+      </div>
+    </dl>
+  </div>
+</article>
+{%- endmacro %}

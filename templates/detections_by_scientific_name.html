@@ -1,207 +1,141 @@
-{% extends "base.html" %} {% block title %} Detections of {{ common_name }} on
-{{ date }} {% endblock %}
-{% block page_title %}{{ common_name }}{% endblock %}
+{% extends "base.html" %}
+{% from "_detection_card.html" import detection_card with context %}
+{% block title %} {% if all_history %}All {{ common_name }} detections{% else %}{{ common_name }} detections on {{ date }}{% endif %} {% endblock %}
+{% block page_title %}Detection results{% endblock %}
 {% block content %}
-<section class="wamf-panel">
-  <div class="wamf-species-hero-image">
-    {% if records and records[0]['snapshot_file'] %}
-    <img
-      src="{{ url_for(
-      'media.wamf_snapshot',
-      filename=records[0]['snapshot_file']
-  ) }}"
-      alt="{{ common_name }}"
-    />
-    {% endif %}
-  </div>
 
-  <div class="wamf-species-hero-content">
-    <div class="wamf-species-scientific">{{ scientific_name }}</div>
-
-    <div class="wamf-species-links">
-      {% if species_info and species_info.wikipedia_url %}
-      <a
-        href="{{ species_info.wikipedia_url }}"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Wikipedia"
-      >
-        <img
-          src="{{ url_for(
-            'static',
-            filename='images/icons/wikipedia.png'
-        ) }}"
-          class="wamf-species-link-icon"
-          alt="Wikipedia"
-        />
+<div class="detection-results">
+  <section class="dashboard-card detection-results-context" aria-labelledby="detection-results-heading">
+    <div class="dashboard-card-header">
+      <div>
+        <p class="dashboard-eyebrow">
+          {% if all_history %}Complete detection history{% else %}Selected species · {{ date }}{% endif %}
+        </p>
+        <h2 class="dashboard-card-title" id="detection-results-heading">
+          <a
+            class="has-tooltip"
+            href="{{ url_for('public.species_profile', scientific_name=scientific_name) }}"
+            aria-label="View {{ common_name }} species profile"
+            data-tooltip="View {{ common_name }} species profile"
+          >{{ common_name }}</a>
+        </h2>
+        <p class="detection-results-scientific">{{ scientific_name }}</p>
+      </div>
+      <a class="dashboard-card-action" href="{{ url_for('public.species_profile', scientific_name=scientific_name) }}">
+        View species profile
       </a>
-      {% endif %}
     </div>
-  </div>
 
-  {% if species_info and species_info.description %}
-  <div class="wamf-panel">
-    <h2 class="wamf-subheading">About {{ common_name }}</h2>
+    <dl class="detection-results-summary">
+      <div>
+        <dt>Detections</dt>
+        <dd>{{ total_records }}</dd>
+      </div>
+      <div>
+        <dt>First seen</dt>
+        <dd>{% if all_history %}{{ first_seen_display }}{% elif species_stats.first_seen %}{{ species_stats.first_seen[11:16] }}{% else %}—{% endif %}</dd>
+      </div>
+      <div>
+        <dt>Last seen</dt>
+        <dd>{% if all_history %}{{ last_seen_display }}{% elif species_stats.last_seen %}{{ species_stats.last_seen[11:16] }}{% else %}—{% endif %}</dd>
+      </div>
+      <div>
+        <dt>{% if all_history %}Active days{% else %}Peak hour{% endif %}</dt>
+        <dd>{% if all_history %}{{ species_stats.active_days }}{% elif peak_hour is not none %}{{ '%02d'|format(peak_hour) }}:00{% else %}—{% endif %}</dd>
+      </div>
+    </dl>
+  </section>
 
-    <p class="wamf-species-description">{{ species_info.description }}</p>
-  </div>
-  {% endif %} {% if species_info and species_info.thumbnail_url %}
-  <div class="wamf-panel">
-    <h2 class="wamf-subheading">Reference Image</h2>
+  {% if not all_history %}
+  <section class="dashboard-card detection-results-activity" aria-labelledby="detection-results-activity-heading">
+    <div class="dashboard-card-header">
+      <div>
+        <p class="dashboard-eyebrow">Selected date</p>
+        <h2 class="dashboard-card-title" id="detection-results-activity-heading">Activity by hour</h2>
+      </div>
+      <p class="detection-results-note">
+        {% if total_records %}Select an active hour to view detections{% else %}No activity recorded{% endif %}
+      </p>
+    </div>
 
-    <a
-      href="{{ species_info.wikipedia_url }}"
-      target="_blank"
-      rel="noopener noreferrer"
+    <div
+      class="daily-hour-strip-scroll"
+      role="region"
+      aria-labelledby="detection-results-activity-heading"
+      tabindex="0"
     >
-      <img
-        src="{{ species_info.thumbnail_url }}"
-        alt="{{ common_name }}"
-        class="wamf-species-reference-image"
-      />
-    </a>
-    <div class="wamf-reference-caption">Wikipedia Reference Image</div>
-  </div>
+      <div class="daily-hour-strip detection-results-hour-strip">
+        {% for item in species_activity %}
+        {% if item.total > 0 %}
+        <a
+          class="daily-hour-cell daily-hour-active has-tooltip {% if item.total * 3 >= max_hourly_detections * 2 %}daily-hour-high{% elif item.total * 3 >= max_hourly_detections %}daily-hour-medium{% else %}daily-hour-low{% endif %}"
+          href="{{ url_for('public.show_detections_by_hour', date=date, hour=item.hour|int) }}"
+          aria-label="View detections at {{ item.hour }}:00 on {{ date }}"
+          data-tooltip="View detections at {{ item.hour }}:00"
+        >
+          <span>{{ item.hour }}</span>
+          <strong>{{ item.total }}</strong>
+        </a>
+        {% else %}
+        <span class="daily-hour-cell daily-hour-inactive" aria-hidden="true">
+          <span>{{ item.hour }}</span>
+        </span>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
   {% endif %}
-  <div class="wamf-summary-grid">
-    <div class="wamf-summary-card">
-      <h3>Detections on {{ date }}</h3>
 
-      <div class="wamf-summary-total">{{ species_stats.total_detections }}</div>
-    </div>
-
-    <div class="wamf-summary-card">
-      <h3>First Seen</h3>
-
-      <div class="wamf-meta-secondary">
-        {{ species_stats.first_seen[:10] }}
-        <br />
-        {{ species_stats.first_seen[11:16] }}
+  <section class="dashboard-card detection-results-list" aria-labelledby="detection-results-list-heading">
+    <div class="dashboard-card-header">
+      <div>
+        <p class="dashboard-eyebrow">{% if all_history %}Newest first{% else %}{{ date }}{% endif %}</p>
+        <h2 class="dashboard-card-title" id="detection-results-list-heading">Recorded detections</h2>
       </div>
+      <p class="detection-results-note">
+        {{ total_records }} detection{% if total_records != 1 %}s{% endif %}
+      </p>
     </div>
 
-    <div class="wamf-summary-card">
-      <h3>Last Seen</h3>
-
-      <div class="wamf-meta-secondary">
-        {{ species_stats.last_seen[:10] }}
-        <br />
-        {{ species_stats.last_seen[11:16] }}
+    <div class="overview-detection-grid detection-results-grid">
+      {% for record in records %}
+      {{ detection_card(record, "detection-results-card") }}
+      {% else %}
+      <div class="dashboard-empty-state">
+        {% if all_history %}No detections have been recorded for {{ common_name }}.{% else %}No {{ common_name }} detections were recorded on {{ date }}.{% endif %}
       </div>
-    </div>
-
-    <div class="wamf-summary-card">
-      <h3>Peak Hour</h3>
-
-      <div class="wamf-summary-total">{{ species_stats.peak_hour }}:00</div>
-    </div>
-  </div>
-  <div class="wamf-panel">
-    <h2 class="wamf-subheading">Activity By Hour</h2>
-
-    <div class="wamf-activity-chart">
-      {% for item in species_activity %} {% set bar_height = item.total * 18 +
-      24 %}
-
-      <div class="wamf-activity-bar-group">
-        <div
-          class="wamf-activity-bar"
-          style="height: {{ bar_height }}px;"
-          title="{{ item.total }} detections at {{ item.hour }}:00"
-        ></div>
-
-        <div class="wamf-activity-label">{{ item.hour }}</div>
-      </div>
-
       {% endfor %}
     </div>
-  </div>
+  </section>
 
-  <div class="wamf-detection-grid">
-    {% for record in records %}
-    <div class="wamf-detection-card">
-      {% if record.snapshot_file %}
-      <img
-        src="{{ url_for(
-      'media.wamf_snapshot',
-      filename=record.snapshot_file
-  ) }}"
-        alt="Thumbnail"
-        class="wamf-detection-image"
-        onload="checkTransparentImage(this)"
-        onclick="showSnapshot(
-    '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
-    '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
-    '{{ record['frigate_event'] }}'
-  )"
-      />
-
+  <nav class="wamf-pagination" aria-label="{{ common_name }} detection pages">
+    <div class="wamf-pagination-slot">
+      {% if page > 1 %}
+      {% if all_history %}
+      <a href="{{ url_for('public.species_detections', scientific_name=scientific_name, page=page - 1) }}" rel="prev">← Previous</a>
       {% else %}
-
-      <img
-        src="{{ url_for('static', filename='images/default-bird.jpg') }}"
-        alt="No snapshot available"
-        class="wamf-detection-image"
-      />
-
+      <a href="{{ url_for('public.show_detections_by_scientific_name', scientific_name=scientific_name, date=date, end_date=end_date, page=page - 1) }}" rel="prev">← Previous</a>
       {% endif %}
-
-      <div class="wamf-detection-content">
-        <h3>{{ common_name }}</h3>
-
-        <div class="wamf-confidence">
-          {{ (record['score'] * 100)|round|int }}% confidence
-        </div>
-
-        <div class="wamf-meta">
-          <div class="wamf-meta-secondary">
-            Seen at {{ record['detection_time'].split(' ')[1][:5] }}
-          </div>
-
-          <div class="wamf-meta-secondary">📷 {{ record['camera_name'] }}</div>
-        </div>
-      </div>
+      {% endif %}
     </div>
-    {% endfor %}
-  </div>
-</section>
-<div class="wamf-panel">
-  <div class="wamf-header-actions">
-    {% if page > 1 %}
 
-    <a
-      href="{{ url_for(
-      'public.show_detections_by_scientific_name',
-      scientific_name=scientific_name,
-      date=date,
-      end_date=end_date
-    ) }}?page={{ page - 1 }}"
-      class="log-filter-btn"
-    >
-      ← Previous
-    </a>
-
-    {% endif %}
-
-    <span class="wamf-meta-secondary">
-      Page {{ page }} of {{ total_pages }} ({{ total_records }} detections)
+    <span class="wamf-pagination-status" aria-live="polite">
+      Page {{ page }} of {{ total_pages }}
     </span>
 
-    {% if page < total_pages %}
-
-    <a
-      href="{{ url_for(
-      'public.show_detections_by_scientific_name',
-      scientific_name=scientific_name,
-      date=date,
-      end_date=end_date
-    ) }}?page={{ page + 1 }}"
-      class="log-filter-btn"
-    >
-      Next →
-    </a>
-
-    {% endif %}
-  </div>
+    <div class="wamf-pagination-slot wamf-pagination-slot-next">
+      {% if page < total_pages %}
+      {% if all_history %}
+      <a href="{{ url_for('public.species_detections', scientific_name=scientific_name, page=page + 1) }}" rel="next">Next →</a>
+      {% else %}
+      <a href="{{ url_for('public.show_detections_by_scientific_name', scientific_name=scientific_name, date=date, end_date=end_date, page=page + 1) }}" rel="next">Next →</a>
+      {% endif %}
+      {% endif %}
+    </div>
+  </nav>
 </div>
-{% include 'modals_and_scripts.html' %} {% endblock %}
+
+{% include "modals_and_scripts.html" %}
+{% endblock %}

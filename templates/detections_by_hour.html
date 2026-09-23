@@ -1,51 +1,42 @@
-{% extends "base.html" %} {% block title %} Detections by Hour {% endblock %} {%
-block page_title %}Activity at {{ hour }}:00{% endblock %}
-{% block date_picker %} {% endblock %} {% block content %}
-<section class="wamf-panel">
-  <h2 class="wamf-subheading">
-    {{ records|length }} detection{% if records|length != 1 %}s{% endif %}
-    recorded on {{ date }}
-  </h2>
+{% extends "base.html" %}
+{% from "_detection_card.html" import detection_card with context %}
+{% block title %} Detections at {{ hour }}:00 on {{ date }} {% endblock %}
+{% block page_title %}Detection results{% endblock %}
+{% block content %}
 
-  <div class="wamf-detection-grid">
-    {% for record in records %}
-    <div class="wamf-detection-card">
-      {% if record.snapshot_file %}
-      <img
-        src="{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}"
-        alt="Thumbnail"
-        class="wamf-detection-image"
-        onload="checkTransparentImage(this)"
-        onclick="showSnapshot(
-    '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
-    '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
-    '{{ record.frigate_event }}'
-  )"
-      />
-      {% else %}
-      <img
-        src="{{ url_for('static', filename='images/default-bird.jpg') }}"
-        alt="No snapshot available"
-        class="wamf-detection-image"
-      />
-      {% endif %}
+<div class="detection-results">
+  <section class="dashboard-card detection-results-context" aria-labelledby="hour-results-heading">
+    <div class="dashboard-card-header">
+      <div>
+        <p class="dashboard-eyebrow">Selected hour · {{ date }}</p>
+        <h2 class="dashboard-card-title" id="hour-results-heading">Activity at {{ '%02d'|format(hour) }}:00</h2>
+      </div>
+      <a class="dashboard-card-action" href="{{ url_for('public.activity', date=date) }}">
+        View daily activity
+      </a>
+    </div>
+    <p class="detection-results-introduction">
+      {{ records|length }} detection{% if records|length != 1 %}s{% endif %} recorded during this hour.
+    </p>
+  </section>
 
-      <div class="wamf-detection-content">
-        <h3>{{ record['common_name'] }}</h3>
-
-        <div class="wamf-confidence">Detection recorded</div>
-
-        <div class="wamf-meta">
-          <div class="wamf-meta-secondary">
-            Seen at {{ record['detection_time'].split(' ')[1][:5] }}
-          </div>
-
-          <div class="wamf-meta-secondary">📷 {{ record['camera_name'] }}</div>
-        </div>
+  <section class="dashboard-card detection-results-list" aria-labelledby="hour-results-list-heading">
+    <div class="dashboard-card-header">
+      <div>
+        <p class="dashboard-eyebrow">{{ date }} · {{ '%02d'|format(hour) }}:00</p>
+        <h2 class="dashboard-card-title" id="hour-results-list-heading">Recorded detections</h2>
       </div>
     </div>
-    {% endfor %}
-  </div>
-</section>
 
-{% include 'modals_and_scripts.html' %} {% endblock %}
+    <div class="overview-detection-grid detection-results-grid">
+      {% for record in records %}
+      {{ detection_card(record, "detection-results-card") }}
+      {% else %}
+      <div class="dashboard-empty-state">No detections were recorded during this hour.</div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+{% include "modals_and_scripts.html" %}
+{% endblock %}

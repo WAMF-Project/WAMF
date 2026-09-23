@@ -12,12 +12,19 @@ from app.queries import (
     get_records_for_date_hour,
 )
 from app.queries import (
+    get_records_for_scientific_name,
     get_records_for_scientific_name_and_date,
     get_earliest_detection_date,
     get_adjacent_activity_dates,
 )
 from app.queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
-from app.queries import get_species_activity_by_hour, get_admin_stats, get_recent_system_events, get_retention_status
+from app.queries import (
+    get_species_activity_by_hour,
+    get_species_activity_by_hour_for_date,
+    get_admin_stats,
+    get_recent_system_events,
+    get_retention_status,
+)
 from app.queries import get_species_info, get_all_species_info, get_detection_count_for_scientific_name_and_date
 from app.queries import get_species_stats_for_date
 from app.health import get_system_health

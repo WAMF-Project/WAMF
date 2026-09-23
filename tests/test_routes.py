@@ -833,18 +833,17 @@ def test_species_profile_unknown_or_malformed_species_returns_404(flask_client):
     assert flask_client.get("/species/%20Turdus%20migratorius").status_code == 404
 
 
-def test_species_profile_view_detections_uses_latest_existing_destination(flask_client):
+def test_species_profile_view_detections_uses_all_history_destination(flask_client):
     profile = flask_client.get("/species/Turdus%20migratorius")
 
     assert profile.status_code == 200
     assert b'href="/species/Turdus%20migratorius/detections"' in profile.data
     assert b'aria-label="View detections of American Robin"' in profile.data
 
-    bridge = flask_client.get("/species/Turdus%20migratorius/detections")
-    assert bridge.status_code == 302
-    assert bridge.headers["Location"].endswith(
-        "/detections/by_scientific_name/Turdus%20migratorius/2024-06-01"
-    )
+    history = flask_client.get("/species/Turdus%20migratorius/detections")
+    assert history.status_code == 200
+    assert b"Complete detection history" in history.data
+    assert b'href="/species/Turdus%20migratorius"' in history.data
 
 
 def test_species_navigation_contract_across_redesigned_pages(flask_client):
@@ -873,21 +872,31 @@ def test_by_scientific_name_no_end_date_returns_200(flask_client):
     assert response.status_code == 200
 
 
-def test_species_page_queues_metadata_refresh_without_fetching(flask_client, monkeypatch):
+def test_species_results_do_not_load_species_enrichment(flask_client, monkeypatch):
     import webui
 
-    queued = []
-    monkeypatch.setattr(webui, "get_species_info", lambda _name: None)
-    monkeypatch.setattr(webui, "queue_metadata_refresh", lambda name: queued.append(name))
     monkeypatch.setattr(
         webui,
-        "refresh_species_metadata_task",
-        lambda _name: (_ for _ in ()).throw(AssertionError("metadata fetch should not run during page render"))
+        "get_species_info",
+        lambda _name: (_ for _ in ()).throw(
+            AssertionError("results page should not load species enrichment")
+        ),
+    )
+    monkeypatch.setattr(
+        webui,
+        "queue_metadata_refresh",
+        lambda _name: (_ for _ in ()).throw(
+            AssertionError("results page should not queue species enrichment")
+        ),
     )
 
-    response = flask_client.get("/detections/by_scientific_name/Turdus%20migratorius/2024-06-01")
+    response = flask_client.get(
+        "/detections/by_scientific_name/Turdus%20migratorius/2024-06-01"
+    )
+
     assert response.status_code == 200
-    assert queued == ["Turdus migratorius"]
+    assert b"A familiar thrush." not in response.data
+    assert b"https://example.com/robin" not in response.data
 
 
 def test_by_scientific_name_with_end_date_returns_501(flask_client):
@@ -1382,3 +1391,197 @@ def test_change_password_page_renders_admin_status_footer(flask_client, monkeypa
     response = flask_client.get("/admin/password")
     assert response.status_code == 200
     assert b"Admin Password" in response.data
+
+
+# ---------------------------------------------------------------------------
+# Kingfisher detection-result presentation
+# ---------------------------------------------------------------------------
+
+def test_species_detection_results_are_focused_and_link_to_profile(flask_client):
+    response = flask_client.get(
+        "/detections/by_scientific_name/Turdus%20migratorius/2024-06-01"
+    )
+
+    assert response.status_code == 200
+    assert b"Detection results" in response.data
+    assert b'href="/species/Turdus%20migratorius"' in response.data
+    assert b"View American Robin species profile" in response.data
+    assert b"A familiar thrush." not in response.data
+    assert b"https://example.com/robin.jpg" not in response.data
+    assert response.data.count(b'class="daily-hour-cell') == 24
+    assert b'href="/detections/by_hour/2024-06-01/8"' in response.data
+    assert b'href="/detections/by_hour/2024-06-01/9"' in response.data
+    assert b"detection-results-card" in response.data
+    assert b"92% confidence" in response.data
+
+
+def test_hour_detection_results_use_shared_cards_and_profile_links(flask_client):
+    response = flask_client.get("/detections/by_hour/2024-06-01/8")
+
+    assert response.status_code == 200
+    assert b"detection-results-card" in response.data
+    assert b'href="/species/Turdus%20migratorius"' in response.data
+    assert b"View American Robin species profile" in response.data
+    assert b"92% confidence" in response.data
+    assert b'href="/activity/2024-06-01"' in response.data
+
+
+def test_detection_result_empty_states_remain_sensible(flask_client):
+    species_response = flask_client.get(
+        "/detections/by_scientific_name/Turdus%20migratorius/1999-01-01"
+    )
+    hour_response = flask_client.get("/detections/by_hour/2024-06-01/23")
+
+    assert species_response.status_code == 200
+    assert b"No American Robin detections were recorded on 1999-01-01." in species_response.data
+    assert b"Page 1 of 1" in species_response.data
+    assert hour_response.status_code == 200
+    assert b"No detections were recorded during this hour." in hour_response.data
+
+
+def test_species_detection_results_preserve_pagination(flask_client, monkeypatch):
+    import webui
+
+    monkeypatch.setattr(
+        webui,
+        "get_detection_count_for_scientific_name_and_date",
+        lambda _name, _date: 26,
+    )
+
+    response = flask_client.get(
+        "/detections/by_scientific_name/Turdus%20migratorius/2024-06-01"
+    )
+
+    assert response.status_code == 200
+    assert b"Page 1 of 2" in response.data
+    assert (
+        b'href="/detections/by_scientific_name/'
+        b'Turdus%20migratorius/2024-06-01?page=2"'
+    ) in response.data
+    assert b'rel="prev"' not in response.data
+
+    second_page = flask_client.get(
+        "/detections/by_scientific_name/Turdus%20migratorius/2024-06-01?page=2"
+    )
+
+    assert second_page.status_code == 200
+    assert b"Page 2 of 2" in second_page.data
+    assert b'href="/detections/by_scientific_name/Turdus%20migratorius/2024-06-01?page=1"' in second_page.data
+    assert b'rel="prev"' in second_page.data
+    assert b'rel="next"' not in second_page.data
+
+
+def test_recent_feed_still_uses_shared_detection_card_behaviour(flask_client):
+    response = flask_client.get("/recent")
+
+    assert response.status_code == 200
+    assert b"recent-feed-card" in response.data
+    assert b"Open snapshot for American Robin" in response.data or b"No snapshot available" in response.data
+    assert b'href="/species/Turdus%20migratorius"' in response.data
+
+
+# ---------------------------------------------------------------------------
+# Canonical all-history species detections
+# ---------------------------------------------------------------------------
+
+def test_species_detection_history_includes_all_dates_newest_first(
+    flask_client,
+    tmp_dbs,
+):
+    event = "evt-species-history-newest"
+    _insert_detection(tmp_dbs["det_db"], event)
+
+    try:
+        history = flask_client.get("/species/Turdus%20migratorius/detections")
+        dated = flask_client.get(
+            "/detections/by_scientific_name/Turdus%20migratorius/2024-06-01"
+        )
+
+        assert history.status_code == 200
+        assert history.data.count(b"detection-results-card") >= 3
+        assert history.data.index(event.encode()) < history.data.index(b"evt-003")
+        assert b"Newest first" in history.data
+        assert b"Complete detection history" in history.data
+        assert b'href="/species/Turdus%20migratorius"' in history.data
+        assert dated.status_code == 200
+        assert event.encode() not in dated.data
+        assert dated.data.count(b'class="daily-hour-cell') == 24
+    finally:
+        _delete_detection(tmp_dbs["det_db"], event)
+
+
+def test_species_detection_history_pagination_uses_canonical_route(
+    flask_client,
+    monkeypatch,
+):
+    import webui
+
+    monkeypatch.setattr(
+        webui,
+        "get_species_stats",
+        lambda _name: {
+            "total_detections": 26,
+            "first_seen": "2024-06-01 08:30:00.000000",
+            "last_seen": "2024-06-02 10:00:00.000000",
+            "active_days": 2,
+            "camera_count": 1,
+        },
+    )
+
+    first_page = flask_client.get("/species/Turdus%20migratorius/detections")
+    second_page = flask_client.get(
+        "/species/Turdus%20migratorius/detections?page=2"
+    )
+
+    assert first_page.status_code == 200
+    assert b"Page 1 of 2" in first_page.data
+    assert b'href="/species/Turdus%20migratorius/detections?page=2"' in first_page.data
+    assert b'rel="prev"' not in first_page.data
+    assert second_page.status_code == 200
+    assert b"Page 2 of 2" in second_page.data
+    assert b'href="/species/Turdus%20migratorius/detections?page=1"' in second_page.data
+    assert b'rel="prev"' in second_page.data
+    assert b'rel="next"' not in second_page.data
+
+
+def test_species_detection_history_canonicalizes_invalid_pages(flask_client):
+    zero = flask_client.get("/species/Turdus%20migratorius/detections?page=0")
+    invalid = flask_client.get(
+        "/species/Turdus%20migratorius/detections?page=invalid"
+    )
+    too_high = flask_client.get(
+        "/species/Turdus%20migratorius/detections?page=999"
+    )
+
+    assert zero.status_code == 302
+    assert zero.headers["Location"].endswith(
+        "/species/Turdus%20migratorius/detections?page=1"
+    )
+    assert invalid.status_code == 302
+    assert invalid.headers["Location"].endswith(
+        "/species/Turdus%20migratorius/detections?page=1"
+    )
+    assert too_high.status_code == 302
+    assert too_high.headers["Location"].endswith(
+        "/species/Turdus%20migratorius/detections?page=1"
+    )
+
+
+def test_species_detection_history_has_empty_state_and_unknown_is_404(
+    flask_client,
+    monkeypatch,
+):
+    import webui
+
+    monkeypatch.setattr(
+        webui,
+        "get_records_for_scientific_name",
+        lambda _name, _page, _per_page: [],
+    )
+
+    empty = flask_client.get("/species/Turdus%20migratorius/detections")
+    unknown = flask_client.get("/species/Unknown%20species/detections")
+
+    assert empty.status_code == 200
+    assert b"No detections have been recorded for American Robin." in empty.data
+    assert unknown.status_code == 404

@@ -175,3 +175,40 @@ def test_get_species_stats_unknown_species_is_zero(patched_queries):
     assert stats["total_detections"] == 0
     assert stats["first_seen"] is None
     assert stats["last_seen"] is None
+
+
+def test_get_species_activity_by_hour_for_date_is_species_and_date_scoped(patched_queries):
+    rows = patched_queries.get_species_activity_by_hour_for_date(
+        "Turdus migratorius",
+        "2024-06-01",
+    )
+
+    assert [(row["hour"], row["total"]) for row in rows] == [
+        ("08", 1),
+        ("09", 1),
+    ]
+    assert patched_queries.get_species_activity_by_hour_for_date(
+        "Turdus migratorius",
+        "1999-01-01",
+    ) == []
+
+
+def test_get_records_for_scientific_name_returns_newest_first_and_paginates(patched_queries):
+    first_page = patched_queries.get_records_for_scientific_name(
+        "Turdus migratorius",
+        1,
+        1,
+    )
+    second_page = patched_queries.get_records_for_scientific_name(
+        "Turdus migratorius",
+        2,
+        1,
+    )
+
+    assert [record["frigate_event"] for record in first_page] == ["evt-003"]
+    assert [record["frigate_event"] for record in second_page] == ["evt-001"]
+    assert patched_queries.get_records_for_scientific_name(
+        "Unknown species",
+        1,
+        25,
+    ) == []

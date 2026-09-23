@@ -161,17 +161,54 @@ def species_profile(scientific_name):
 def species_detections(scientific_name):
     import webui
 
-    stats = webui.get_species_stats(scientific_name)
-    if not stats or stats['total_detections'] == 0:
+    stats_row = webui.get_species_stats(scientific_name)
+    if not stats_row or stats_row['total_detections'] == 0:
         abort(404)
 
-    latest_date = stats['last_seen'][:10]
-    return redirect(url_for(
-        'public.show_detections_by_scientific_name',
+    stats = dict(stats_row)
+    per_page = 25
+    total_records = stats['total_detections']
+    total_pages = max(1, (total_records + per_page - 1) // per_page)
+    raw_page = request.args.get('page')
+    page = request.args.get('page', type=int)
+
+    if raw_page is not None and (page is None or page < 1):
+        return redirect(url_for(
+            'public.species_detections',
+            scientific_name=scientific_name,
+            page=1,
+        ))
+
+    if page is None:
+        page = 1
+
+    if page > total_pages:
+        return redirect(url_for(
+            'public.species_detections',
+            scientific_name=scientific_name,
+            page=total_pages,
+        ))
+
+    common_name = webui.get_common_name(scientific_name) or scientific_name
+    records = webui.get_records_for_scientific_name(
+        scientific_name,
+        page,
+        per_page,
+    )
+
+    return render_template(
+        'detections_by_scientific_name.html',
+        all_history=True,
         scientific_name=scientific_name,
-        date=latest_date,
-        end_date=None,
-    ))
+        common_name=common_name,
+        records=records,
+        species_stats=stats,
+        first_seen_display=_format_detection_timestamp(stats['first_seen']),
+        last_seen_display=_format_detection_timestamp(stats['last_seen']),
+        page=page,
+        total_pages=total_pages,
+        total_records=total_records,
+    )
 
 
 @public_bp.route(
@@ -211,26 +248,41 @@ def show_detections_by_scientific_name(scientific_name, date, end_date):
         per_page
     )
     species_stats = webui.get_species_stats_for_date(scientific_name, date)
-    species_info = webui.get_species_info(scientific_name)
-
-    # Metadata can require a network call, so queue it instead of delaying page render.
-    if webui.species_needs_metadata(species_info):
-        webui.queue_metadata_refresh(scientific_name)
-
-    species_activity = webui.get_species_activity_by_hour(scientific_name)
+    activity_rows = webui.get_species_activity_by_hour_for_date(
+        scientific_name,
+        date,
+    )
+    totals_by_hour = {
+        int(item['hour']): item['total']
+        for item in activity_rows
+    }
+    species_activity = [
+        {
+            'hour': f'{hour:02d}',
+            'total': totals_by_hour.get(hour, 0),
+        }
+        for hour in range(24)
+    ]
+    common_name = webui.get_common_name(scientific_name) or scientific_name
 
     return render_template(
         'detections_by_scientific_name.html',
+        all_history=False,
         scientific_name=scientific_name,
         date=date,
         end_date=end_date,
-        common_name=webui.get_common_name(scientific_name),
+        common_name=common_name,
         records=records,
         species_stats=species_stats,
         species_activity=species_activity,
-        species_info=species_info,
+        max_hourly_detections=max(totals_by_hour.values(), default=0),
+        peak_hour=(
+            max(totals_by_hour, key=totals_by_hour.get)
+            if totals_by_hour
+            else None
+        ),
         page=page,
-        total_pages=total_pages,
+        total_pages=max(1, total_pages),
         total_records=total_records
     )
 
