@@ -13,7 +13,7 @@ versioning for releases.
 
 ### Fixed
 ---
-## [0.4.5] - Unreleased
+## [0.5.0 - "Kingfisher" ] - Unreleased
 
 ### Changed
 
