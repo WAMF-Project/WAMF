@@ -1,6 +1,5 @@
 """Setup UI, startup selection, and configuration activation regressions."""
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess

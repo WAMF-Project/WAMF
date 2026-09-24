@@ -4,32 +4,33 @@ from datetime import datetime
 import yaml
 from pathlib import Path
 from app import security
-from app.queries import (
+# Blueprint modules intentionally consume these through the webui module.
+from app.queries import (  # noqa: F401
     recent_detections,
     get_detection_count,
     get_daily_summary,
     get_common_name,
     get_records_for_date_hour,
 )
-from app.queries import (
+from app.queries import (  # noqa: F401
     get_records_for_scientific_name,
     get_records_for_scientific_name_and_date,
     get_earliest_detection_date,
     get_adjacent_activity_dates,
 )
-from app.queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
-from app.queries import (
+from app.queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats  # noqa: F401
+from app.queries import (  # noqa: F401
     get_species_activity_by_hour,
     get_species_activity_by_hour_for_date,
     get_admin_stats,
     get_recent_system_events,
     get_retention_status,
 )
-from app.queries import get_species_info, get_all_species_info, get_detection_count_for_scientific_name_and_date
-from app.queries import get_species_stats_for_date
+from app.queries import get_species_info, get_all_species_info, get_detection_count_for_scientific_name_and_date  # noqa: F401
+from app.queries import get_species_stats_for_date  # noqa: F401
 from app.health import get_system_health
 from version import VERSION
-from app.metadata_tasks import (
+from app.metadata_tasks import (  # noqa: F401
     queue_metadata_refresh,
     refresh_species_metadata as refresh_species_metadata_task,
     species_needs_metadata,
@@ -38,7 +39,7 @@ from app.db import (
     ensure_schema,
     NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
 )
-from app.config_editor import (
+from app.config_editor import (  # noqa: F401
     get_config_path,
     update_admin_password_hash,
     update_api_token_hash,

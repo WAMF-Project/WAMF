@@ -5,7 +5,6 @@ Both app.queries and webui.py keep DB paths as module-level globals
 (DBPATH / NAMEDBPATH). We patch those so tests never touch the real on-disk
 databases.
 """
-import os
 import sqlite3
 import pytest
 import yaml
