@@ -9,7 +9,9 @@ import paho.mqtt.client as mqtt
 import shutil
 from app.config_editor import get_config_path
 from app.bootstrap import preflight
+from app.config_normalization import normalize_config
 from app.db import connect_db
+from app.mqtt_settings import mqtt_settings_from_config
 from wamf_paths import get_clips_path, get_snapshots_path
 from integrations.bridge import post_health_event
 
@@ -134,9 +136,6 @@ def calculate_system_health(config=None):
     health['frigate_disk_percent'] = None
 
     if not health['setup_required']:
-        mqtt_host = config["frigate"]["mqtt_server"]
-        mqtt_port = config["frigate"].get("mqtt_port", 1883)
-
         frigate_url = config["frigate"]["frigate_url"]
 
         # Frigate connectivity
@@ -153,10 +152,21 @@ def calculate_system_health(config=None):
 
         # MQTT connectivity
         try:
+            mqtt_settings = mqtt_settings_from_config(normalize_config(config).config)
 
             client = mqtt.Client()
 
-            client.connect(mqtt_host, mqtt_port, 5)
+            if mqtt_settings.authentication_enabled:
+                client.username_pw_set(
+                    mqtt_settings.username,
+                    mqtt_settings.password,
+                )
+
+            if mqtt_settings.tls_enabled:
+                client.tls_set(ca_certs=mqtt_settings.ca_certs)
+                client.tls_insecure_set(mqtt_settings.tls_insecure)
+
+            client.connect(mqtt_settings.host, mqtt_settings.port, 5)
 
             client.disconnect()
 

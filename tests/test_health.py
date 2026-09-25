@@ -1,3 +1,4 @@
+from copy import deepcopy
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -38,6 +39,110 @@ def _health(state):
     elif state == "unhealthy":
         values["database_healthy"] = False
     return values
+
+
+class _RedactedSecret(str):
+    def __repr__(self):
+        return "<redacted>"
+
+
+def _run_mqtt_health_probe(config):
+    client = MagicMock()
+    with patch("app.health.preflight", return_value=[]), patch(
+        "app.health.requests.get"
+    ), patch("app.health.mqtt.Client", return_value=client), patch(
+        "app.health.connect_db"
+    ), patch(
+        "app.health.shutil.disk_usage", return_value=(100, 10, 90)
+    ), patch(
+        "app.health.get_snapshots_path"
+    ), patch(
+        "app.health.get_clips_path"
+    ):
+        result = calculate_system_health(config)
+
+    assert result["mqtt_online"] is True
+    return client
+
+
+def test_mqtt_health_uses_canonical_plain_lan_settings_without_mutating_config():
+    config = {
+        "mqtt": {
+            "host": "canonical-mqtt.lan",
+            "port": 2883,
+            "authentication": {"enabled": False},
+            "tls": {"enabled": False},
+        },
+        "frigate": {
+            "frigate_url": "http://frigate",
+            "mqtt_server": "legacy-mqtt.lan",
+            "mqtt_port": 1884,
+        },
+    }
+    original = deepcopy(config)
+
+    client = _run_mqtt_health_probe(config)
+
+    client.connect.assert_called_once_with("canonical-mqtt.lan", 2883, 5)
+    client.username_pw_set.assert_not_called()
+    client.tls_set.assert_not_called()
+    client.tls_insecure_set.assert_not_called()
+    assert config == original
+
+
+@pytest.mark.parametrize("insecure", [True, False])
+def test_mqtt_health_applies_authentication_and_tls(insecure):
+    password = _RedactedSecret("mqtt-health-password")
+    config = {
+        "mqtt": {
+            "host": "secure-mqtt.lan",
+            "authentication": {
+                "enabled": True,
+                "username": "health-user",
+                "password": password,
+            },
+            "tls": {
+                "enabled": True,
+                "ca_certs": "/certs/mqtt-ca.pem",
+                "insecure": insecure,
+            },
+        },
+        "frigate": {"frigate_url": "http://frigate"},
+    }
+
+    client = _run_mqtt_health_probe(config)
+
+    username, configured_password = client.username_pw_set.call_args.args
+    assert username == "health-user"
+    assert configured_password == password
+    client.tls_set.assert_called_once_with(ca_certs="/certs/mqtt-ca.pem")
+    client.tls_insecure_set.assert_called_once_with(insecure)
+
+
+def test_mqtt_health_supports_legacy_settings_through_normalization():
+    password = _RedactedSecret("legacy-mqtt-health-password")
+    config = {
+        "frigate": {
+            "frigate_url": "http://frigate",
+            "mqtt_server": "legacy-mqtt.lan",
+            "mqtt_port": 3883,
+            "mqtt_auth": True,
+            "mqtt_username": "legacy-health-user",
+            "mqtt_password": password,
+            "mqtt_use_tls": True,
+            "mqtt_tls_ca_certs": "/certs/legacy-mqtt-ca.pem",
+            "mqtt_tls_insecure": False,
+        }
+    }
+
+    client = _run_mqtt_health_probe(config)
+
+    client.connect.assert_called_once_with("legacy-mqtt.lan", 3883, 5)
+    username, configured_password = client.username_pw_set.call_args.args
+    assert username == "legacy-health-user"
+    assert configured_password == password
+    client.tls_set.assert_called_once_with(ca_certs="/certs/legacy-mqtt-ca.pem")
+    client.tls_insecure_set.assert_called_once_with(False)
 
 
 def test_health_load_config_uses_config_env_var(monkeypatch, tmp_path):

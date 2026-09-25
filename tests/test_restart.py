@@ -151,6 +151,7 @@ for name in ('PIL', 'PIL.Image', 'PIL.ImageOps'):
 import paho.mqtt.client as mqtt
 class Client:
     def __init__(self, *args, **kwargs): pass
+    def user_data_set(self, userdata): self._userdata = userdata
     def connect(self, *args): pass
     def disconnect(self): pass
     def loop_forever(self):

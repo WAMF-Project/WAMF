@@ -12,6 +12,7 @@ import yaml
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.config_editor import get_config_path
+from app.config_normalization import normalize_config
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PORT = 7767
@@ -143,12 +144,17 @@ def preflight(config):
     if is_placeholder(webui.get('host', '0.0.0.0')):
         raise ValueError('webui.host must be a valid bind address')
     errors = []
+    normalized = normalize_config(config).config
+    mqtt = normalized['mqtt']
     frigate = config.get('frigate') or {}
     if not isinstance(frigate, dict):
         raise ValueError('frigate must be a YAML mapping')
-    for key in ('frigate_url', 'mqtt_server', 'main_topic'):
+    for key in ('frigate_url',):
         if is_placeholder(frigate.get(key)):
             errors.append(f'frigate.{key}')
+    for key in ('host', 'topic_prefix'):
+        if is_placeholder(mqtt.get(key)):
+            errors.append(f'mqtt.{key}')
     try:
         url = urlsplit(str(frigate.get('frigate_url', '')))
         valid_url = url.scheme in ('http', 'https') and url.hostname
@@ -159,10 +165,11 @@ def preflight(config):
     cameras = frigate.get('camera')
     if not isinstance(cameras, list) or not cameras or any(is_placeholder(c) for c in cameras):
         errors.append('frigate.camera')
-    if frigate.get('mqtt_auth'):
-        for key in ('mqtt_username', 'mqtt_password'):
-            if is_placeholder(frigate.get(key)):
-                errors.append(f'frigate.{key}')
+    authentication = mqtt['authentication']
+    if authentication.get('enabled'):
+        for key in ('username', 'password'):
+            if is_placeholder(authentication.get(key)):
+                errors.append(f'mqtt.authentication.{key}')
     classification = config.get('classification') or {}
     if not isinstance(classification, dict):
         errors.append('classification (YAML mapping required)')
@@ -172,9 +179,9 @@ def preflight(config):
         threshold = classification.get('threshold')
         if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
             errors.append('classification.threshold (number from 0 to 1 required)')
-    port = frigate.get('mqtt_port', 1883)
+    port = mqtt.get('port', 1883)
     if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
-        errors.append('frigate.mqtt_port (integer from 1 to 65535 required)')
+        errors.append('mqtt.port (integer from 1 to 65535 required)')
     return errors
 
 

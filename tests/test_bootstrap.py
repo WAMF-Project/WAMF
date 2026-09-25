@@ -1,4 +1,5 @@
 import re
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -129,7 +130,7 @@ def test_preflight_accepts_configured_native_install():
 def test_preflight_reports_example_placeholders():
     config = yaml.safe_load((bootstrap.REPO_ROOT / 'config/config.yml.example').read_text())
     issues = bootstrap.preflight(config)
-    assert 'frigate.mqtt_server' in issues
+    assert 'mqtt.host' in issues
     assert 'frigate.camera' in issues
 
 
@@ -137,13 +138,74 @@ def test_preflight_requires_mqtt_credentials_when_enabled():
     config = configured()
     config['frigate']['mqtt_auth'] = True
     issues = bootstrap.preflight(config)
-    assert 'frigate.mqtt_username' in issues
-    assert 'frigate.mqtt_password' in issues
+    assert 'mqtt.authentication.username' in issues
+    assert 'mqtt.authentication.password' in issues
+
+
+def test_preflight_accepts_canonical_only_mqtt_without_mutating_config():
+    config = configured()
+    config['frigate'].pop('mqtt_server')
+    config['frigate'].pop('main_topic')
+    config['mqtt'] = {
+        'host': 'canonical-broker',
+        'port': 2883,
+        'topic_prefix': 'kingfisher',
+        'authentication': {
+            'enabled': True,
+            'username': 'canonical-user',
+            'password': 'canonical-secret',
+        },
+    }
+    original = deepcopy(config)
+
+    assert bootstrap.preflight(config) == []
+    assert config == original
+
+
+def test_preflight_accepts_legacy_only_mqtt_through_normalization():
+    assert bootstrap.preflight(configured()) == []
+
+
+def test_preflight_canonical_mqtt_wins_over_conflicting_legacy_values():
+    config = configured()
+    config['frigate'].update(
+        mqtt_server='',
+        mqtt_port=0,
+        main_topic='',
+        mqtt_auth=True,
+        mqtt_username='',
+        mqtt_password='',
+    )
+    config['mqtt'] = {
+        'host': 'canonical-broker',
+        'port': 2883,
+        'topic_prefix': 'kingfisher',
+        'authentication': {'enabled': False},
+    }
+
+    assert bootstrap.preflight(config) == []
+
+
+def test_preflight_reports_missing_canonical_mqtt_without_exposing_secret():
+    secret = 'SENTINEL-MQTT-PASSWORD'
+    config = configured()
+    config['frigate'].pop('mqtt_server')
+    config['frigate'].pop('main_topic')
+    config['mqtt'] = {
+        'authentication': {'enabled': True, 'password': secret},
+    }
+
+    issues = bootstrap.preflight(config)
+
+    assert 'mqtt.host' in issues
+    assert 'mqtt.topic_prefix' in issues
+    assert 'mqtt.authentication.username' in issues
+    assert secret not in repr(issues)
 
 
 def test_native_preflight_returns_setup_issues(config_path, capsys):
     config_path.write_text((bootstrap.REPO_ROOT / 'config/config.yml.example').read_text())
-    assert 'frigate.mqtt_server' in bootstrap.prepare_native_startup()
+    assert 'mqtt.host' in bootstrap.prepare_native_startup()
     assert 'temporary admin password' in capsys.readouterr().out
     assert 'frigate.camera' in bootstrap.prepare_native_startup()
     assert capsys.readouterr().out == ''

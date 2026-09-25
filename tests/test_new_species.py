@@ -6,10 +6,12 @@ not available in the test environment. We patch them in sys.modules before
 importing speciesid so only the functions we care about are exercised.
 """
 
+import inspect
 import json
 import os
 import sqlite3
 import sys
+from copy import deepcopy
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -423,6 +425,111 @@ def test_classifier_and_callbacks_ready_before_mqtt_connect(monkeypatch, tmp_pat
         client.connect.assert_called_once_with('localhost', 1883)
         client.loop_forever.assert_called_once()
         initialize.assert_called_once_with(speciesid.REPO_ROOT / 'model.tflite')
+
+
+def test_canonical_mqtt_settings_configure_connection_and_subscription(monkeypatch):
+    source = {
+        "classification": {"model": "model.tflite"},
+        "mqtt": {
+            "host": "canonical-broker",
+            "port": 2883,
+            "topic_prefix": "kingfisher",
+        },
+        "frigate": {
+            "mqtt_server": "legacy-broker",
+            "mqtt_port": 1884,
+            "main_topic": "legacy-topic",
+        },
+    }
+    original = deepcopy(source)
+    monkeypatch.setattr(speciesid, "config", source)
+
+    with patch("speciesid.initialize_classifier"), patch(
+        "speciesid.mqtt.Client"
+    ) as factory, patch("speciesid.log_system_event"):
+        client = factory.return_value
+        speciesid.run_mqtt_client()
+        settings = client.user_data_set.call_args.args[0]
+        speciesid.on_connect(client, settings, {}, 0)
+
+    client.connect.assert_called_once_with("canonical-broker", 2883)
+    client.subscribe.assert_called_once_with("kingfisher/events")
+    client.username_pw_set.assert_not_called()
+    client.tls_set.assert_not_called()
+    client.tls_insecure_set.assert_not_called()
+    assert source == original
+
+
+def test_mqtt_authentication_is_applied_only_when_enabled(monkeypatch):
+    monkeypatch.setattr(speciesid, "config", {
+        "classification": {"model": "model.tflite"},
+        "mqtt": {
+            "host": "secure-broker",
+            "authentication": {
+                "enabled": True,
+                "username": "bird-user",
+                "password": "secret-password",
+            },
+        },
+    })
+
+    with patch("speciesid.initialize_classifier"), patch(
+        "speciesid.mqtt.Client"
+    ) as factory:
+        speciesid.run_mqtt_client()
+
+    factory.return_value.username_pw_set.assert_called_once_with(
+        "bird-user", "secret-password"
+    )
+
+
+@pytest.mark.parametrize("insecure", [True, False])
+def test_mqtt_tls_configuration_preserves_insecure_setting(monkeypatch, insecure):
+    monkeypatch.setattr(speciesid, "config", {
+        "classification": {"model": "model.tflite"},
+        "mqtt": {
+            "host": "tls-broker",
+            "tls": {
+                "enabled": True,
+                "ca_certs": "/certs/ca.pem",
+                "insecure": insecure,
+            },
+        },
+    })
+
+    with patch("speciesid.initialize_classifier"), patch(
+        "speciesid.mqtt.Client"
+    ) as factory:
+        speciesid.run_mqtt_client()
+
+    client = factory.return_value
+    client.tls_set.assert_called_once_with(ca_certs="/certs/ca.pem")
+    client.tls_insecure_set.assert_called_once_with(insecure)
+
+
+def test_speciesid_mqtt_setup_contains_no_legacy_alias_resolution():
+    source = "\n".join(
+        inspect.getsource(function)
+        for function in (
+            speciesid._mqtt_runtime_settings,
+            speciesid.run_mqtt_client,
+            speciesid.on_connect,
+            speciesid._on_message_inner,
+        )
+    )
+
+    for legacy_key in (
+        "mqtt_server",
+        "mqtt_port",
+        "mqtt_auth",
+        "mqtt_username",
+        "mqtt_password",
+        "mqtt_use_tls",
+        "mqtt_tls_ca_certs",
+        "mqtt_tls_insecure",
+        "main_topic",
+    ):
+        assert legacy_key not in source
 
 
 def test_refused_mqtt_connection_is_not_reported_as_connected():

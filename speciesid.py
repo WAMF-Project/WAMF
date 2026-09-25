@@ -32,6 +32,8 @@ from version import VERSION
 from app.db import connect_db, ensure_schema
 from app.config_editor import get_config_path
 from app.process_control import WorkerSupervisor, configure_worker_signals
+from app.config_normalization import normalize_config
+from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
 from wamf_paths import ensure_storage_paths
 from integrations.bridge import post_observation_event
 from app.health import start_health_monitor, set_detection_worker_enabled
@@ -46,8 +48,6 @@ logger = logging.getLogger(__name__)
 
 # Optional test/explicit override. None keeps config resolution dynamic.
 DBPATH = None
-DEFAULT_MQTT_PORT = 1883
-DEFAULT_INSECURE_TLS = False
 CLASSIFIER_MAX_RESULTS = 5
 CLASSIFIER_SCORE_THRESHOLD = 0.05
 
@@ -148,8 +148,8 @@ def on_connect(client, userdata, flags, rc):
         message="MQTT connected"
     )
 
-    # we are going subscribe to frigate/events and look for bird detections there
-    client.subscribe(config['frigate']['main_topic'] + "/events")
+    settings = _mqtt_runtime_settings(userdata)
+    client.subscribe(f"{settings.topic_prefix}/events")
 
 
 def on_subscribe(client, userdata, mid, granted_qos):
@@ -305,7 +305,8 @@ def on_message(client, userdata, message):
 
 def _on_message_inner(client, userdata, message):
 
-    expected_topic = config['frigate'].get('main_topic', 'frigate') + '/events'
+    settings = _mqtt_runtime_settings(userdata)
+    expected_topic = f"{settings.topic_prefix}/events"
     if message.retain or message.topic != expected_topic:
         return
 
@@ -798,6 +799,12 @@ def load_config():
         )
 
 
+def _mqtt_runtime_settings(userdata=None):
+    if isinstance(userdata, MqttSettings):
+        return userdata
+    return mqtt_settings_from_config(normalize_config(config).config)
+
+
 def run_webui():
     configure_worker_signals()
     logger.info("Starting Flask app")
@@ -815,6 +822,8 @@ def run_webui():
 def run_mqtt_client():
     configure_worker_signals()
 
+    settings = _mqtt_runtime_settings()
+
     initialize_classifier(
         REPO_ROOT / Path(config['classification']['model']).expanduser()
     )
@@ -822,7 +831,7 @@ def run_mqtt_client():
     logger.info("Classifier initialized in MQTT subprocess")
     logger.info(
         "Starting MQTT client. Connecting to: %s",
-        config['frigate']['mqtt_server'],
+        settings.host,
     )
 
     now = datetime.now()
@@ -834,49 +843,26 @@ def run_mqtt_client():
     client = mqtt.Client(
         "birdspeciesid" + current_time
     )
+    client.user_data_set(settings)
 
     client.on_message = on_message
     client.on_subscribe = on_subscribe
     client.on_disconnect = on_disconnect
     client.on_connect = on_connect
 
-    if config['frigate'].get('mqtt_auth', False):
-
-        username = config['frigate']['mqtt_username']
-
-        password = config['frigate']['mqtt_password']
-
+    if settings.authentication_enabled:
         client.username_pw_set(
-            username,
-            password
+            settings.username,
+            settings.password
         )
 
-    mqtt_port = config['frigate'].get(
-        'mqtt_port',
-        DEFAULT_MQTT_PORT
-    )
-
-    if config['frigate'].get(
-        'mqtt_use_tls',
-        False
-    ):
-
-        ca_certs = config['frigate'].get(
-            'mqtt_tls_ca_certs'
-        )
-
-        client.tls_set(ca_certs)
-
-        client.tls_insecure_set(
-            config['frigate'].get(
-                'mqtt_tls_insecure',
-                DEFAULT_INSECURE_TLS
-            )
-        )
+    if settings.tls_enabled:
+        client.tls_set(ca_certs=settings.ca_certs)
+        client.tls_insecure_set(settings.tls_insecure)
 
     client.connect(
-        config['frigate']['mqtt_server'],
-        mqtt_port
+        settings.host,
+        settings.port
     )
 
     client.loop_forever()
