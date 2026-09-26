@@ -1,16 +1,11 @@
 """
 Tests for the MQTT new-species-ever notification feature.
-
-speciesid.py has heavy ML imports (numpy, cv2, ai-edge-litert, PIL) that are
-not available in the test environment. We patch them in sys.modules before
-importing speciesid so only the functions we care about are exercised.
 """
 
 import inspect
 import json
 import os
 import sqlite3
-import sys
 from copy import deepcopy
 from unittest.mock import MagicMock, patch
 
@@ -19,21 +14,6 @@ import pytest
 # webui calls load_config() at module level; point it at the example config
 # so it doesn't fail when speciesid (which imports webui) is imported here.
 os.environ.setdefault("WHOSATMYFEEDER_CONFIG", "config/config.yml.example")
-
-# Patch heavy ML deps before importing speciesid (not available in test env)
-for _mod in [
-    "numpy",
-    "cv2",
-    "ai_edge_litert",
-    "ai_edge_litert.interpreter",
-    "PIL",
-    "PIL.Image",
-    "PIL.ImageOps",
-    "paho",
-    "paho.mqtt",
-    "paho.mqtt.client",
-]:
-    sys.modules.setdefault(_mod, MagicMock())
 
 import speciesid  # noqa: E402
 
@@ -51,14 +31,17 @@ def preserve_health_worker_state(monkeypatch):
 
 def test_load_config_uses_shared_config_path(monkeypatch, tmp_path):
     config_path = tmp_path / "mounted-config.yml"
-    config_path.write_text("frigate:\n  server: http://frigate:5000\n")
+    config_path.write_text("frigate:\n  frigate_url: http://frigate:5000\n")
     monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
 
-    speciesid.load_config()
+    with patch("speciesid.FrigateClient") as client_factory:
+        speciesid.load_config()
 
     assert speciesid.config == {
-        "frigate": {"server": "http://frigate:5000"},
+        "frigate": {"frigate_url": "http://frigate:5000"},
     }
+    client_factory.assert_called_once_with("http://frigate:5000")
+    assert speciesid.frigate_client is client_factory.return_value
 
 
 # ---------------------------------------------------------------------------
@@ -355,9 +338,8 @@ def test_threshold_gating(fresh_db, score, threshold, expect_write):
         }
     )
 
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.content = b"fakejpegdata"
+    mock_frigate = MagicMock()
+    mock_frigate.get_event_snapshot.return_value = b"fakejpegdata"
 
     mock_image = MagicMock()
     mock_image.size = (100, 100)
@@ -370,8 +352,8 @@ def test_threshold_gating(fresh_db, score, threshold, expect_write):
 
     client = MagicMock()
 
-    with patch.object(speciesid, "DBPATH", fresh_db), patch(
-        "speciesid.requests.get", return_value=mock_response
+    with patch.object(speciesid, "DBPATH", fresh_db), patch.object(
+        speciesid, "frigate_client", mock_frigate
     ), patch("speciesid.Image") as mock_Image, patch(
         "speciesid.classify", return_value=[fake_category]
     ), patch(
@@ -382,9 +364,15 @@ def test_threshold_gating(fresh_db, score, threshold, expect_write):
         "speciesid.archive_clip", return_value=None
     ), patch(
         "speciesid.set_sublabel"
-    ):
+    ) as mock_set_sublabel:
         mock_Image.open.return_value = mock_image
         speciesid.on_message(client, None, message)
+
+    mock_frigate.get_event_snapshot.assert_called_once_with(
+        "evt-threshold-test", crop=True, quality=95
+    )
+    snapshot_file = mock_Image.open.call_args.args[0]
+    assert snapshot_file.getvalue() == b"fakejpegdata"
 
     conn = sqlite3.connect(fresh_db)
     cursor = conn.cursor()
@@ -394,9 +382,79 @@ def test_threshold_gating(fresh_db, score, threshold, expect_write):
 
     if expect_write:
         assert count == 1
+        mock_set_sublabel.assert_called_once_with(
+            mock_frigate, "evt-threshold-test", "American Robin"
+        )
     else:
         assert count == 0
         client.publish.assert_not_called()
+        mock_set_sublabel.assert_not_called()
+
+
+def test_snapshot_frigate_error_skips_classification(fresh_db, caplog):
+    speciesid.config = {
+        "frigate": {
+            "camera": ["birdcam"],
+            "frigate_url": "http://frigate:5000",
+        },
+        "classification": {"threshold": 0.7},
+    }
+    message = MagicMock(
+        retain=False,
+        topic="frigate/events",
+        payload=json.dumps(
+            {
+                "type": "new",
+                "after": {
+                    "camera": "birdcam",
+                    "label": "bird",
+                    "id": "evt-snapshot-error",
+                    "start_time": 1700000000.0,
+                },
+            }
+        ),
+    )
+    mock_frigate = MagicMock()
+    mock_frigate.get_event_snapshot.side_effect = speciesid.FrigateError(
+        "snapshot unavailable"
+    )
+
+    with patch.object(speciesid, "DBPATH", fresh_db), patch.object(
+        speciesid, "frigate_client", mock_frigate
+    ), patch("speciesid.classify") as classify:
+        speciesid.on_message(MagicMock(), None, message)
+
+    mock_frigate.get_event_snapshot.assert_called_once_with(
+        "evt-snapshot-error", crop=True, quality=95
+    )
+    classify.assert_not_called()
+    assert "Could not retrieve image due to request error" in caplog.text
+
+
+def test_set_sublabel_uses_frigate_client_and_logs_success(caplog):
+    caplog.set_level("INFO")
+    client = MagicMock()
+
+    speciesid.set_sublabel(client, "evt-001", "Black-capped Chickadee")
+
+    client.set_event_sub_label.assert_called_once_with(
+        "evt-001", "Black-capped Chickadee"
+    )
+    assert "Sublabel set successfully to: Black-capped Chickad" in caplog.text
+
+
+def test_set_sublabel_frigate_error_is_logged_and_suppressed(caplog):
+    client = MagicMock()
+    client.set_event_sub_label.side_effect = speciesid.FrigateError(
+        "sublabel unavailable"
+    )
+
+    speciesid.set_sublabel(client, "evt-001", "American Robin")
+
+    client.set_event_sub_label.assert_called_once_with(
+        "evt-001", "American Robin"
+    )
+    assert "Failed to set sublabel due to request error" in caplog.text
 
 
 def test_webui_default_port_is_7767(monkeypatch):

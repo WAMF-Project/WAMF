@@ -107,9 +107,9 @@ def test_classifier_filters_sorts_and_limits_results():
 
 
 def test_event_pipeline_directly_resizes_golden_snapshot(tmp_path):
-    response = MagicMock(
-        status_code=200,
-        content=GOLDEN_SNAPSHOT_PATH.read_bytes(),
+    frigate_client = MagicMock()
+    frigate_client.get_event_snapshot.return_value = (
+        GOLDEN_SNAPSHOT_PATH.read_bytes()
     )
     message = MagicMock(
         retain=False,
@@ -141,10 +141,18 @@ def test_event_pipeline_directly_resizes_golden_snapshot(tmp_path):
 
     with patch.object(speciesid, 'config', config), patch.object(
         speciesid, 'DBPATH', tmp_path / 'speciesid.db'
-    ), patch('speciesid.requests.get', return_value=response), patch(
+    ), patch.object(
+        speciesid, 'frigate_client', frigate_client
+    ), patch(
         'speciesid.classify', return_value=[background]
     ) as classify:
         speciesid._on_message_inner(MagicMock(), None, message)
+
+    frigate_client.get_event_snapshot.assert_called_once_with(
+        'golden-preprocessing',
+        crop=True,
+        quality=95,
+    )
 
     classified_image = classify.call_args.args[0]
     source = Image.open(GOLDEN_SNAPSHOT_PATH).convert('RGB')

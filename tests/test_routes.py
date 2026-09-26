@@ -168,6 +168,21 @@ def test_index_preserves_overview_links_modals_and_live_polling(flask_client):
     assert b"setInterval(poll, POLL_MS)" in response.data
 
 
+def test_index_polling_uses_wamf_owned_media(flask_client):
+    response = flask_client.get("/")
+
+    assert response.status_code == 200
+    assert b"/media/snapshots/${encodeURIComponent(d.snapshot_file)}" in response.data
+    assert b"/media/clips/${encodeURIComponent(d.clip_file)}" in response.data
+    assert b"const snapshotUrl = d.snapshot_file" in response.data
+    assert b"const clipUrl = d.clip_file" in response.data
+    assert b"image.src = snapshotUrl" in response.data
+    assert b"showSnapshot(snapshotUrl, clipUrl, d.frigate_event)" in response.data
+    assert b'document.createElement(snapshotUrl ? "button" : "div")' in response.data
+    assert b'image.src = "/static/images/default-bird.jpg"' in response.data
+    assert b"/frigate/${d.frigate_event}" not in response.data
+
+
 def test_overview_species_names_link_to_profiles(flask_client):
     response = flask_client.get("/")
 
@@ -254,6 +269,11 @@ def test_expected_blueprint_endpoints_are_registered(flask_client):
         "media.wamf_snapshot",
         "media.wamf_clip",
     }.issubset(endpoints)
+    assert {
+        "media.frigate_thumbnail",
+        "media.frigate_snapshot",
+        "media.frigate_clip",
+    }.isdisjoint(endpoints)
 
 
 def test_public_pages_do_not_run_admin_health_checks(flask_client, monkeypatch):
@@ -633,6 +653,8 @@ def test_api_recent_detections_default(flask_client):
     data = json.loads(response.data)
     assert isinstance(data, list)
     assert len(data) <= 5
+    assert data
+    assert {"snapshot_file", "clip_file", "frigate_event"}.issubset(data[0])
 
 
 def test_api_recent_detections_custom_limit(flask_client):
@@ -731,40 +753,6 @@ def test_detections_by_hour_returns_200(flask_client):
 
 def test_detections_by_hour_empty_hour_returns_200(flask_client):
     response = flask_client.get("/detections/by_hour/2024-06-01/23")
-    assert response.status_code == 200
-
-
-# ---------------------------------------------------------------------------
-# /frigate proxy routes — timeout / error handling
-# ---------------------------------------------------------------------------
-
-def test_frigate_thumbnail_timeout_returns_fallback(flask_client, monkeypatch):
-    """A timeout on the Frigate request returns the 1x1 fallback, not 500."""
-    import requests as req
-    def fake_get(*a, **kw):
-        raise req.exceptions.Timeout("timed out")
-    monkeypatch.setattr("app.frigate_proxy.requests.get", fake_get)
-    response = flask_client.get("/frigate/evt-test/thumbnail.jpg")
-    assert response.status_code == 200
-    assert response.content_type == "image/png"
-
-
-def test_frigate_snapshot_timeout_returns_fallback(flask_client, monkeypatch):
-    import requests as req
-    def fake_get(*a, **kw):
-        raise req.exceptions.Timeout("timed out")
-    monkeypatch.setattr("app.frigate_proxy.requests.get", fake_get)
-    response = flask_client.get("/frigate/evt-test/snapshot.jpg")
-    assert response.status_code == 200
-    assert response.content_type == "image/png"
-
-
-def test_frigate_clip_timeout_returns_fallback(flask_client, monkeypatch):
-    import requests as req
-    def fake_get(*a, **kw):
-        raise req.exceptions.Timeout("timed out")
-    monkeypatch.setattr("app.frigate_proxy.requests.get", fake_get)
-    response = flask_client.get("/frigate/evt-test/clip.mp4")
     assert response.status_code == 200
 
 

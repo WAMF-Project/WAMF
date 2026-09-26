@@ -5,6 +5,7 @@ import pytest
 import yaml
 
 import app.health as health_module
+from app.frigate_client import FrigateError
 from app.health import (
     calculate_system_health,
     get_system_health,
@@ -49,7 +50,7 @@ class _RedactedSecret(str):
 def _run_mqtt_health_probe(config):
     client = MagicMock()
     with patch("app.health.preflight", return_value=[]), patch(
-        "app.health.requests.get"
+        "app.health.FrigateClient"
     ), patch("app.health.mqtt.Client", return_value=client), patch(
         "app.health.connect_db"
     ), patch(
@@ -63,6 +64,54 @@ def _run_mqtt_health_probe(config):
 
     assert result["mqtt_online"] is True
     return client
+
+
+def _run_frigate_health_probe(config, *, version="0.14.1", error=None):
+    frigate_client = MagicMock()
+    if error is None:
+        frigate_client.get_version.return_value = version
+    else:
+        frigate_client.get_version.side_effect = error
+
+    with patch("app.health.preflight", return_value=[]), patch(
+        "app.health.FrigateClient", return_value=frigate_client
+    ) as client_class, patch("app.health.mqtt.Client"), patch(
+        "app.health.connect_db"
+    ), patch(
+        "app.health.shutil.disk_usage", return_value=(100, 10, 90)
+    ), patch(
+        "app.health.get_snapshots_path"
+    ) as snapshots, patch(
+        "app.health.get_clips_path"
+    ) as clips:
+        snapshots.return_value.exists.return_value = True
+        clips.return_value.exists.return_value = True
+        result = calculate_system_health(config)
+
+    return result, client_class, frigate_client
+
+
+def test_frigate_health_uses_configured_url_and_success_is_healthy():
+    config = {"frigate": {"frigate_url": "http://configured-frigate:5000"}}
+
+    result, client_class, frigate_client = _run_frigate_health_probe(
+        config,
+        version="",
+    )
+
+    client_class.assert_called_once_with("http://configured-frigate:5000")
+    frigate_client.get_version.assert_called_once_with()
+    assert result["frigate_online"] is True
+
+
+def test_frigate_health_is_unhealthy_on_frigate_error():
+    result, _, frigate_client = _run_frigate_health_probe(
+        {"frigate": {"frigate_url": "http://frigate"}},
+        error=FrigateError("Frigate version request failed"),
+    )
+
+    frigate_client.get_version.assert_called_once_with()
+    assert result["frigate_online"] is False
 
 
 def test_mqtt_health_uses_canonical_plain_lan_settings_without_mutating_config():
@@ -222,7 +271,7 @@ def test_overall_health_state_uses_existing_check_results():
 def test_health_calculation_does_not_record_transition():
     with patch("app.health.load_config", return_value={"frigate": {}}), patch(
         "app.health.record_health_transition"
-    ) as mock_record, patch("app.health.requests.get"), patch(
+    ) as mock_record, patch("app.health.FrigateClient"), patch(
         "app.health.mqtt.Client"
     ), patch(
         "app.health.connect_db"

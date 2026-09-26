@@ -1,19 +1,20 @@
 import logging
 import math
+import shutil
 import sqlite3
 import threading
 
-import requests
-import yaml
 import paho.mqtt.client as mqtt
-import shutil
-from app.config_editor import get_config_path
+import yaml
+
 from app.bootstrap import preflight
+from app.config_editor import get_config_path
 from app.config_normalization import normalize_config
 from app.db import connect_db
+from app.frigate_client import FrigateClient, FrigateError
 from app.mqtt_settings import mqtt_settings_from_config
-from wamf_paths import get_clips_path, get_snapshots_path
 from integrations.bridge import post_health_event
+from wamf_paths import get_clips_path, get_snapshots_path
 
 # Optional test/explicit override. None keeps config resolution dynamic.
 DB_PATH = None
@@ -140,14 +141,10 @@ def calculate_system_health(config=None):
 
         # Frigate connectivity
         try:
-
-            response = requests.get(f"{frigate_url}/api/version", timeout=5)
-
-            health["frigate_online"] = response.status_code == 200
-
-        except requests.exceptions.RequestException as exc:
+            FrigateClient(frigate_url).get_version()
+            health["frigate_online"] = True
+        except FrigateError as exc:
             logger.debug("Frigate health check failed: %s", exc)
-
             health["frigate_online"] = False
 
         # MQTT connectivity

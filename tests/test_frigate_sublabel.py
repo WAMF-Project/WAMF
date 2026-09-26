@@ -156,9 +156,8 @@ def _run_on_message(fresh_db, wamf_score, sub_label=None, event_id='evt-fallback
         }
     })
 
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.content = b'fakejpegdata'
+    mock_frigate = MagicMock()
+    mock_frigate.get_event_snapshot.return_value = b'fakejpegdata'
 
     mock_image = MagicMock()
     mock_image.size = (100, 100)
@@ -172,7 +171,7 @@ def _run_on_message(fresh_db, wamf_score, sub_label=None, event_id='evt-fallback
     client = MagicMock()
 
     with patch.object(speciesid, 'DBPATH', fresh_db), \
-         patch('speciesid.requests.get', return_value=mock_response), \
+         patch.object(speciesid, 'frigate_client', mock_frigate), \
          patch('speciesid.Image') as mock_Image, \
          patch('speciesid.classify', return_value=[fake_category]), \
          patch('speciesid.get_common_name', return_value='American Robin'), \

@@ -2,6 +2,8 @@ import logging
 import time
 
 import requests
+
+from app.frigate_client import FrigateClient, FrigateError
 from app.system_events import log_system_event
 from wamf_paths import ensure_storage_paths, get_clips_path, get_snapshots_path
 
@@ -14,10 +16,6 @@ def archive_snapshot(
 ) -> str | None:
 
     ensure_storage_paths()
-    snapshot_url = (
-        f"{frigate_url}/api/events/"
-        f"{frigate_event}/snapshot.jpg"
-    )
 
     destination = (
         get_snapshots_path()
@@ -26,28 +24,26 @@ def archive_snapshot(
 
     try:
 
-        response = requests.get(
-            snapshot_url,
-            timeout=10
+        snapshot = FrigateClient(frigate_url).get_event_snapshot(
+            frigate_event
         )
 
-        if response.status_code != 200:
-
-            logger.warning(
-                f"Snapshot download failed: "
-                f"{response.status_code}"
-            )
-
-            return None
-
         with open(destination, "wb") as f:
-            f.write(response.content)
+            f.write(snapshot)
 
         logger.info("Archived snapshot: %s", destination)
 
         return str(destination)
 
-    except requests.exceptions.RequestException as e:
+    except FrigateError as e:
+
+        if e.status_code is not None:
+            logger.warning(
+                f"Snapshot download failed: "
+                f"{e.status_code}"
+            )
+
+            return None
 
         logger.warning("Snapshot archive request error: %s", e)
 
@@ -66,10 +62,6 @@ def archive_clip(
 ) -> str | None:
 
     ensure_storage_paths()
-    clip_url = (
-        f"{frigate_url}/api/events/"
-        f"{frigate_event}/clip.mp4"
-    )
 
     destination = (
         get_clips_path()
@@ -78,16 +70,20 @@ def archive_clip(
 
     try:
 
+        client = FrigateClient(frigate_url)
+
         for attempt in range(10):
 
-            response = requests.get(
-                clip_url,
-                timeout=30,
-                stream=True
-            )
-
-            if response.status_code == 200:
+            try:
+                response = client.stream_event_media(
+                    frigate_event,
+                    "clip.mp4",
+                )
                 break
+            except FrigateError as e:
+                if e.status_code is None:
+                    raise
+                status_code = e.status_code
 
             logger.info(
                 "Clip not ready yet for event %s (attempt %s)",
@@ -110,7 +106,7 @@ def archive_clip(
             logger.error(
                 "Clip download failed for event %s: %s",
                 frigate_event,
-                response.status_code,
+                status_code,
             )
 
             log_system_event(
@@ -122,14 +118,17 @@ def archive_clip(
 
             return None
 
-        with open(destination, "wb") as f:
+        try:
+            with open(destination, "wb") as f:
 
-            for chunk in response.iter_content(
-                chunk_size=8192
-            ):
+                for chunk in response.iter_content(
+                    chunk_size=8192
+                ):
 
-                if chunk:
-                    f.write(chunk)
+                    if chunk:
+                        f.write(chunk)
+        finally:
+            response.close()
 
         logger.info("Archived clip: %s", destination)
 
@@ -142,7 +141,7 @@ def archive_clip(
 
         return str(destination)
 
-    except requests.exceptions.RequestException as e:
+    except (FrigateError, requests.exceptions.RequestException) as e:
 
         logger.warning("Clip archive request error: %s", e)
 

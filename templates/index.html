@@ -278,9 +278,12 @@
     }
 
     function buildRow(d) {
-      const thumbUrl = `/frigate/${d.frigate_event}/thumbnail.jpg`;
-      const snapUrl = `/frigate/${d.frigate_event}/snapshot.jpg`;
-      const clipUrl = `/frigate/${d.frigate_event}/clip.mp4`;
+      const snapshotUrl = d.snapshot_file
+        ? `/media/snapshots/${encodeURIComponent(d.snapshot_file)}`
+        : "";
+      const clipUrl = d.clip_file
+        ? `/media/clips/${encodeURIComponent(d.clip_file)}`
+        : "";
       const speciesUrl = `/species/${encodeURIComponent(d.display_name)}`;
       const detectedAt = formatDetectionTime(d.detection_time);
 
@@ -289,19 +292,27 @@
       card.dataset.detectionTime = d.detection_time;
       card.classList.add("overview-detection-card", "new-detection");
 
-      const media = document.createElement("button");
-      media.type = "button";
-      media.className = "overview-detection-media";
-      media.setAttribute("aria-label", `Open snapshot for ${d.common_name}`);
-      media.addEventListener("click", () => {
-        showSnapshot(snapUrl, clipUrl, d.frigate_event);
-      });
-
+      const media = document.createElement(snapshotUrl ? "button" : "div");
+      media.className = snapshotUrl
+        ? "overview-detection-media"
+        : "overview-detection-media overview-detection-media-placeholder";
       const image = document.createElement("img");
-      image.src = thumbUrl;
-      image.alt = `${d.common_name} detection`;
       image.className = "overview-detection-image";
-      image.addEventListener("load", () => checkTransparentImage(image));
+
+      if (snapshotUrl) {
+        media.type = "button";
+        media.setAttribute("aria-label", `Open snapshot for ${d.common_name}`);
+        media.addEventListener("click", () => {
+          showSnapshot(snapshotUrl, clipUrl, d.frigate_event);
+        });
+        image.src = snapshotUrl;
+        image.alt = `${d.common_name} detection`;
+        image.addEventListener("load", () => checkTransparentImage(image));
+      } else {
+        image.src = "/static/images/default-bird.jpg";
+        image.alt = "";
+      }
+
       media.append(image);
 
       const body = document.createElement("div");

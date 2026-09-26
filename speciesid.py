@@ -19,7 +19,6 @@ import yaml
 from webui import app
 import sys
 import json
-import requests
 from PIL import Image
 from io import BytesIO
 from app.queries import get_common_name, get_scientific_name
@@ -37,6 +36,7 @@ from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
 from wamf_paths import ensure_storage_paths
 from integrations.bridge import post_observation_event
 from app.health import start_health_monitor, set_detection_worker_enabled
+from app.frigate_client import FrigateClient, FrigateError
 
 classifier = None
 classifier_input = None
@@ -44,6 +44,7 @@ classifier_output = None
 classifier_display_names = None
 classifier_category_names = None
 config = None
+frigate_client = None
 logger = logging.getLogger(__name__)
 
 # Optional test/explicit override. None keeps config resolution dynamic.
@@ -229,44 +230,14 @@ def publish_new_species(client, common_name, scientific_name, score, camera_name
     )
 
 
-def set_sublabel(frigate_url, frigate_event, sublabel):
-
-    post_url = (
-        frigate_url
-        + "/api/events/"
-        + frigate_event
-        + "/sub_label"
-    )
-
-    # frigate limits sublabels to 20 characters currently
-    if len(sublabel) > 20:
-        sublabel = sublabel[:20]
-
-    payload = {
-        "subLabel": sublabel
-    }
-
-    headers = {
-        "Content-Type": "application/json"
-    }
-
+def set_sublabel(client, frigate_event, sublabel):
     try:
-        response = requests.post(
-            post_url,
-            data=json.dumps(payload),
-            headers=headers,
-            timeout=2
-        )
-
-    except requests.exceptions.RequestException as e:
+        client.set_event_sub_label(frigate_event, sublabel)
+    except FrigateError as e:
         logger.warning("Failed to set sublabel due to request error: %s", e)
         return
 
-    if response.status_code == 200:
-        logger.info("Sublabel set successfully to: %s", sublabel)
-
-    else:
-        logger.warning("Failed to set sublabel. Status code: %s", response.status_code)
+    logger.info("Sublabel set successfully to: %s", sublabel[:20])
 
 
 def commit_detection(conn, pending_observation=None):
@@ -295,7 +266,6 @@ def on_message(client, userdata, message):
         TypeError,
         ValueError,
         sqlite3.Error,
-        requests.exceptions.RequestException,
         OSError,
         AttributeError,
     ) as e:
@@ -337,43 +307,26 @@ def _on_message_inner(client, userdata, message):
 
             frigate_url = config['frigate']['frigate_url']
 
-            snapshot_url = (
-                frigate_url
-                + "/api/events/"
-                + frigate_event
-                + "/snapshot.jpg"
-            )
-
             logger.info("Getting image for event: %s", frigate_event)
-            logger.debug("Snapshot URL: %s", snapshot_url)
-
-            params = {
-                "crop": 1,
-                "quality": 95
-            }
 
             logger.info("Fetching snapshot")
 
             try:
-
-                response = requests.get(
-                    snapshot_url,
-                    params=params,
-                    timeout=2
+                snapshot = frigate_client.get_event_snapshot(
+                    frigate_event,
+                    crop=True,
+                    quality=95,
                 )
-
-            except requests.exceptions.RequestException as e:
-
+            except FrigateError as e:
                 logger.warning("Could not retrieve image due to request error: %s", e)
-
                 return
 
-            logger.info("Snapshot HTTP %s", response.status_code)
+            logger.info("Snapshot HTTP 200")
 
-            if response.status_code == 200:
+            if snapshot is not None:
 
                 image = Image.open(
-                    BytesIO(response.content)
+                    BytesIO(snapshot)
                 ).convert("RGB")
 
                 image = image.resize((224, 224))
@@ -525,7 +478,7 @@ def _on_message_inner(client, userdata, message):
                         }
 
                         set_sublabel(
-                            frigate_url,
+                            frigate_client,
                             frigate_event,
                             common_name
                         )
@@ -589,7 +542,7 @@ def _on_message_inner(client, userdata, message):
                             )
 
                             set_sublabel(
-                                frigate_url,
+                                frigate_client,
                                 frigate_event,
                                 common_name
                             )
@@ -711,7 +664,7 @@ def _on_message_inner(client, userdata, message):
                                 }
 
                                 set_sublabel(
-                                    frigate_url,
+                                    frigate_client,
                                     frigate_event,
                                     frigate_common
                                 )
@@ -764,19 +717,12 @@ def _on_message_inner(client, userdata, message):
                                     )
 
                                     set_sublabel(
-                                        frigate_url,
+                                        frigate_client,
                                         frigate_event,
                                         frigate_common
                                     )
 
                             commit_detection(conn, pending_observation)
-
-            else:
-
-                logger.warning(
-                    "Could not retrieve image. Status code: %s",
-                    response.status_code,
-                )
 
     finally:
         conn.close()
@@ -791,12 +737,15 @@ def setupdb():
 def load_config():
 
     global config
+    global frigate_client
 
     with open(get_config_path(), 'r') as config_file:
 
         config = yaml.safe_load(
             config_file
         )
+
+    frigate_client = FrigateClient(config['frigate']['frigate_url'])
 
 
 def _mqtt_runtime_settings(userdata=None):
