@@ -5,11 +5,13 @@ from pathlib import Path
 
 import yaml
 
+from app.config_migration import migrate_config, require_structurally_valid_migration
 from app.config_persistence import (
     ConfigPersistenceTransaction,
     get_config_backup_paths as _get_config_backup_paths,
     prune_config_backups as _prune_config_backups,
 )
+from app.config_validation import validate_config
 
 
 SENSITIVE_CONFIG_BLOCKS = {'admin', 'api'}
@@ -122,10 +124,13 @@ def _persist_composed_config(transaction, config_content, admin_config, api_conf
         api_config,
     )
     final_config = load_config_from_content(final_content)
+    migration = migrate_config(final_config)
+    validation = validate_config(migration.config)
+    require_structurally_valid_migration(migration, validation)
     transaction.write(
-        final_config,
-        backup_limit=get_config_backups_max_files(final_config),
-        rendered_content=final_content,
+        migration.config,
+        backup_limit=get_config_backups_max_files(migration.config),
+        rendered_content=None if migration.migrated else final_content,
     )
 
 

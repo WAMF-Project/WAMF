@@ -116,6 +116,7 @@ def serve_admin(self, **kwargs):
     import webui
     from app import bootstrap, health
     from app.config_editor import get_config_path
+    from app.config_migration import CURRENT_CONFIG_VERSION, LEGACY_MQTT_LEAVES
     import yaml
     from pathlib import Path
     # This flag is set by the real run_webui before Flask.run.
@@ -139,9 +140,13 @@ def serve_admin(self, **kwargs):
         assert status['frigate_online'] is None
         assert status['mqtt_online'] is None
         config = yaml.safe_load(Path(get_config_path()).read_text())
+        assert config['config_version'] == CURRENT_CONFIG_VERSION
+        assert isinstance(config['mqtt'], dict)
+        assert not {key for key, _ in LEGACY_MQTT_LEAVES}.intersection(config['frigate'])
         if os.environ.get('TEST_APPLY_CONFIG'):
             original_admin = dict(config['admin'])
-            config['frigate'].update(frigate_url='http://frigate', mqtt_server='mqtt', camera=['birdcam'])
+            config['frigate'].update(frigate_url='http://frigate', camera=['birdcam'])
+            config['mqtt']['host'] = 'mqtt'
             config.pop('admin')
             content = yaml.safe_dump(config)
             response = client.post('/admin/config/save', json={'config_content': content}, headers={'X-CSRFToken': csrf})

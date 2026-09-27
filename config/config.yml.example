@@ -1,17 +1,23 @@
+config_version: 2
+
 frigate:
   frigate_url: http://127.0.0.1:5000
-  mqtt_server: your-mqtt-server
-  mqtt_auth: false
-  # mqtt_username: your-username
-  # mqtt_password: your-password
-  mqtt_port: 1883  # Optional, default: 1883
-  mqtt_use_tls: false  # Optional, default: false. Use TLS for broker connection
-  mqtt_tls_insecure: false  # Optional, default: false. Don't verify broker certificate
-  # mqtt_tls_ca_certs: /path/to/ca.crt  # Optional. Path to CA certificate file
-  main_topic: frigate
   camera:
     - your-camera-name
   object: bird
+
+mqtt:
+  host: your-mqtt-server
+  port: 1883  # Optional, default: 1883
+  topic_prefix: frigate
+  authentication:
+    enabled: false
+    # username: your-username
+    # password: your-password
+  tls:
+    enabled: false  # Optional, default: false. Use TLS for broker connection
+    insecure: false  # Optional, default: false. Don't verify broker certificate
+    # ca_certs: /path/to/ca.crt  # Optional. Path to CA certificate file
 # MQTT topics published by whosatmyfeeder:
 #   whosatmyfeeder/detections              - common name on every detection above threshold
 #   whosatmyfeeder/new_species/common_name     \

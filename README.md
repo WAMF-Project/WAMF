@@ -234,19 +234,23 @@ config/config.yml
 # Example:
 
 ```yaml
+config_version: 2
+
 frigate:
   frigate_url: http://<frigate-ip>:5000
-
-  mqtt_server: <mqtt-host>
-  mqtt_auth: false
-  mqtt_port: 1883
-
-  main_topic: frigate
-
   camera:
     - birdcam
-
   object: bird
+
+mqtt:
+  host: <mqtt-host>
+  port: 1883
+  topic_prefix: frigate
+  authentication:
+    enabled: false
+  tls:
+    enabled: false
+    insecure: false
 
 classification:
   model: model.tflite

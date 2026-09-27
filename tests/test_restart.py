@@ -180,7 +180,8 @@ def serve(self, **kwargs):
         if generation == 0:
             config_path = Path(os.environ['WHOSATMYFEEDER_CONFIG'])
             config = yaml.safe_load(config_path.read_text())
-            config['frigate'].update(mqtt_server='mqtt', camera=['updated-camera'])
+            config['frigate']['camera'] = ['updated-camera']
+            config['mqtt']['host'] = 'mqtt'
             content = yaml.safe_dump(config)
             if os.environ['ADMIN_ACTION'] == 'restart':
                 # Save remains a save-only operation while the original worker runs.

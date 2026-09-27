@@ -4,6 +4,7 @@ from pathlib import Path
 import yaml
 
 from app import config_editor
+from app.config_migration import CURRENT_CONFIG_VERSION
 
 
 def _write_backup(path, age_offset):
@@ -56,7 +57,9 @@ retention:
     assert oldest_backup.name not in backup_names
     assert middle_backup.name not in backup_names
     assert newest_backup.name in backup_names
-    assert updated["frigate"]["mqtt_server"] == "mqtt.local"
+    assert updated["config_version"] == CURRENT_CONFIG_VERSION
+    assert updated["mqtt"]["host"] == "mqtt.local"
+    assert "mqtt_server" not in updated["frigate"]
     assert updated["admin"]["session_secret"] == "keep-me"
     assert updated["api"]["token_hash"] == "keep-token"
 

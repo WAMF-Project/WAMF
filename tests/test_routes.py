@@ -1283,6 +1283,7 @@ def test_config_editor_save_and_restart_writes_config(
     flask_client, monkeypatch, tmp_path
 ):
     import routes.admin as admin_routes
+    from app.config_migration import CURRENT_CONFIG_VERSION
 
     config_path = tmp_path / "config.yml"
     submitted = {
@@ -1310,7 +1311,11 @@ def test_config_editor_save_and_restart_writes_config(
 
     assert response.status_code == 200
     assert response.get_json()["success"] is True
-    assert yaml.safe_load(config_path.read_text())["webui"]["port"] == 8877
+    saved = yaml.safe_load(config_path.read_text())
+    assert saved["webui"]["port"] == 8877
+    assert saved["config_version"] == CURRENT_CONFIG_VERSION
+    assert saved["mqtt"]["host"] == "mqtt"
+    assert "mqtt_server" not in saved["frigate"]
     assert scheduled == [True]
 
 
@@ -1391,6 +1396,47 @@ def test_config_editor_save_uses_persistence_service_and_reports_failure(
     }
     assert len(calls) == 1
     assert calls[0][0] == config_path
+    assert config_path.read_text() == original
+
+
+def test_config_editor_rejects_future_version_without_rewriting(
+    flask_client, monkeypatch, tmp_path
+):
+    from app.config_migration import CURRENT_CONFIG_VERSION
+
+    config_path = tmp_path / "config.yml"
+    original = "webui:\n  port: 7767\n"
+    config_path.write_text(original)
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+
+    response = flask_client.post(
+        "/admin/config/save",
+        json={"config_content": f"config_version: {CURRENT_CONFIG_VERSION + 1}\n"},
+    )
+
+    assert response.status_code == 400
+    assert "newer than this WAMF version supports" in response.get_json()["error"]
+    assert config_path.read_text() == original
+
+
+def test_config_editor_rejects_structurally_invalid_migrated_config(
+    flask_client, monkeypatch, tmp_path
+):
+    config_path = tmp_path / "config.yml"
+    original = "webui:\n  port: 7767\n"
+    config_path.write_text(original)
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+
+    response = flask_client.post(
+        "/admin/config/save",
+        json={"config_content": "frigate:\n  mqtt_port: invalid\n"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["valid"] is False
+    assert response.get_json()["validation_errors"] == [
+        "mqtt.port: must be an integer from 1 to 65535"
+    ]
     assert config_path.read_text() == original
 
 

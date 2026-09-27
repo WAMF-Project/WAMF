@@ -15,6 +15,7 @@ from app.config_editor import (
     strip_admin_config_block,
     strip_sensitive_config_blocks,
 )
+from app.config_migration import ConfigMigrationError, migrate_config
 from app.config_validation import validate_config
 from app.config_persistence import ConfigPersistenceError
 from app.system_events import log_system_event
@@ -37,7 +38,8 @@ def _validation_response(result):
 
 def _validate_config_content(config_content):
     sanitized_content = strip_sensitive_config_blocks(config_content)
-    return validate_config(load_config_from_content(sanitized_content))
+    config = load_config_from_content(sanitized_content)
+    return validate_config(migrate_config(config).config)
 
 
 def _not_ready_response(result):
@@ -254,6 +256,11 @@ def save_config():
             "success": False,
             "error": str(e)
         }, 400
+    except ConfigMigrationError as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+        }, 400
     except ConfigPersistenceError:
         logger.error("Admin configuration save failed during persistence")
         return {
@@ -272,9 +279,12 @@ def restart_status():
 @admin_bp.route('/admin/config/restart', methods=['POST'])
 def restart_wamf():
     try:
-        result = validate_config(load_config_from_content(load_config_file_content()))
+        config = load_config_from_content(load_config_file_content())
+        result = validate_config(migrate_config(config).config)
     except yaml.YAMLError as exc:
         return {"success": False, "error": str(exc)}, 400
+    except ConfigMigrationError as exc:
+        return {"success": False, "error": str(exc)}, 409
     if not result.is_valid:
         details = _validation_response(result)
         details.update(
@@ -341,6 +351,11 @@ def save_and_restart_wamf():
         return {
             "success": False,
             "error": str(e)
+        }, 400
+    except ConfigMigrationError as exc:
+        return {
+            "success": False,
+            "error": str(exc),
         }, 400
     except ConfigPersistenceError:
         logger.error("Admin save-and-restart failed during persistence")

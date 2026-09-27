@@ -7,6 +7,17 @@ import yaml
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import bootstrap, config_editor
+from app.config_migration import (
+    CURRENT_CONFIG_VERSION,
+    ConfigMigrationValidationError,
+    ConfigVersionError,
+)
+from app.config_persistence import (
+    ConfigBackupError,
+    ConfigLockTimeoutError,
+    ConfigPersistenceTransaction,
+    ConfigWriteError,
+)
 
 
 @pytest.fixture
@@ -18,7 +29,11 @@ def config_path(tmp_path, monkeypatch):
 
 
 def write_admin(path, **admin):
-    path.write_text(yaml.safe_dump({'admin': {'auth_enabled': True, **admin}, 'api': {'token_hash': 'keep'}}))
+    path.write_text(yaml.safe_dump({
+        'config_version': CURRENT_CONFIG_VERSION,
+        'admin': {'auth_enabled': True, **admin},
+        'api': {'token_hash': 'keep'},
+    }))
 
 
 def temporary_password(output):
@@ -29,7 +44,10 @@ def test_missing_default_config_is_copied(tmp_path, monkeypatch, capsys):
     root = tmp_path / 'app'
     (root / 'config').mkdir(parents=True)
     example = root / 'config/config.yml.example'
-    example.write_text('admin:\n  auth_enabled: false\nwebui:\n  port: 7767\n')
+    example.write_text(
+        f'config_version: {CURRENT_CONFIG_VERSION}\n'
+        'admin:\n  auth_enabled: false\nwebui:\n  port: 7767\n'
+    )
     path = root / 'config/config.yml'
     monkeypatch.delenv('WHOSATMYFEEDER_CONFIG', raising=False)
     monkeypatch.setattr(bootstrap, 'REPO_ROOT', root)
@@ -37,6 +55,7 @@ def test_missing_default_config_is_copied(tmp_path, monkeypatch, capsys):
     bootstrap.bootstrap_config()
     assert path.read_text() == example.read_text()
     assert path.stat().st_mode & 0o777 == 0o600
+    assert config_editor.get_config_backup_paths(path) == []
     assert 'Review external settings' in capsys.readouterr().out
 
 
@@ -84,7 +103,9 @@ def test_only_invalid_field_replaced(config_path, capsys):
 
 
 def test_disabled_auth_does_not_generate(config_path, capsys):
-    config_path.write_text('admin:\n  auth_enabled: false\n')
+    config_path.write_text(
+        f'config_version: {CURRENT_CONFIG_VERSION}\nadmin:\n  auth_enabled: false\n'
+    )
     original = config_path.read_bytes()
     bootstrap.bootstrap_config()
     assert original == config_path.read_bytes()
@@ -209,6 +230,126 @@ def test_native_preflight_returns_setup_issues(config_path, capsys):
     assert 'temporary admin password' in capsys.readouterr().out
     assert 'frigate.camera' in bootstrap.prepare_native_startup()
     assert capsys.readouterr().out == ''
+
+
+def test_startup_migrates_legacy_config_with_exact_backup_and_is_idempotent(
+    config_path,
+    monkeypatch,
+):
+    legacy = configured()
+    legacy['admin'] = {'auth_enabled': False}
+    original = yaml.safe_dump(legacy, sort_keys=False)
+    config_path.write_text(original)
+    config_path.chmod(0o644)
+
+    migrated = bootstrap.bootstrap_config()
+
+    backups = config_editor.get_config_backup_paths(config_path)
+    assert migrated['config_version'] == CURRENT_CONFIG_VERSION
+    assert migrated['mqtt']['host'] == 'localhost'
+    assert migrated['mqtt']['topic_prefix'] == 'frigate'
+    assert 'mqtt_server' not in migrated['frigate']
+    assert 'main_topic' not in migrated['frigate']
+    assert len(backups) == 1
+    assert Path(backups[0]).read_text() == original
+    assert config_path.stat().st_mode & 0o777 == 0o600
+    assert Path(backups[0]).stat().st_mode & 0o777 == 0o600
+
+    active_after_first_start = config_path.read_bytes()
+    backups_after_first_start = list(backups)
+    writes = []
+
+    class TrackingTransaction(ConfigPersistenceTransaction):
+        def write(self, *args, **kwargs):
+            writes.append((args, kwargs))
+            return super().write(*args, **kwargs)
+
+    monkeypatch.setattr(bootstrap, "ConfigPersistenceTransaction", TrackingTransaction)
+    assert bootstrap.bootstrap_config() == migrated
+    assert writes == []
+    assert config_path.read_bytes() == active_after_first_start
+    assert config_editor.get_config_backup_paths(config_path) == backups_after_first_start
+
+
+def test_valid_but_incomplete_legacy_config_migrates(config_path):
+    config_path.write_text('admin: {auth_enabled: false}\n')
+
+    migrated = bootstrap.bootstrap_config()
+
+    validation = bootstrap.validate_config(migrated)
+    assert migrated['config_version'] == CURRENT_CONFIG_VERSION
+    assert validation.is_valid is True
+    assert validation.is_ready is False
+
+
+def test_structurally_invalid_migration_is_not_activated(config_path):
+    original = 'frigate: {mqtt_port: invalid}\n'
+    config_path.write_text(original)
+
+    with pytest.raises(ConfigMigrationValidationError, match='mqtt.port'):
+        bootstrap.bootstrap_config()
+
+    assert config_path.read_text() == original
+    assert config_editor.get_config_backup_paths(config_path) == []
+
+
+def test_future_version_is_not_rewritten_on_startup(config_path):
+    original = f'config_version: {CURRENT_CONFIG_VERSION + 1}\n'
+    config_path.write_text(original)
+
+    with pytest.raises(ConfigVersionError, match='newer than'):
+        bootstrap.bootstrap_config()
+
+    assert config_path.read_text() == original
+    assert config_editor.get_config_backup_paths(config_path) == []
+
+
+def test_migration_backup_failure_leaves_legacy_active(config_path, monkeypatch):
+    original = yaml.safe_dump(configured(), sort_keys=False)
+    config_path.write_text(original)
+
+    def fail_backup(_path):
+        raise ConfigBackupError('controlled backup failure')
+
+    monkeypatch.setattr('app.config_persistence._create_backup', fail_backup)
+    with pytest.raises(ConfigBackupError):
+        bootstrap.bootstrap_config()
+
+    assert config_path.read_text() == original
+
+
+def test_migration_replacement_failure_leaves_legacy_active(
+    config_path,
+    monkeypatch,
+):
+    original = yaml.safe_dump(configured(), sort_keys=False)
+    config_path.write_text(original)
+
+    def fail_replace(_source, _target):
+        raise OSError('controlled replacement failure')
+
+    monkeypatch.setattr('app.config_persistence.os.replace', fail_replace)
+    with pytest.raises(ConfigWriteError):
+        bootstrap.bootstrap_config()
+
+    assert config_path.read_text() == original
+
+
+def test_migration_lock_failure_leaves_legacy_active(config_path, monkeypatch):
+    original = yaml.safe_dump(configured(), sort_keys=False)
+    config_path.write_text(original)
+    real_transaction = ConfigPersistenceTransaction
+
+    with real_transaction(config_path):
+        monkeypatch.setattr(
+            bootstrap,
+            'ConfigPersistenceTransaction',
+            lambda path: real_transaction(path, lock_timeout=0),
+        )
+        with pytest.raises(ConfigLockTimeoutError):
+            bootstrap.bootstrap_config()
+
+    assert config_path.read_text() == original
 
 
 def test_default_paths_are_independent_of_cwd(tmp_path, monkeypatch):

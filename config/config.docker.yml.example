@@ -1,16 +1,22 @@
+config_version: 2
+
 frigate:
   frigate_url: http://<frigate-host>:5000
-  mqtt_server: <mqtt-host>
-  mqtt_auth: false
-  # mqtt_username: <mqtt-username>
-  # mqtt_password: <mqtt-password>
-  mqtt_port: 1883
-  mqtt_use_tls: false
-  mqtt_tls_insecure: false
-  main_topic: frigate
   camera:
     - <camera-name>
   object: bird
+
+mqtt:
+  host: <mqtt-host>
+  port: 1883
+  topic_prefix: frigate
+  authentication:
+    enabled: false
+    # username: <mqtt-username>
+    # password: <mqtt-password>
+  tls:
+    enabled: false
+    insecure: false
 
 classification:
   model: model.tflite

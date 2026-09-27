@@ -9,7 +9,12 @@ import string
 import yaml
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.config_editor import get_config_path
+from app.config_editor import get_config_backups_max_files, get_config_path
+from app.config_migration import (
+    ConfigMigrationError,
+    migrate_config,
+    require_structurally_valid_migration,
+)
 from app.config_persistence import ConfigPersistenceError, ConfigPersistenceTransaction
 from app.config_validation import is_placeholder, validate_config
 
@@ -85,6 +90,16 @@ def _bootstrap_locked(path, transaction):
     config = yaml.safe_load(content) or {}
     if not isinstance(config, dict):
         raise ValueError('Configuration must be a YAML mapping')
+    migration = migrate_config(config)
+    if migration.migrated:
+        validation = validate_config(migration.config)
+        require_structurally_valid_migration(migration, validation)
+        transaction.write(
+            migration.config,
+            backup_limit=get_config_backups_max_files(migration.config),
+        )
+        config = migration.config
+        content = transaction.read_text()
     admin = config.get('admin') or {}
     if not isinstance(admin, dict):
         raise ValueError('admin must be a YAML mapping')
@@ -127,5 +142,11 @@ def prepare_native_startup():
     try:
         config = bootstrap_config()
         return preflight(config)
-    except (ConfigPersistenceError, OSError, ValueError, yaml.YAMLError) as exc:
+    except (
+        ConfigMigrationError,
+        ConfigPersistenceError,
+        OSError,
+        ValueError,
+        yaml.YAMLError,
+    ) as exc:
         raise SystemExit(f'WAMF startup configuration error: {exc}') from None
