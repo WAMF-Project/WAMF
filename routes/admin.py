@@ -1,5 +1,6 @@
 """Admin page routes for dashboard, species tools, config, password, and API tokens."""
 
+import logging
 import secrets
 
 import yaml
@@ -15,11 +16,13 @@ from app.config_editor import (
     strip_sensitive_config_blocks,
 )
 from app.config_validation import validate_config
+from app.config_persistence import ConfigPersistenceError
 from app.system_events import log_system_event
 from app.process_control import INSTANCE_ID, schedule_restart
 
 
 admin_bp = Blueprint('admin', __name__)
+logger = logging.getLogger(__name__)
 
 
 def _validation_response(result):
@@ -251,6 +254,12 @@ def save_config():
             "success": False,
             "error": str(e)
         }, 400
+    except ConfigPersistenceError:
+        logger.error("Admin configuration save failed during persistence")
+        return {
+            "success": False,
+            "error": "Configuration could not be saved.",
+        }, 500
 
 
 @admin_bp.route('/admin/config/restart-status')
@@ -333,6 +342,12 @@ def save_and_restart_wamf():
             "success": False,
             "error": str(e)
         }, 400
+    except ConfigPersistenceError:
+        logger.error("Admin save-and-restart failed during persistence")
+        return {
+            "success": False,
+            "error": "Configuration could not be saved.",
+        }, 500
 
 
 @admin_bp.route('/admin/password', methods=['GET', 'POST'])

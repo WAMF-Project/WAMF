@@ -1,5 +1,4 @@
 """Native first-run configuration and credentials, before worker creation."""
-import fcntl
 import hashlib
 import os
 from pathlib import Path
@@ -11,6 +10,7 @@ import yaml
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.config_editor import get_config_path
+from app.config_persistence import ConfigPersistenceError, ConfigPersistenceTransaction
 from app.config_validation import is_placeholder, validate_config
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -64,61 +64,54 @@ def bootstrap_config():
     if not path.exists() and 'WHOSATMYFEEDER_CONFIG' in os.environ:
         raise ValueError(f'WHOSATMYFEEDER_CONFIG file does not exist: {path}')
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Lock the directory so concurrent first starts cannot read a half-copied config.
-    directory_fd = os.open(path.parent, os.O_RDONLY)
-    try:
-        fcntl.flock(directory_fd, fcntl.LOCK_EX)
-        return _bootstrap_locked(path)
-    finally:
-        os.close(directory_fd)
+    with ConfigPersistenceTransaction(path) as transaction:
+        return _bootstrap_locked(path, transaction)
 
 
-def _bootstrap_locked(path):
+def _bootstrap_locked(path, transaction):
     if not path.exists():
         example = REPO_ROOT / 'config/config.yml.example'
         example_content = example.read_text(encoding='utf-8')
-        try:
-            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(descriptor, 'w', encoding='utf-8') as target:
-                target.write(example_content)
-            print(f'Created {path} from the example. Review external settings before starting WAMF.', flush=True)
-        except FileExistsError:
-            pass
+        example_config = yaml.safe_load(example_content) or {}
+        transaction.write(
+            example_config,
+            create_backup=False,
+            rendered_content=example_content,
+        )
+        print(f'Created {path} from the example. Review external settings before starting WAMF.', flush=True)
 
     # Never print credentials before persistence.
-    with path.open('r', encoding='utf-8') as target:
-        content = target.read()
-        config = yaml.safe_load(content) or {}
-        if not isinstance(config, dict):
-            raise ValueError('Configuration must be a YAML mapping')
-        admin = config.get('admin') or {}
-        if not isinstance(admin, dict):
-            raise ValueError('admin must be a YAML mapping')
-        updates = {}
-        password = None
-        if admin.get('auth_enabled', False):
-            env_secret = os.environ.get('WAMF_SECRET_KEY')
-            if env_secret and is_placeholder(env_secret):
-                raise ValueError('WAMF_SECRET_KEY must not be blank or a placeholder')
-            if not env_secret and is_placeholder(admin.get('session_secret')):
-                updates['session_secret'] = secrets.token_hex(32)
-            if not valid_password_hash(admin.get('password_hash')):
-                alphabet = string.ascii_letters + string.digits
-                password = '-'.join(''.join(secrets.choice(alphabet) for _ in range(6)) for _ in range(4))
-                updates['password_hash'] = generate_password_hash(password)
-        if updates:
-            updated = _replace_admin_values(content, config, updates)
-            # No backup containing credentials; preserve unrelated configuration.
-            with path.open('r+', encoding='utf-8') as writable:
-                os.fchmod(writable.fileno(), 0o600)
-                writable.write(updated)
-                writable.truncate()
-                writable.flush()
-                os.fsync(writable.fileno())
-            config = yaml.safe_load(updated)
-        if password:
-            print(f'WAMF temporary admin password: {password}\nSign in and change this password. It will not be displayed again.', flush=True)
-        return config
+    content = transaction.read_text()
+    config = yaml.safe_load(content) or {}
+    if not isinstance(config, dict):
+        raise ValueError('Configuration must be a YAML mapping')
+    admin = config.get('admin') or {}
+    if not isinstance(admin, dict):
+        raise ValueError('admin must be a YAML mapping')
+    updates = {}
+    password = None
+    if admin.get('auth_enabled', False):
+        env_secret = os.environ.get('WAMF_SECRET_KEY')
+        if env_secret and is_placeholder(env_secret):
+            raise ValueError('WAMF_SECRET_KEY must not be blank or a placeholder')
+        if not env_secret and is_placeholder(admin.get('session_secret')):
+            updates['session_secret'] = secrets.token_hex(32)
+        if not valid_password_hash(admin.get('password_hash')):
+            alphabet = string.ascii_letters + string.digits
+            password = '-'.join(''.join(secrets.choice(alphabet) for _ in range(6)) for _ in range(4))
+            updates['password_hash'] = generate_password_hash(password)
+    if updates:
+        updated = _replace_admin_values(content, config, updates)
+        config = yaml.safe_load(updated)
+        # Preserve the established bootstrap contract: no credential backup.
+        transaction.write(
+            config,
+            create_backup=False,
+            rendered_content=updated,
+        )
+    if password:
+        print(f'WAMF temporary admin password: {password}\nSign in and change this password. It will not be displayed again.', flush=True)
+    return config
 
 
 def preflight(config):
@@ -134,5 +127,5 @@ def prepare_native_startup():
     try:
         config = bootstrap_config()
         return preflight(config)
-    except (OSError, ValueError, yaml.YAMLError) as exc:
+    except (ConfigPersistenceError, OSError, ValueError, yaml.YAMLError) as exc:
         raise SystemExit(f'WAMF startup configuration error: {exc}') from None

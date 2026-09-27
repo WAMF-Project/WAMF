@@ -1358,6 +1358,42 @@ def test_config_editor_save_distinguishes_valid_incomplete_configuration(
     assert yaml.safe_load(config_path.read_text())["webui"]["port"] == 8877
 
 
+def test_config_editor_save_uses_persistence_service_and_reports_failure(
+    flask_client, monkeypatch, tmp_path
+):
+    from app import config_persistence
+
+    config_path = tmp_path / "config.yml"
+    original = "webui:\n  port: 7767\n"
+    config_path.write_text(original)
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+    calls = []
+
+    def fail_persistence(self, config, **kwargs):
+        calls.append((self.config_path, config, kwargs))
+        raise config_persistence.ConfigWriteError("controlled failure")
+
+    monkeypatch.setattr(
+        config_persistence.ConfigPersistenceTransaction,
+        "write",
+        fail_persistence,
+    )
+
+    response = flask_client.post(
+        "/admin/config/save",
+        json={"config_content": "webui:\n  port: 8877\n"},
+    )
+
+    assert response.status_code == 500
+    assert response.get_json() == {
+        "success": False,
+        "error": "Configuration could not be saved.",
+    }
+    assert len(calls) == 1
+    assert calls[0][0] == config_path
+    assert config_path.read_text() == original
+
+
 def test_config_editor_save_and_restart_blocks_incomplete_configuration(
     flask_client, monkeypatch, tmp_path
 ):

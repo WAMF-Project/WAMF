@@ -1,16 +1,19 @@
 from datetime import datetime
-import glob
 import os
 import re
-import shutil
 from pathlib import Path
 
 import yaml
 
+from app.config_persistence import (
+    ConfigPersistenceTransaction,
+    get_config_backup_paths as _get_config_backup_paths,
+    prune_config_backups as _prune_config_backups,
+)
+
 
 SENSITIVE_CONFIG_BLOCKS = {'admin', 'api'}
 DEFAULT_CONFIG_BACKUPS_MAX_FILES = 10
-BACKUP_TIMESTAMP_FORMAT = '%Y%m%d-%H%M%S-%f'
 
 
 def get_config_path():
@@ -72,20 +75,11 @@ def get_config_backups_max_files(config):
 
 def get_config_backup_paths(config_path=None):
     config_path = config_path or get_config_path()
-    return sorted(
-        glob.glob(f"{config_path}.*.bak"),
-        key=os.path.getmtime,
-        reverse=True,
-    )
+    return _get_config_backup_paths(config_path)
 
 
 def prune_config_backups(config_path=None, max_files=DEFAULT_CONFIG_BACKUPS_MAX_FILES):
-    backups = get_config_backup_paths(config_path)
-
-    for backup_path in backups[max_files:]:
-        os.remove(backup_path)
-
-    return len(backups[max_files:])
+    return _prune_config_backups(config_path or get_config_path(), max_files)
 
 
 def get_existing_admin_config():
@@ -119,73 +113,76 @@ def append_sensitive_config_blocks(config_content, admin_config, api_config):
     return f"{sanitized_content}\n\n{sensitive_content}\n"
 
 
-def write_config_preserving_admin(config_content, admin_config=None, api_config=None, reload_callback=None):
-    if admin_config is None:
-        admin_config = get_existing_admin_config()
-
-    if api_config is None:
-        api_config = get_existing_api_config()
-
+def _persist_composed_config(transaction, config_content, admin_config, api_config):
     sanitized_content = strip_sensitive_config_blocks(config_content)
     load_config_from_content(sanitized_content)
     final_content = append_sensitive_config_blocks(
         sanitized_content,
         admin_config,
-        api_config
+        api_config,
     )
     final_config = load_config_from_content(final_content)
-
-    backup_path = (
-        f"{get_config_path()}."
-        f"{datetime.now().strftime(BACKUP_TIMESTAMP_FORMAT)}.bak"
+    transaction.write(
+        final_config,
+        backup_limit=get_config_backups_max_files(final_config),
+        rendered_content=final_content,
     )
 
-    shutil.copy2(
-        get_config_path(),
-        backup_path
-    )
 
-    with open(
-        get_config_path(),
-        'w'
-    ) as config_file:
-        config_file.write(
-            final_content
+def write_config_preserving_admin(config_content, admin_config=None, api_config=None, reload_callback=None):
+    config_path = Path(get_config_path())
+    with ConfigPersistenceTransaction(config_path) as transaction:
+        current_config = load_config_from_content(
+            transaction.read_text()
+        )
+        if admin_config is None:
+            admin_config = current_config.get('admin')
+        if api_config is None:
+            api_config = current_config.get('api')
+        _persist_composed_config(
+            transaction,
+            config_content,
+            admin_config,
+            api_config,
         )
 
     if reload_callback:
         reload_callback()
 
-    prune_config_backups(
-        get_config_path(),
-        get_config_backups_max_files(final_config),
-    )
-
 
 def update_admin_password_hash(password_hash, reload_callback=None):
-    current_content = load_config_file_content()
-    current_config = load_config_from_content(current_content)
-    admin_config = current_config.get('admin', {})
-    admin_config['password_hash'] = password_hash
-    write_config_preserving_admin(
-        current_content,
-        admin_config,
-        reload_callback=reload_callback
-    )
+    config_path = Path(get_config_path())
+    with ConfigPersistenceTransaction(config_path) as transaction:
+        current_content = transaction.read_text()
+        current_config = load_config_from_content(current_content)
+        admin_config = dict(current_config.get('admin') or {})
+        admin_config['password_hash'] = password_hash
+        _persist_composed_config(
+            transaction,
+            current_content,
+            admin_config,
+            current_config.get('api'),
+        )
+    if reload_callback:
+        reload_callback()
 
 
 def update_api_token_hash(token_hash, reload_callback=None):
-    current_content = load_config_file_content()
-    current_config = load_config_from_content(current_content)
-    api_config = current_config.get('api', {})
-    api_config.setdefault('token_auth_enabled', True)
-    api_config['token_hash'] = token_hash
-    write_config_preserving_admin(
-        current_content,
-        current_config.get('admin'),
-        api_config,
-        reload_callback=reload_callback
-    )
+    config_path = Path(get_config_path())
+    with ConfigPersistenceTransaction(config_path) as transaction:
+        current_content = transaction.read_text()
+        current_config = load_config_from_content(current_content)
+        api_config = dict(current_config.get('api') or {})
+        api_config.setdefault('token_auth_enabled', True)
+        api_config['token_hash'] = token_hash
+        _persist_composed_config(
+            transaction,
+            current_content,
+            current_config.get('admin'),
+            api_config,
+        )
+    if reload_callback:
+        reload_callback()
 
 
 def get_config_file_metadata():

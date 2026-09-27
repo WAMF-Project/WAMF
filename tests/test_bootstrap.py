@@ -261,15 +261,16 @@ def test_generated_password_can_login_and_be_changed(config_path, capsys, flask_
 
 
 def test_no_password_disclosed_if_persistence_fails(config_path, monkeypatch, capsys):
+    from app.config_persistence import ConfigWriteError
+
     write_admin(config_path, session_secret='<placeholder>', password_hash='<placeholder>')
     original = config_path.read_bytes()
-    real_open = Path.open
-    def open_file(path, mode='r', *args, **kwargs):
-        if path == config_path and mode == 'r+':
-            raise PermissionError('read-only config')
-        return real_open(path, mode, *args, **kwargs)
-    monkeypatch.setattr(Path, 'open', open_file)
-    with pytest.raises(PermissionError):
+
+    def fail_write(self, config, **kwargs):
+        raise ConfigWriteError('controlled persistence failure')
+
+    monkeypatch.setattr(bootstrap.ConfigPersistenceTransaction, 'write', fail_write)
+    with pytest.raises(ConfigWriteError):
         bootstrap.bootstrap_config()
     assert capsys.readouterr().out == ''
     assert config_path.read_bytes() == original
