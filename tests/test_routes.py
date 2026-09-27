@@ -1009,6 +1009,42 @@ def test_admin_api_rejects_missing_api_token(flask_client, monkeypatch):
     assert response.status_code == 401
 
 
+def test_admin_health_output_never_contains_runtime_secret_sentinels(
+    flask_client, monkeypatch
+):
+    import webui
+
+    sentinel = "HEALTH-SECRET-SENTINEL"
+    monkeypatch.setattr(
+        webui,
+        "config",
+        {
+            "admin": {
+                "auth_enabled": True,
+                "session_secret": sentinel,
+                "password_hash": sentinel,
+            },
+            "api": {"token_auth_enabled": True, "token_hash": sentinel},
+            "mqtt": {
+                "authentication": {
+                    "enabled": True,
+                    "username": sentinel,
+                    "password": sentinel,
+                }
+            },
+        },
+    )
+    webui.app.secret_key = sentinel
+    _stub_admin_api_dependencies(webui, monkeypatch)
+    with flask_client.session_transaction() as sess:
+        sess["admin_authenticated"] = True
+
+    response = flask_client.get("/admin/api/health")
+
+    assert response.status_code == 200
+    assert sentinel.encode() not in response.data
+
+
 def test_regenerated_api_token_invalidates_old_token(flask_client, monkeypatch, tmp_path):
     from werkzeug.security import check_password_hash, generate_password_hash
     import yaml
@@ -1055,9 +1091,11 @@ admin:
     )
     assert response.status_code == 200
     first_token = _extract_generated_token(response)
-    updated = yaml.safe_load(config_path.read_text())
+    updated = yaml.safe_load((tmp_path / "secrets.yml").read_text())
     assert updated["api"]["token_hash"] != first_token
     assert check_password_hash(updated["api"]["token_hash"], first_token)
+    assert first_token not in (tmp_path / "secrets.yml").read_text()
+    assert first_token not in config_path.read_text()
 
     with flask_client.session_transaction() as sess:
         sess.clear()
@@ -1203,6 +1241,10 @@ frigate:
   frigate_url: http://frigate
 mqtt:
   host: localhost
+  authentication:
+    enabled: true
+    username: hidden-mqtt-user
+    password: hidden-mqtt-password
 admin:
   auth_enabled: true
   session_secret: hidden
@@ -1243,6 +1285,8 @@ webui:
     assert b"hidden-hash" not in response.data
     assert b"token_hash" not in response.data
     assert b"hidden-token-hash" not in response.data
+    assert b"hidden-mqtt-user" not in response.data
+    assert b"hidden-mqtt-password" not in response.data
 
 
 def test_config_editor_restart_schedules_process_restart(flask_client, monkeypatch):
@@ -1346,6 +1390,25 @@ def test_config_editor_save_rejects_structurally_invalid_yaml_mapping(
     assert config_path.read_text() == original
 
 
+def test_config_editor_malformed_yaml_error_does_not_echo_secret_sentinel(
+    flask_client, monkeypatch, tmp_path
+):
+    sentinel = "HTTP-SECRET-SENTINEL"
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("config_version: 2\n", encoding="utf-8")
+    (tmp_path / "secrets.yml").write_text("secrets_version: 1\n", encoding="utf-8")
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+
+    response = flask_client.post(
+        "/admin/config/save",
+        json={"config_content": f"mqtt:\n  authentication: [{sentinel}\n"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Configuration YAML is invalid."
+    assert sentinel.encode() not in response.data
+
+
 def test_config_editor_save_distinguishes_valid_incomplete_configuration(
     flask_client, monkeypatch, tmp_path
 ):
@@ -1377,6 +1440,7 @@ def test_config_editor_save_uses_persistence_service_and_reports_failure(
     config_path = tmp_path / "config.yml"
     original = "webui:\n  port: 7767\n"
     config_path.write_text(original)
+    (tmp_path / "secrets.yml").write_text("secrets_version: 1\n")
     monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
     calls = []
 
@@ -1513,9 +1577,13 @@ admin:
     )
     assert response.status_code == 302
 
-    updated = yaml.safe_load(config_path.read_text())
-    assert updated["admin"]["session_secret"] == "test-secret"
+    updated = yaml.safe_load((tmp_path / "secrets.yml").read_text())
     assert check_password_hash(updated["admin"]["password_hash"], "new-secret")
+    assert "new-secret" not in (tmp_path / "secrets.yml").read_text()
+    assert "new-secret" not in config_path.read_text()
+    persisted_config = yaml.safe_load(config_path.read_text())
+    assert persisted_config["admin"]["session_secret"] == "test-secret"
+    assert persisted_config["admin"]["password_hash"] == "old-hash"
 
 
 def test_change_password_page_renders_admin_status_footer(flask_client, monkeypatch):

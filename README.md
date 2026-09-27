@@ -205,7 +205,8 @@ cameras:
 /WAMF/
 ├── docker-compose.yml
 ├── config/
-│   └── config.yml
+│   ├── config.yml
+│   └── secrets.yml
 └── data/
 
 ```
@@ -230,6 +231,14 @@ to:
 config/config.yml
 
 ```
+
+Authentication material is stored separately in `config/secrets.yml` (schema
+`secrets_version: 1`). Both active YAML files, their locks, and their backups
+are owner-only (0600). On the first upgraded startup, WAMF durably writes
+extracted credentials to `secrets.yml` before removing them from `config.yml`.
+The config backup created by that migration may still contain the formerly
+embedded credentials; it remains 0600 rollback material and ages out through
+the normal backup-retention policy.
 
 # Example:
 
@@ -314,12 +323,12 @@ Structurally invalid configuration or invalid web bind settings remain startup e
 
 With admin authentication enabled, missing or invalid bootstrap credentials are
 replaced automatically. WAMF prints a random temporary admin password once to
-the startup console, stores only its hash, and generates a session secret when
+the startup console, stores only its hash in `secrets.yml`, and generates a session secret when
 needed. Keep the temporary password, then sign in at `http://<server-ip>:7767/login`
 and change it at `/admin/password`. Subsequent starts preserve valid credentials
 and do not display the password again. Generated credentials are saved before
 the web UI starts, so keep the password shown on that first run.
-A config updated by credential bootstrap is restricted to its owner (mode 0600).
+Configuration and secrets files are restricted to their owner (mode 0600).
 
 The native default port is 7767; existing configured ports are preserved. The
 config, bundled model, and taxonomy database resolve from the application

@@ -15,7 +15,6 @@ import multiprocessing
 
 from ai_edge_litert.interpreter import Interpreter
 import paho.mqtt.client as mqtt
-import yaml
 from webui import app
 import sys
 import json
@@ -30,6 +29,7 @@ from app.system_events import log_system_event
 from version import VERSION
 from app.db import connect_db, ensure_schema
 from app.config_editor import get_config_path
+from app.config_loader import load_runtime_config
 from app.process_control import WorkerSupervisor, configure_worker_signals
 from app.config_normalization import normalize_config
 from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
@@ -739,11 +739,7 @@ def load_config():
     global config
     global frigate_client
 
-    with open(get_config_path(), 'r') as config_file:
-
-        config = yaml.safe_load(
-            config_file
-        )
+    config = load_runtime_config()
 
     frigate_client = FrigateClient(config['frigate']['frigate_url'])
 

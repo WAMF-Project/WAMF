@@ -20,6 +20,11 @@ venv/
 config/*
 !config/config.yml.example
 !config/config.docker.yml.example
+!config/secrets.yml.example
+config/secrets.yml
+config/secrets.yml.*.bak
+config/secrets.yml.lock
+config/.secrets.yml.*.tmp
 .mcp.json
 
 # Runtime data

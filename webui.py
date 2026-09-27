@@ -1,9 +1,9 @@
 from flask import Flask, request, redirect, url_for, jsonify, session, flash
 import logging
 from datetime import datetime
-import yaml
 from pathlib import Path
 from app import security
+from app.config_loader import load_runtime_config
 # Blueprint modules intentionally consume these through the webui module.
 from app.queries import (  # noqa: F401
     recent_detections,
@@ -297,10 +297,7 @@ def inject_admin_status():
 
 def load_config():
     global config
-
-    with open(get_config_path(), 'r') as config_file:
-        config = yaml.safe_load(config_file) or {}
-
+    config = load_runtime_config()
     configure_session_secret()
 
 

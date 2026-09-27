@@ -11,6 +11,15 @@ from app.config_persistence import (
     get_config_backup_paths as _get_config_backup_paths,
     prune_config_backups as _prune_config_backups,
 )
+from app.config_secrets import (
+    empty_secrets,
+    get_secrets_path,
+    merge_embedded_secrets,
+    parse_secrets_content,
+    sanitize_config,
+    secret_updates,
+    validate_secrets,
+)
 from app.config_validation import validate_config
 
 
@@ -25,8 +34,7 @@ def get_config_path():
     return str(Path(__file__).resolve().parent.parent / 'config/config.yml')
 
 
-def strip_sensitive_config_blocks(config_content):
-    """Remove config sections that should not be shown in the browser editor."""
+def _without_sensitive_blocks(config_content):
     lines = config_content.splitlines()
     kept = []
     skipping_sensitive = False
@@ -47,6 +55,13 @@ def strip_sensitive_config_blocks(config_content):
         kept.append(line)
 
     return '\n'.join(kept).strip() + '\n'
+
+
+def strip_sensitive_config_blocks(config_content):
+    """Remove secret-bearing sections/leaves from browser-visible YAML."""
+
+    visible = yaml.safe_load(_without_sensitive_blocks(config_content)) or {}
+    return yaml.safe_dump(sanitize_config(visible), sort_keys=False)
 
 
 def strip_admin_config_block(config_content):
@@ -127,10 +142,10 @@ def _persist_composed_config(transaction, config_content, admin_config, api_conf
     migration = migrate_config(final_config)
     validation = validate_config(migration.config)
     require_structurally_valid_migration(migration, validation)
+    sanitized = sanitize_config(migration.config)
     transaction.write(
-        migration.config,
+        sanitized,
         backup_limit=get_config_backups_max_files(migration.config),
-        rendered_content=None if migration.migrated else final_content,
     )
 
 
@@ -144,9 +159,31 @@ def write_config_preserving_admin(config_content, admin_config=None, api_config=
             admin_config = current_config.get('admin')
         if api_config is None:
             api_config = current_config.get('api')
+        # The editor does not expose admin/API blocks. MQTT secret leaves are
+        # accepted for compatibility, with blank or omitted values preserving
+        # the current stored credentials.
+        submitted_content = _without_sensitive_blocks(config_content)
+        submitted = load_config_from_content(submitted_content)
+        editable_content = yaml.safe_dump(sanitize_config(submitted), sort_keys=False)
+        secrets_path = get_secrets_path(config_path)
+        with ConfigPersistenceTransaction(secrets_path) as secrets_transaction:
+            secrets_existed = secrets_path.exists()
+            existing_secrets = (
+                parse_secrets_content(secrets_transaction.read_text())
+                if secrets_existed
+                else empty_secrets()
+            )
+            extracted = merge_embedded_secrets(current_config, existing_secrets)
+            updated_secrets = secret_updates(submitted, extracted.secrets)
+            if not secrets_existed or updated_secrets != existing_secrets:
+                secrets_transaction.write(
+                    updated_secrets,
+                    create_backup=secrets_existed,
+                    backup_limit=get_config_backups_max_files(current_config),
+                )
         _persist_composed_config(
             transaction,
-            config_content,
+            editable_content,
             admin_config,
             api_config,
         )
@@ -156,38 +193,38 @@ def write_config_preserving_admin(config_content, admin_config=None, api_config=
 
 
 def update_admin_password_hash(password_hash, reload_callback=None):
-    config_path = Path(get_config_path())
-    with ConfigPersistenceTransaction(config_path) as transaction:
-        current_content = transaction.read_text()
-        current_config = load_config_from_content(current_content)
-        admin_config = dict(current_config.get('admin') or {})
-        admin_config['password_hash'] = password_hash
-        _persist_composed_config(
-            transaction,
-            current_content,
-            admin_config,
-            current_config.get('api'),
-        )
+    _update_secret("admin", "password_hash", password_hash)
     if reload_callback:
         reload_callback()
 
 
 def update_api_token_hash(token_hash, reload_callback=None):
-    config_path = Path(get_config_path())
-    with ConfigPersistenceTransaction(config_path) as transaction:
-        current_content = transaction.read_text()
-        current_config = load_config_from_content(current_content)
-        api_config = dict(current_config.get('api') or {})
-        api_config.setdefault('token_auth_enabled', True)
-        api_config['token_hash'] = token_hash
-        _persist_composed_config(
-            transaction,
-            current_content,
-            current_config.get('admin'),
-            api_config,
-        )
+    _update_secret("api", "token_hash", token_hash)
     if reload_callback:
         reload_callback()
+
+
+def _update_secret(section, field, value):
+    """Persist one already-prepared secret through the shared transaction."""
+
+    config_path = Path(get_config_path())
+    current_config = load_config_from_content(config_path.read_text(encoding="utf-8"))
+    secrets_path = get_secrets_path(config_path)
+    with ConfigPersistenceTransaction(secrets_path) as transaction:
+        existed = secrets_path.exists()
+        existing = (
+            parse_secrets_content(transaction.read_text())
+            if existed
+            else empty_secrets()
+        )
+        updated = dict(existing)
+        updated[section] = dict(updated.get(section) or {})
+        updated[section][field] = value
+        transaction.write(
+            validate_secrets(updated),
+            create_backup=existed,
+            backup_limit=get_config_backups_max_files(current_config),
+        )
 
 
 def get_config_file_metadata():

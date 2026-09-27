@@ -18,6 +18,7 @@ from app.config_persistence import (
     ConfigPersistenceTransaction,
     ConfigWriteError,
 )
+from app.config_secrets import get_secrets_path
 
 
 @pytest.fixture
@@ -77,18 +78,40 @@ def test_invalid_credentials_bootstrap_once(config_path, capsys, secret, passwor
     assert check_password_hash(admin['password_hash'], password)
     assert password not in config_path.read_text()
     assert config['api'] == {'token_hash': 'keep'}
+    persisted_config = yaml.safe_load(config_path.read_text())
+    persisted_secrets = yaml.safe_load(get_secrets_path(config_path).read_text())
+    assert 'session_secret' not in persisted_config['admin']
+    assert 'password_hash' not in persisted_config['admin']
+    assert 'api' not in persisted_config
+    assert persisted_secrets['admin'] == {
+        'session_secret': admin['session_secret'],
+        'password_hash': admin['password_hash'],
+    }
+    assert persisted_secrets['api'] == {'token_hash': 'keep'}
     persisted = config_path.read_bytes()
     assert bootstrap.bootstrap_config() == config
     assert config_path.read_bytes() == persisted
     assert capsys.readouterr().out == ''
 
 
-def test_valid_credentials_preserved_byte_for_byte(config_path, capsys):
+def test_valid_credentials_are_extracted_then_preserved_byte_for_byte(config_path, capsys):
     password_hash = generate_password_hash('existing-password')
     write_admin(config_path, session_secret='existing-secret', password_hash=password_hash)
-    original = config_path.read_bytes()
-    bootstrap.bootstrap_config()
-    assert config_path.read_bytes() == original
+    runtime = bootstrap.bootstrap_config()
+    persisted = yaml.safe_load(config_path.read_text())
+    secrets = yaml.safe_load(get_secrets_path(config_path).read_text())
+    assert persisted['admin'] == {'auth_enabled': True}
+    assert 'api' not in persisted
+    assert secrets['admin'] == {
+        'session_secret': 'existing-secret',
+        'password_hash': password_hash,
+    }
+    assert secrets['api'] == {'token_hash': 'keep'}
+    first_config = config_path.read_bytes()
+    first_secrets = get_secrets_path(config_path).read_bytes()
+    assert bootstrap.bootstrap_config() == runtime
+    assert config_path.read_bytes() == first_config
+    assert get_secrets_path(config_path).read_bytes() == first_secrets
     assert capsys.readouterr().out == ''
 
 
@@ -97,9 +120,9 @@ def test_only_invalid_field_replaced(config_path, capsys):
     write_admin(config_path, session_secret='<placeholder>', password_hash=password_hash)
     assert bootstrap.bootstrap_config()['admin']['password_hash'] == password_hash
     assert capsys.readouterr().out == ''
-    write_admin(config_path, session_secret='existing-secret', password_hash='bad')
-    assert bootstrap.bootstrap_config()['admin']['session_secret'] == 'existing-secret'
-    assert 'temporary admin password' in capsys.readouterr().out
+    secrets = yaml.safe_load(get_secrets_path(config_path).read_text())
+    assert len(secrets['admin']['session_secret']) == 64
+    assert secrets['admin']['password_hash'] == password_hash
 
 
 def test_disabled_auth_does_not_generate(config_path, capsys):
@@ -115,9 +138,12 @@ def test_disabled_auth_does_not_generate(config_path, capsys):
 def test_environment_secret_is_preserved(config_path, monkeypatch):
     write_admin(config_path, session_secret='<placeholder>', password_hash=generate_password_hash('valid'))
     monkeypatch.setenv('WAMF_SECRET_KEY', 'existing-environment-secret')
-    original = config_path.read_bytes()
-    bootstrap.bootstrap_config()
-    assert config_path.read_bytes() == original
+    runtime = bootstrap.bootstrap_config()
+    persisted = yaml.safe_load(config_path.read_text())
+    stored = yaml.safe_load(get_secrets_path(config_path).read_text())
+    assert 'session_secret' not in persisted['admin']
+    assert stored['admin']['session_secret'] == '<placeholder>'
+    assert runtime['admin']['session_secret'] == '<placeholder>'
 
 
 @pytest.mark.parametrize('content', [

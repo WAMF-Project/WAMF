@@ -38,6 +38,7 @@ def test_load_config_uses_shared_config_path(monkeypatch, tmp_path):
         speciesid.load_config()
 
     assert speciesid.config == {
+        "config_version": 2,
         "frigate": {"frigate_url": "http://frigate:5000"},
     }
     client_factory.assert_called_once_with("http://frigate:5000")

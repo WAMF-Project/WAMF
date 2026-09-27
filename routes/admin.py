@@ -16,6 +16,8 @@ from app.config_editor import (
     strip_sensitive_config_blocks,
 )
 from app.config_migration import ConfigMigrationError, migrate_config
+from app.config_loader import load_runtime_config
+from app.config_secrets import apply_secrets, get_secrets_path, load_secrets, secret_updates
 from app.config_validation import validate_config
 from app.config_persistence import ConfigPersistenceError
 from app.system_events import log_system_event
@@ -37,9 +39,13 @@ def _validation_response(result):
 
 
 def _validate_config_content(config_content):
-    sanitized_content = strip_sensitive_config_blocks(config_content)
-    config = load_config_from_content(sanitized_content)
-    return validate_config(migrate_config(config).config)
+    config = load_config_from_content(config_content)
+    migrated = migrate_config(config).config
+    secrets = load_secrets(get_secrets_path(get_config_path()))
+    updated_secrets = secret_updates(migrated, secrets)
+    sanitized = load_config_from_content(strip_sensitive_config_blocks(config_content))
+    runtime = apply_secrets(migrate_config(sanitized).config, updated_secrets)
+    return validate_config(runtime)
 
 
 def _not_ready_response(result):
@@ -254,7 +260,7 @@ def save_config():
     except yaml.YAMLError as e:
         return {
             "success": False,
-            "error": str(e)
+            "error": "Configuration YAML is invalid."
         }, 400
     except ConfigMigrationError as exc:
         return {
@@ -279,10 +285,9 @@ def restart_status():
 @admin_bp.route('/admin/config/restart', methods=['POST'])
 def restart_wamf():
     try:
-        config = load_config_from_content(load_config_file_content())
-        result = validate_config(migrate_config(config).config)
+        result = validate_config(load_runtime_config())
     except yaml.YAMLError as exc:
-        return {"success": False, "error": str(exc)}, 400
+        return {"success": False, "error": "Configuration YAML is invalid."}, 400
     except ConfigMigrationError as exc:
         return {"success": False, "error": str(exc)}, 409
     if not result.is_valid:
@@ -350,7 +355,7 @@ def save_and_restart_wamf():
     except yaml.YAMLError as e:
         return {
             "success": False,
-            "error": str(e)
+            "error": "Configuration YAML is invalid."
         }, 400
     except ConfigMigrationError as exc:
         return {

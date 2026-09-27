@@ -60,8 +60,12 @@ retention:
     assert updated["config_version"] == CURRENT_CONFIG_VERSION
     assert updated["mqtt"]["host"] == "mqtt.local"
     assert "mqtt_server" not in updated["frigate"]
-    assert updated["admin"]["session_secret"] == "keep-me"
-    assert updated["api"]["token_hash"] == "keep-token"
+    assert updated["admin"] == {"auth_enabled": True}
+    assert updated["api"] == {"token_auth_enabled": True}
+    secrets = yaml.safe_load((tmp_path / "secrets.yml").read_text())
+    assert secrets["admin"]["session_secret"] == "keep-me"
+    assert secrets["admin"]["password_hash"] == "keep-hash"
+    assert secrets["api"]["token_hash"] == "keep-token"
 
 
 def test_prune_config_backups_allows_zero_retained_backups(tmp_path):
@@ -77,3 +81,57 @@ def test_prune_config_backups_allows_zero_retained_backups(tmp_path):
 
     assert deleted_count == 1
     assert not backup_path.exists()
+
+
+def test_raw_editor_blank_mqtt_secrets_preserve_and_new_values_replace(
+    monkeypatch, tmp_path
+):
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        "config_version: 2\n"
+        "mqtt:\n"
+        "  host: broker\n"
+        "  authentication:\n"
+        "    enabled: true\n",
+        encoding="utf-8",
+    )
+    secrets_path = tmp_path / "secrets.yml"
+    secrets_path.write_text(
+        "secrets_version: 1\n"
+        "mqtt:\n"
+        "  username: existing-user\n"
+        "  password: existing-password\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+
+    config_editor.write_config_preserving_admin(
+        "config_version: 2\n"
+        "mqtt:\n"
+        "  host: broker\n"
+        "  authentication:\n"
+        "    enabled: true\n"
+        "    username: ''\n"
+        "    password: ''\n"
+    )
+    assert yaml.safe_load(secrets_path.read_text())["mqtt"] == {
+        "username": "existing-user",
+        "password": "existing-password",
+    }
+
+    config_editor.write_config_preserving_admin(
+        "config_version: 2\n"
+        "mqtt:\n"
+        "  host: broker\n"
+        "  authentication:\n"
+        "    enabled: true\n"
+        "    username: replacement-user\n"
+        "    password: replacement-password\n"
+    )
+    stored = yaml.safe_load(secrets_path.read_text())
+    assert stored["mqtt"] == {
+        "username": "replacement-user",
+        "password": "replacement-password",
+    }
+    persisted = yaml.safe_load(config_path.read_text())
+    assert persisted["mqtt"]["authentication"] == {"enabled": True}

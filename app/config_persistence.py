@@ -1,4 +1,4 @@
-"""Process-safe filesystem persistence for WAMF configuration.
+"""Process-safe filesystem persistence for WAMF YAML state.
 
 Each target uses a persistent sibling ``<config>.lock`` file. Its descriptor is
 held for the complete backup/write/replace transaction and released when the
@@ -58,6 +58,14 @@ class ConfigWriteError(ConfigPersistenceError):
 class ConfigPersistenceResult:
     config_path: Path
     backup_path: Path | None
+
+
+def ensure_private_file(path):
+    """Set an existing persistence artifact to 0600 only when necessary."""
+
+    path = Path(path)
+    if path.exists() and (path.stat().st_mode & 0o777) != FILE_MODE:
+        path.chmod(FILE_MODE)
 
 
 def get_config_backup_paths(config_path):

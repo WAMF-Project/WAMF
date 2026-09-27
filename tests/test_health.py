@@ -204,7 +204,10 @@ mqtt:
 
     monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
 
-    assert load_config() == yaml.safe_load(config_path.read_text())
+    assert load_config() == {
+        "config_version": 2,
+        **yaml.safe_load(config_path.read_text()),
+    }
 
 
 def test_initial_health_state_is_recorded_without_publishing():

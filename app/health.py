@@ -5,10 +5,10 @@ import sqlite3
 import threading
 
 import paho.mqtt.client as mqtt
-import yaml
 
 from app.bootstrap import preflight
 from app.config_editor import get_config_path
+from app.config_loader import load_runtime_config
 from app.config_normalization import normalize_config
 from app.db import connect_db
 from app.frigate_client import FrigateClient, FrigateError
@@ -115,9 +115,7 @@ def record_health_transition(health, bridge_config):
 
 
 def load_config():
-
-    with open(get_config_path(), "r") as f:
-        return yaml.safe_load(f)
+    return load_runtime_config()
 
 
 def calculate_system_health(config=None):
