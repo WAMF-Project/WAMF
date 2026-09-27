@@ -105,7 +105,9 @@ def test_save_only_reports_restart_required_without_scheduling(flask_client, mon
         response = flask_client.post('/admin/config/save', json={'config_content': 'webui: {port: 7767}\n'})
     assert response.json['success']
     assert response.json['restart_required']
-    assert 'Restart WAMF' in response.json['message']
+    assert response.json['valid'] is True
+    assert response.json['ready'] is False
+    assert 'setup is incomplete' in response.json['message']
     restart.assert_not_called()
 
 

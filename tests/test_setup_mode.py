@@ -74,12 +74,19 @@ def test_saved_configuration_requires_restart_of_setup_process():
     mqtt.assert_not_called()
 
 
-@pytest.mark.parametrize('section,value', [('webui', {'port': 'invalid'}), ('webui', {'host': '<bind-address>'}), ('storage', []), ('frigate', 'invalid')])
+@pytest.mark.parametrize('section,value', [('webui', {'port': 'invalid'}), ('storage', []), ('frigate', 'invalid')])
 def test_unsafe_configuration_still_fails_fast(section, value):
     config = configured()
     config[section] = value
     with pytest.raises(ValueError, match=section):
         bootstrap.preflight(config)
+
+
+def test_placeholder_webui_host_is_incomplete_not_malformed():
+    config = configured()
+    config['webui'] = {'host': '<bind-address>'}
+
+    assert bootstrap.preflight(config) == ['webui.host']
 
 
 # Run the real native entry point and real Flask routes in an isolated checkout.

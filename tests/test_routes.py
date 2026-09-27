@@ -1285,7 +1285,17 @@ def test_config_editor_save_and_restart_writes_config(
     import routes.admin as admin_routes
 
     config_path = tmp_path / "config.yml"
-    config_path.write_text("webui:\n  port: 7766\n")
+    submitted = {
+        "frigate": {
+            "frigate_url": "http://frigate",
+            "mqtt_server": "mqtt",
+            "main_topic": "frigate",
+            "camera": ["birdcam"],
+        },
+        "classification": {"model": "model.tflite", "threshold": 0.7},
+        "webui": {"port": 8877},
+    }
+    config_path.write_text(yaml.safe_dump({**submitted, "webui": {"port": 7766}}))
     monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
     scheduled = []
     def schedule_after_save():
@@ -1295,13 +1305,81 @@ def test_config_editor_save_and_restart_writes_config(
 
     response = flask_client.post(
         "/admin/config/save-and-restart",
-        json={"config_content": "webui:\n  port: 8877\n"},
+        json={"config_content": yaml.safe_dump(submitted)},
     )
 
     assert response.status_code == 200
     assert response.get_json()["success"] is True
     assert yaml.safe_load(config_path.read_text())["webui"]["port"] == 8877
     assert scheduled == [True]
+
+
+def test_config_editor_save_rejects_structurally_invalid_yaml_mapping(
+    flask_client, monkeypatch, tmp_path
+):
+    config_path = tmp_path / "config.yml"
+    original = "webui:\n  port: 7767\n"
+    config_path.write_text(original)
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+
+    response = flask_client.post(
+        "/admin/config/save",
+        json={"config_content": "webui:\n  port: invalid\n"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["valid"] is False
+    assert response.get_json()["validation_errors"] == [
+        "webui.port: must be an integer from 1 to 65535"
+    ]
+    assert config_path.read_text() == original
+
+
+def test_config_editor_save_distinguishes_valid_incomplete_configuration(
+    flask_client, monkeypatch, tmp_path
+):
+    import webui
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("webui:\n  port: 7767\n")
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+    monkeypatch.setattr(webui, "load_config", lambda: None)
+
+    response = flask_client.post(
+        "/admin/config/save",
+        json={"config_content": "webui:\n  port: 8877\n"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["success"] is True
+    assert response.get_json()["valid"] is True
+    assert response.get_json()["ready"] is False
+    assert response.get_json()["readiness_issues"]
+    assert yaml.safe_load(config_path.read_text())["webui"]["port"] == 8877
+
+
+def test_config_editor_save_and_restart_blocks_incomplete_configuration(
+    flask_client, monkeypatch, tmp_path
+):
+    import routes.admin as admin_routes
+
+    config_path = tmp_path / "config.yml"
+    original = "webui:\n  port: 7767\n"
+    config_path.write_text(original)
+    monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
+    scheduled = []
+    monkeypatch.setattr(admin_routes, "schedule_restart", lambda: scheduled.append(True))
+
+    response = flask_client.post(
+        "/admin/config/save-and-restart",
+        json={"config_content": "webui:\n  port: 8877\n"},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json()["valid"] is True
+    assert response.get_json()["ready"] is False
+    assert config_path.read_text() == original
+    assert scheduled == []
 
 
 def test_change_password_updates_hidden_admin_block(flask_client, monkeypatch, tmp_path):

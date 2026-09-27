@@ -9,13 +9,41 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from app.config_editor import (
     get_config_file_metadata,
     get_config_path,
+    load_config_file_content,
+    load_config_from_content,
     strip_admin_config_block,
+    strip_sensitive_config_blocks,
 )
+from app.config_validation import validate_config
 from app.system_events import log_system_event
 from app.process_control import INSTANCE_ID, schedule_restart
 
 
 admin_bp = Blueprint('admin', __name__)
+
+
+def _validation_response(result):
+    return {
+        "valid": result.is_valid,
+        "ready": result.is_ready,
+        "validation_errors": [str(issue) for issue in result.errors],
+        "readiness_issues": [str(issue) for issue in result.readiness_issues],
+        "warnings": list(result.warnings),
+    }
+
+
+def _validate_config_content(config_content):
+    sanitized_content = strip_sensitive_config_blocks(config_content)
+    return validate_config(load_config_from_content(sanitized_content))
+
+
+def _not_ready_response(result):
+    details = _validation_response(result)
+    details.update(
+        success=False,
+        error="Configuration is not ready to start WAMF detection.",
+    )
+    return details, 409
 
 
 @admin_bp.route('/admin')
@@ -178,13 +206,22 @@ def admin_config():
 def save_config():
     import webui
 
-    data = request.get_json()
+    data = request.get_json() or {}
     config_content = data.get(
         'config_content',
         ''
     )
 
     try:
+        result = _validate_config_content(config_content)
+        if not result.is_valid:
+            details = _validation_response(result)
+            details.update(
+                success=False,
+                error="Configuration contains structural validation errors.",
+            )
+            return details, 400
+
         webui.write_config_preserving_admin(
             config_content,
             reload_callback=webui.load_config
@@ -196,17 +233,24 @@ def save_config():
             "Configuration updated via admin editor"
         )
 
-        return {
+        response = {
             "success": True,
             "message": "Configuration saved. Restart WAMF to apply deployment changes.",
             "restart_required": True,
         }
+        response.update(_validation_response(result))
+        if not result.is_ready:
+            response["message"] = (
+                "Configuration saved, but setup is incomplete. Complete the required "
+                "settings before restarting WAMF."
+            )
+        return response
 
     except yaml.YAMLError as e:
         return {
             "success": False,
             "error": str(e)
-        }
+        }, 400
 
 
 @admin_bp.route('/admin/config/restart-status')
@@ -218,6 +262,20 @@ def restart_status():
 
 @admin_bp.route('/admin/config/restart', methods=['POST'])
 def restart_wamf():
+    try:
+        result = validate_config(load_config_from_content(load_config_file_content()))
+    except yaml.YAMLError as exc:
+        return {"success": False, "error": str(exc)}, 400
+    if not result.is_valid:
+        details = _validation_response(result)
+        details.update(
+            success=False,
+            error="Configuration contains structural validation errors.",
+        )
+        return details, 409
+    if not result.is_ready:
+        return _not_ready_response(result)
+
     log_system_event(
         "INFO",
         "SYSTEM",
@@ -242,6 +300,17 @@ def save_and_restart_wamf():
     config_content = data.get('config_content', '')
 
     try:
+        result = _validate_config_content(config_content)
+        if not result.is_valid:
+            details = _validation_response(result)
+            details.update(
+                success=False,
+                error="Configuration contains structural validation errors.",
+            )
+            return details, 400
+        if not result.is_ready:
+            return _not_ready_response(result)
+
         webui.write_config_preserving_admin(config_content)
 
         log_system_event(
@@ -251,17 +320,19 @@ def save_and_restart_wamf():
         )
         schedule_restart()
 
-        return {
+        response = {
             "success": True,
             "message": "Configuration saved. WAMF will restart shortly."
         }
+        response.update(_validation_response(result))
+        return response
     except RuntimeError as exc:
         return {"success": False, "error": str(exc)}, 409
     except yaml.YAMLError as e:
         return {
             "success": False,
             "error": str(e)
-        }
+        }, 400
 
 
 @admin_bp.route('/admin/password', methods=['GET', 'POST'])

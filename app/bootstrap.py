@@ -6,23 +6,15 @@ from pathlib import Path
 import re
 import secrets
 import string
-from urllib.parse import urlsplit
 
 import yaml
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.config_editor import get_config_path
-from app.config_normalization import normalize_config
+from app.config_validation import is_placeholder, validate_config
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PORT = 7767
-
-
-def is_placeholder(value):
-    if not isinstance(value, str) or not value.strip():
-        return True
-    value = value.strip().lower()
-    return '<' in value or value.startswith(('your-', 'your_', 'change-me', 'changeme'))
 
 
 def valid_password_hash(value):
@@ -130,59 +122,12 @@ def _bootstrap_locked(path):
 
 
 def preflight(config):
-    """Return settings needing setup; reject structures unsafe for the web UI."""
-    if not isinstance(config, dict):
-        raise ValueError('Configuration must be a YAML mapping')
-    for section in ('frigate', 'classification', 'webui', 'storage', 'media',
-                    'admin', 'api', 'retention', 'bridge', 'camera', 'live_view'):
-        if section in config and not isinstance(config[section], dict):
-            raise ValueError(f'{section} must be a YAML mapping')
-    webui = config.get('webui', {})
-    port = webui.get('port', DEFAULT_PORT)
-    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
-        raise ValueError('webui.port must be an integer from 1 to 65535')
-    if is_placeholder(webui.get('host', '0.0.0.0')):
-        raise ValueError('webui.host must be a valid bind address')
-    errors = []
-    normalized = normalize_config(config).config
-    mqtt = normalized['mqtt']
-    frigate = config.get('frigate') or {}
-    if not isinstance(frigate, dict):
-        raise ValueError('frigate must be a YAML mapping')
-    for key in ('frigate_url',):
-        if is_placeholder(frigate.get(key)):
-            errors.append(f'frigate.{key}')
-    for key in ('host', 'topic_prefix'):
-        if is_placeholder(mqtt.get(key)):
-            errors.append(f'mqtt.{key}')
-    try:
-        url = urlsplit(str(frigate.get('frigate_url', '')))
-        valid_url = url.scheme in ('http', 'https') and url.hostname
-    except ValueError:
-        valid_url = False
-    if not valid_url:
-        errors.append('frigate.frigate_url (HTTP/HTTPS URL required)')
-    cameras = frigate.get('camera')
-    if not isinstance(cameras, list) or not cameras or any(is_placeholder(c) for c in cameras):
-        errors.append('frigate.camera')
-    authentication = mqtt['authentication']
-    if authentication.get('enabled'):
-        for key in ('username', 'password'):
-            if is_placeholder(authentication.get(key)):
-                errors.append(f'mqtt.authentication.{key}')
-    classification = config.get('classification') or {}
-    if not isinstance(classification, dict):
-        errors.append('classification (YAML mapping required)')
-    else:
-        if is_placeholder(classification.get('model')):
-            errors.append('classification.model')
-        threshold = classification.get('threshold')
-        if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
-            errors.append('classification.threshold (number from 0 to 1 required)')
-    port = mqtt.get('port', 1883)
-    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
-        errors.append('mqtt.port (integer from 1 to 65535 required)')
-    return errors
+    """Return setup findings while preserving the historical preflight API."""
+
+    result = validate_config(config)
+    if result.errors:
+        raise ValueError("; ".join(str(issue) for issue in result.errors))
+    return [issue.field for issue in result.readiness_issues]
 
 
 def prepare_native_startup():
