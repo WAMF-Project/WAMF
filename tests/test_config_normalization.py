@@ -6,7 +6,7 @@ import pytest
 from app.config_normalization import normalize_config
 
 
-def test_complete_legacy_config_is_normalized_without_mutating_source():
+def test_legacy_mqtt_aliases_are_ignored_without_mutating_source():
     source = {
         "frigate": {
             "mqtt_server": "legacy-broker",
@@ -35,18 +35,18 @@ def test_complete_legacy_config_is_normalized_without_mutating_source():
 
     assert normalized.config == {
         "mqtt": {
-            "host": "legacy-broker",
-            "port": 1884,
-            "topic_prefix": "legacy-frigate",
+            "host": None,
+            "port": 1883,
+            "topic_prefix": None,
             "authentication": {
-                "enabled": True,
-                "username": "legacy-user",
-                "password": "legacy-password",
+                "enabled": False,
+                "username": None,
+                "password": None,
             },
             "tls": {
-                "enabled": True,
-                "insecure": True,
-                "ca_certs": "/legacy/ca.pem",
+                "enabled": False,
+                "insecure": False,
+                "ca_certs": None,
             },
         },
         "perch": {
@@ -57,8 +57,17 @@ def test_complete_legacy_config_is_normalized_without_mutating_source():
         "health": {"check_interval_seconds": 45},
         "camera": {"live_view_url": "https://camera.example/live"},
     }
-    assert normalized.provenance["mqtt.host"] == "legacy"
-    assert normalized.source_paths["mqtt.host"] == "frigate.mqtt_server"
+    assert all(
+        normalized.provenance[path] == "default"
+        for path in normalized.provenance
+        if path.startswith("mqtt.")
+    )
+    assert all(
+        normalized.source_paths[path] is None
+        for path in normalized.source_paths
+        if path.startswith("mqtt.")
+    )
+    assert not any("mqtt" in warning for warning in normalized.warnings)
     assert normalized.raw["frigate"]["object"] == "bird"
     assert normalized.raw["unrelated"] == {"keep": "me"}
     assert source == original
@@ -93,7 +102,7 @@ def test_complete_canonical_config_is_used():
     assert normalized.warnings == ()
 
 
-def test_mixed_config_falls_back_per_key():
+def test_canonical_mqtt_and_non_mqtt_aliases_resolve_independently():
     normalized = normalize_config(
         {
             "mqtt": {"host": "canonical-broker", "tls": {"enabled": True}},
@@ -108,11 +117,11 @@ def test_mixed_config_falls_back_per_key():
     )
 
     assert normalized.config["mqtt"]["host"] == "canonical-broker"
-    assert normalized.config["mqtt"]["port"] == 1884
-    assert normalized.config["mqtt"]["topic_prefix"] == "legacy-topic"
+    assert normalized.config["mqtt"]["port"] == 1883
+    assert normalized.config["mqtt"]["topic_prefix"] is None
     assert normalized.config["mqtt"]["tls"] == {
         "enabled": True,
-        "insecure": True,
+        "insecure": False,
         "ca_certs": None,
     }
     assert normalized.config["perch"]["enabled"] is True
@@ -120,7 +129,7 @@ def test_mixed_config_falls_back_per_key():
     assert normalized.provenance["mqtt.tls.ca_certs"] == "default"
 
 
-def test_conflict_uses_canonical_and_reports_only_key_paths():
+def test_ignored_legacy_mqtt_alias_does_not_emit_warning():
     normalized = normalize_config(
         {
             "mqtt": {"port": 1883},
@@ -130,9 +139,7 @@ def test_conflict_uses_canonical_and_reports_only_key_paths():
 
     assert normalized.config["mqtt"]["port"] == 1883
     assert normalized.provenance["mqtt.port"] == "canonical"
-    assert normalized.warnings == (
-        "Both mqtt.port and frigate.mqtt_port are configured; using mqtt.port.",
-    )
+    assert normalized.warnings == ()
 
 
 def test_falsey_canonical_values_do_not_fall_back():
@@ -142,13 +149,6 @@ def test_falsey_canonical_values_do_not_fall_back():
                 "port": 0,
                 "authentication": {"enabled": False, "username": ""},
                 "tls": {"enabled": False, "ca_certs": ""},
-            },
-            "frigate": {
-                "mqtt_port": 1884,
-                "mqtt_auth": True,
-                "mqtt_username": "legacy-user",
-                "mqtt_use_tls": True,
-                "mqtt_tls_ca_certs": "/legacy/ca.pem",
             },
         }
     )
@@ -233,7 +233,7 @@ def test_malformed_sections_are_rejected(source, path):
         normalize_config(source)
 
 
-def test_password_conflict_warning_redacts_both_values_and_callback_is_deduplicated():
+def test_ignored_legacy_password_emits_no_warning_or_secret():
     canonical_secret = "CANONICAL-SENTINEL-SECRET"
     legacy_secret = "LEGACY-SENTINEL-SECRET"
     emitted = []
@@ -247,12 +247,10 @@ def test_password_conflict_warning_redacts_both_values_and_callback_is_deduplica
     )
 
     assert normalized.config["mqtt"]["authentication"]["password"] == canonical_secret
-    assert emitted == list(normalized.warnings)
-    assert len(emitted) == len(set(emitted)) == 1
-    assert "mqtt.authentication.password" in emitted[0]
-    assert "frigate.mqtt_password" in emitted[0]
-    assert canonical_secret not in emitted[0]
-    assert legacy_secret not in emitted[0]
+    assert emitted == []
+    assert normalized.warnings == ()
+    assert canonical_secret not in repr(normalized.warnings)
+    assert legacy_secret not in repr(normalized.warnings)
 
 
 def test_result_owns_independent_copies_of_source_and_selected_values():

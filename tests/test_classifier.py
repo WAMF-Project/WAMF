@@ -134,8 +134,8 @@ def test_event_pipeline_directly_resizes_golden_snapshot(tmp_path):
         'frigate': {
             'camera': ['birdcam'],
             'frigate_url': 'http://localhost:5000',
-            'main_topic': 'frigate',
         },
+        'mqtt': {'topic_prefix': 'frigate'},
         'classification': {'threshold': 0.7},
     }
 

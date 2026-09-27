@@ -1016,8 +1016,11 @@ def test_regenerated_api_token_invalidates_old_token(flask_client, monkeypatch, 
 
     config_path = tmp_path / "config.yml"
     config_path.write_text("""
+config_version: 2
 frigate:
-  mqtt_server: localhost
+  frigate_url: http://frigate
+mqtt:
+  host: localhost
 api:
   token_auth_enabled: true
   token_hash: ""
@@ -1195,8 +1198,11 @@ def test_config_editor_hides_admin_block(flask_client, monkeypatch, tmp_path):
 
     config_path = tmp_path / "config.yml"
     config_path.write_text("""
+config_version: 2
 frigate:
-  mqtt_server: localhost
+  frigate_url: http://frigate
+mqtt:
+  host: localhost
 admin:
   auth_enabled: true
   session_secret: hidden
@@ -1232,7 +1238,7 @@ webui:
 
     response = flask_client.get("/admin/config")
     assert response.status_code == 200
-    assert b"mqtt_server" in response.data
+    assert b"host: localhost" in response.data
     assert b"password_hash" not in response.data
     assert b"hidden-hash" not in response.data
     assert b"token_hash" not in response.data
@@ -1471,8 +1477,11 @@ def test_change_password_updates_hidden_admin_block(flask_client, monkeypatch, t
 
     config_path = tmp_path / "config.yml"
     config_path.write_text("""
+config_version: 2
 frigate:
-  mqtt_server: localhost
+  frigate_url: http://frigate
+mqtt:
+  host: localhost
 admin:
   auth_enabled: true
   session_secret: test-secret

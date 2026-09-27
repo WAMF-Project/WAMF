@@ -66,7 +66,7 @@ retention:
 
 def test_prune_config_backups_allows_zero_retained_backups(tmp_path):
     config_path = tmp_path / "config.yml"
-    config_path.write_text("frigate:\n  mqtt_server: localhost\n")
+    config_path.write_text("config_version: 2\nmqtt:\n  host: localhost\n")
     backup_path = tmp_path / "config.yml.20260101-000000.bak"
     backup_path.write_text("backup\n")
 

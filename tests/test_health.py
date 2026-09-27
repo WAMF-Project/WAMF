@@ -168,7 +168,7 @@ def test_mqtt_health_applies_authentication_and_tls(insecure):
     client.tls_insecure_set.assert_called_once_with(insecure)
 
 
-def test_mqtt_health_supports_legacy_settings_through_normalization():
+def test_mqtt_health_does_not_interpret_legacy_settings():
     password = _RedactedSecret("legacy-mqtt-health-password")
     config = {
         "frigate": {
@@ -186,12 +186,10 @@ def test_mqtt_health_supports_legacy_settings_through_normalization():
 
     client = _run_mqtt_health_probe(config)
 
-    client.connect.assert_called_once_with("legacy-mqtt.lan", 3883, 5)
-    username, configured_password = client.username_pw_set.call_args.args
-    assert username == "legacy-health-user"
-    assert configured_password == password
-    client.tls_set.assert_called_once_with(ca_certs="/certs/legacy-mqtt-ca.pem")
-    client.tls_insecure_set.assert_called_once_with(False)
+    client.connect.assert_called_once_with(None, 1883, 5)
+    client.username_pw_set.assert_not_called()
+    client.tls_set.assert_not_called()
+    client.tls_insecure_set.assert_not_called()
 
 
 def test_health_load_config_uses_config_env_var(monkeypatch, tmp_path):
@@ -199,8 +197,9 @@ def test_health_load_config_uses_config_env_var(monkeypatch, tmp_path):
     config_path.write_text("""
 frigate:
   frigate_url: http://example.invalid
-  mqtt_server: mqtt.example.invalid
-  mqtt_port: 1883
+mqtt:
+  host: mqtt.example.invalid
+  port: 1883
 """.lstrip())
 
     monkeypatch.setenv("WHOSATMYFEEDER_CONFIG", str(config_path))
@@ -287,11 +286,13 @@ def test_health_calculation_does_not_record_transition():
         calculate_system_health(
             {
                 "frigate": {
-                    "mqtt_server": "mqtt",
-                    "mqtt_port": 1883,
                     "frigate_url": "http://frigate",
-                    "main_topic": "frigate",
                     "camera": ["birdcam"],
+                },
+                "mqtt": {
+                    "host": "mqtt",
+                    "port": 1883,
+                    "topic_prefix": "frigate",
                 },
                 "classification": {"model": "model.tflite", "threshold": 0.7},
             }

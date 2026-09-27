@@ -20,8 +20,8 @@ def reset_worker_state(monkeypatch):
 
 def configured():
     return {
-        'frigate': {'frigate_url': 'http://frigate', 'mqtt_server': 'mqtt',
-                    'main_topic': 'frigate', 'camera': ['birdcam']},
+        'frigate': {'frigate_url': 'http://frigate', 'camera': ['birdcam']},
+        'mqtt': {'host': 'mqtt', 'topic_prefix': 'frigate'},
         'classification': {'model': 'model.tflite', 'threshold': 0.7},
     }
 

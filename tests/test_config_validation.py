@@ -2,6 +2,7 @@ from copy import deepcopy
 
 import pytest
 
+from app.config_migration import migrate_config
 from app.config_validation import validate_config
 
 
@@ -73,17 +74,18 @@ def test_invalid_values_return_multiple_structural_errors():
     ]
 
 
-def test_legacy_warnings_do_not_make_ready_config_invalid():
+def test_migrated_legacy_config_is_validated_as_canonical():
     config = ready_config()
     config.pop("mqtt")
     config["frigate"].update(mqtt_server="mqtt", main_topic="frigate")
 
-    result = validate_config(config)
+    migration = migrate_config(config)
+    result = validate_config(migration.config)
 
+    assert migration.migrated is True
     assert result.is_valid is True
     assert result.is_ready is True
-    assert result.warnings
-    assert all("deprecated" in warning for warning in result.warnings)
+    assert result.warnings == ()
 
 
 def test_validation_does_not_mutate_input():
@@ -95,7 +97,7 @@ def test_validation_does_not_mutate_input():
     assert config == original
 
 
-def test_canonical_mqtt_precedes_conflicting_legacy_values():
+def test_validation_does_not_interpret_conflicting_legacy_mqtt_values():
     config = ready_config()
     config["frigate"].update(
         mqtt_server="",
@@ -110,10 +112,10 @@ def test_canonical_mqtt_precedes_conflicting_legacy_values():
 
     assert result.is_valid is True
     assert result.is_ready is True
-    assert result.warnings
+    assert result.warnings == ()
 
 
-def test_representative_legacy_mqtt_configuration_remains_supported():
+def test_representative_legacy_mqtt_configuration_is_migrated_before_validation():
     config = ready_config()
     config.pop("mqtt")
     config["frigate"].update(
@@ -128,8 +130,10 @@ def test_representative_legacy_mqtt_configuration_remains_supported():
         mqtt_tls_ca_certs="/certs/ca.pem",
     )
 
-    result = validate_config(config)
+    migration = migrate_config(config)
+    result = validate_config(migration.config)
 
+    assert migration.migrated is True
     assert result.is_valid is True
     assert result.is_ready is True
 

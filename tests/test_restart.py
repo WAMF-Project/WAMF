@@ -77,7 +77,8 @@ def test_restart_never_signals_an_unrelated_launcher(monkeypatch):
 def test_watchdog_does_not_respawn_during_restart(monkeypatch):
     import speciesid
     monkeypatch.setattr(speciesid, 'config', {
-        'frigate': {'frigate_url': 'http://frigate', 'mqtt_server': 'mqtt', 'main_topic': 'frigate', 'camera': ['birdcam']},
+        'frigate': {'frigate_url': 'http://frigate', 'camera': ['birdcam']},
+        'mqtt': {'host': 'mqtt', 'topic_prefix': 'frigate'},
         'classification': {'model': 'model.tflite', 'threshold': 0.7},
     })
     flask, mqtt = MagicMock(pid=101), MagicMock(pid=102)

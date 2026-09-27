@@ -468,7 +468,7 @@ def test_classifier_and_callbacks_ready_before_mqtt_connect(monkeypatch, tmp_pat
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(speciesid, 'config', {
         'classification': {'model': 'model.tflite'},
-        'frigate': {'mqtt_server': 'localhost'},
+        'mqtt': {'host': 'localhost'},
     })
     with patch('speciesid.initialize_classifier') as initialize, patch('speciesid.mqtt.Client') as factory:
         client = factory.return_value
@@ -485,7 +485,7 @@ def test_classifier_and_callbacks_ready_before_mqtt_connect(monkeypatch, tmp_pat
         initialize.assert_called_once_with(speciesid.REPO_ROOT / 'model.tflite')
 
 
-def test_canonical_mqtt_settings_configure_connection_and_subscription(monkeypatch):
+def test_runtime_ignores_legacy_aliases_beside_canonical_mqtt(monkeypatch):
     source = {
         "classification": {"model": "model.tflite"},
         "mqtt": {
@@ -599,7 +599,7 @@ def test_refused_mqtt_connection_is_not_reported_as_connected():
 
 
 def test_successful_mqtt_connection_subscribes_to_configured_topic(monkeypatch):
-    monkeypatch.setattr(speciesid, 'config', {'frigate': {'main_topic': 'custom'}})
+    monkeypatch.setattr(speciesid, 'config', {'mqtt': {'topic_prefix': 'custom'}})
     client = MagicMock()
     with patch('speciesid.log_system_event'):
         speciesid.on_connect(client, None, {}, 0)
@@ -609,8 +609,8 @@ def test_successful_mqtt_connection_subscribes_to_configured_topic(monkeypatch):
 def test_parent_initializes_config_and_schema_before_spawning_workers(monkeypatch):
     calls = []
     monkeypatch.setattr(speciesid, 'config', {
-        'frigate': {'frigate_url': 'http://frigate', 'mqtt_server': 'mqtt',
-                    'main_topic': 'frigate', 'camera': ['birdcam']},
+        'frigate': {'frigate_url': 'http://frigate', 'camera': ['birdcam']},
+        'mqtt': {'host': 'mqtt', 'topic_prefix': 'frigate'},
         'classification': {'model': 'model.tflite', 'threshold': 0.7},
     })
     monkeypatch.setattr(speciesid, 'load_config', lambda: calls.append('config'))

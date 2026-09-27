@@ -7,7 +7,7 @@ import yaml
 from app import config_migration
 from app.config_normalization import normalize_config
 from app.config_validation import validate_config
-from app.mqtt_settings import mqtt_settings_from_config
+from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
 
 
 LEGACY_KEYS = {legacy for legacy, _ in config_migration.LEGACY_MQTT_LEAVES}
@@ -253,9 +253,23 @@ def test_structurally_invalid_migration_error_does_not_expose_secret():
 
 
 @pytest.mark.parametrize(
-    "source",
+    "source, expected",
     [
-        pytest.param(complete_legacy_config(), id="legacy-only"),
+        pytest.param(
+            complete_legacy_config(),
+            MqttSettings(
+                host="legacy-broker",
+                port=1884,
+                topic_prefix="legacy-topic",
+                authentication_enabled=True,
+                username="legacy-user",
+                password="legacy-password",
+                tls_enabled=True,
+                tls_insecure=True,
+                ca_certs="/legacy/ca.pem",
+            ),
+            id="legacy-only",
+        ),
         pytest.param(
             {
                 **complete_legacy_config(),
@@ -264,6 +278,17 @@ def test_structurally_invalid_migration_error_does_not_expose_secret():
                     "authentication": {"username": "canonical-user"},
                 },
             },
+            MqttSettings(
+                host="canonical-host",
+                port=1884,
+                topic_prefix="legacy-topic",
+                authentication_enabled=True,
+                username="canonical-user",
+                password="legacy-password",
+                tls_enabled=True,
+                tls_insecure=True,
+                ca_certs="/legacy/ca.pem",
+            ),
             id="mixed",
         ),
         pytest.param(
@@ -277,6 +302,17 @@ def test_structurally_invalid_migration_error_does_not_expose_secret():
                     "tls": {"enabled": False},
                 },
             },
+            MqttSettings(
+                host="canonical-host",
+                port=2883,
+                topic_prefix="canonical-topic",
+                authentication_enabled=False,
+                username="legacy-user",
+                password="legacy-password",
+                tls_enabled=False,
+                tls_insecure=True,
+                ca_certs="/legacy/ca.pem",
+            ),
             id="conflicting",
         ),
         pytest.param(
@@ -297,17 +333,23 @@ def test_structurally_invalid_migration_error_does_not_expose_secret():
                     "mqtt_tls_ca_certs": "/legacy/ca.pem",
                 },
             },
+            MqttSettings(
+                host=None,
+                port=0,
+                topic_prefix="",
+                authentication_enabled=False,
+                tls_enabled=False,
+                ca_certs=None,
+            ),
             id="falsey-canonical",
         ),
-        pytest.param({}, id="absent-defaults"),
+        pytest.param({}, MqttSettings(host=None), id="absent-defaults"),
     ],
 )
-def test_migration_preserves_actual_runtime_mqtt_settings(source):
-    before = runtime_settings(source)
+def test_migration_produces_expected_runtime_mqtt_settings(source, expected):
     migrated = config_migration.migrate_config(source).config
-    after = runtime_settings(migrated)
 
-    assert after == before
+    assert runtime_settings(migrated) == expected
 
 
 def test_shipped_wamf_examples_are_current_canonical_and_have_no_legacy_aliases():

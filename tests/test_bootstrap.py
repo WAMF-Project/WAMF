@@ -141,7 +141,23 @@ def test_example_comments_and_unrelated_values_preserved(config_path):
 
 
 def configured():
-    return {'frigate': {'frigate_url': 'http://localhost:5000', 'mqtt_server': 'localhost', 'main_topic': 'frigate', 'camera': ['test']}, 'classification': {'model': 'model.tflite', 'threshold': 0.7}}
+    return {
+        'config_version': CURRENT_CONFIG_VERSION,
+        'frigate': {
+            'frigate_url': 'http://localhost:5000',
+            'camera': ['test'],
+        },
+        'mqtt': {'host': 'localhost', 'topic_prefix': 'frigate'},
+        'classification': {'model': 'model.tflite', 'threshold': 0.7},
+    }
+
+
+def legacy_configured():
+    config = configured()
+    config.pop('config_version')
+    config.pop('mqtt')
+    config['frigate'].update(mqtt_server='localhost', main_topic='frigate')
+    return config
 
 
 def test_preflight_accepts_configured_native_install():
@@ -157,7 +173,7 @@ def test_preflight_reports_example_placeholders():
 
 def test_preflight_requires_mqtt_credentials_when_enabled():
     config = configured()
-    config['frigate']['mqtt_auth'] = True
+    config['mqtt']['authentication'] = {'enabled': True}
     issues = bootstrap.preflight(config)
     assert 'mqtt.authentication.username' in issues
     assert 'mqtt.authentication.password' in issues
@@ -165,8 +181,6 @@ def test_preflight_requires_mqtt_credentials_when_enabled():
 
 def test_preflight_accepts_canonical_only_mqtt_without_mutating_config():
     config = configured()
-    config['frigate'].pop('mqtt_server')
-    config['frigate'].pop('main_topic')
     config['mqtt'] = {
         'host': 'canonical-broker',
         'port': 2883,
@@ -183,8 +197,11 @@ def test_preflight_accepts_canonical_only_mqtt_without_mutating_config():
     assert config == original
 
 
-def test_preflight_accepts_legacy_only_mqtt_through_normalization():
-    assert bootstrap.preflight(configured()) == []
+def test_preflight_does_not_interpret_legacy_only_mqtt():
+    issues = bootstrap.preflight(legacy_configured())
+
+    assert 'mqtt.host' in issues
+    assert 'mqtt.topic_prefix' in issues
 
 
 def test_preflight_canonical_mqtt_wins_over_conflicting_legacy_values():
@@ -210,8 +227,6 @@ def test_preflight_canonical_mqtt_wins_over_conflicting_legacy_values():
 def test_preflight_reports_missing_canonical_mqtt_without_exposing_secret():
     secret = 'SENTINEL-MQTT-PASSWORD'
     config = configured()
-    config['frigate'].pop('mqtt_server')
-    config['frigate'].pop('main_topic')
     config['mqtt'] = {
         'authentication': {'enabled': True, 'password': secret},
     }
@@ -236,7 +251,7 @@ def test_startup_migrates_legacy_config_with_exact_backup_and_is_idempotent(
     config_path,
     monkeypatch,
 ):
-    legacy = configured()
+    legacy = legacy_configured()
     legacy['admin'] = {'auth_enabled': False}
     original = yaml.safe_dump(legacy, sort_keys=False)
     config_path.write_text(original)
@@ -305,7 +320,7 @@ def test_future_version_is_not_rewritten_on_startup(config_path):
 
 
 def test_migration_backup_failure_leaves_legacy_active(config_path, monkeypatch):
-    original = yaml.safe_dump(configured(), sort_keys=False)
+    original = yaml.safe_dump(legacy_configured(), sort_keys=False)
     config_path.write_text(original)
 
     def fail_backup(_path):
@@ -322,7 +337,7 @@ def test_migration_replacement_failure_leaves_legacy_active(
     config_path,
     monkeypatch,
 ):
-    original = yaml.safe_dump(configured(), sort_keys=False)
+    original = yaml.safe_dump(legacy_configured(), sort_keys=False)
     config_path.write_text(original)
 
     def fail_replace(_source, _target):
@@ -336,7 +351,7 @@ def test_migration_replacement_failure_leaves_legacy_active(
 
 
 def test_migration_lock_failure_leaves_legacy_active(config_path, monkeypatch):
-    original = yaml.safe_dump(configured(), sort_keys=False)
+    original = yaml.safe_dump(legacy_configured(), sort_keys=False)
     config_path.write_text(original)
     real_transaction = ConfigPersistenceTransaction
 

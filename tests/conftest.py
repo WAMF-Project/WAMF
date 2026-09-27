@@ -111,13 +111,16 @@ def _create_name_db(path: str) -> None:
 def _create_config(path: str, frigate_url: str = "http://localhost:5000") -> None:
     """Write a minimal config.yml."""
     cfg = {
+        "config_version": 2,
         "frigate": {
             "frigate_url": frigate_url,
-            "mqtt_server": "localhost",
-            "mqtt_auth": False,
-            "main_topic": "frigate",
             "camera": ["birdcam"],
             "object": "bird",
+        },
+        "mqtt": {
+            "host": "localhost",
+            "topic_prefix": "frigate",
+            "authentication": {"enabled": False},
         },
         "classification": {
             "model": "model.tflite",

@@ -72,8 +72,8 @@ def test_inherited_handler_does_not_swallow_termination_before_worker_initialize
 def test_watchdog_does_not_respawn_when_shutdown_requested_during_wait(monkeypatch, signum):
     import speciesid
     monkeypatch.setattr(speciesid, 'config', {
-        'frigate': {'frigate_url': 'http://frigate', 'mqtt_server': 'mqtt',
-                    'main_topic': 'frigate', 'camera': ['birdcam']},
+        'frigate': {'frigate_url': 'http://frigate', 'camera': ['birdcam']},
+        'mqtt': {'host': 'mqtt', 'topic_prefix': 'frigate'},
         'classification': {'model': 'model.tflite', 'threshold': 0.7},
     })
     flask = MagicMock(pid=101)

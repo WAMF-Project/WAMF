@@ -1,4 +1,4 @@
-"""Canonical, non-mutating views of configuration compatibility aliases."""
+"""Canonical, non-mutating runtime views of current configuration."""
 
 from collections.abc import Callable, Mapping
 from copy import deepcopy
@@ -44,7 +44,6 @@ def normalize_config(
     mqtt = _mapping_section(raw, "mqtt", "mqtt")
     authentication = _mapping_section(mqtt, "authentication", "mqtt.authentication")
     tls = _mapping_section(mqtt, "tls", "mqtt.tls")
-    frigate = _mapping_section(raw, "frigate", "frigate")
     perch = _mapping_section(raw, "perch", "perch")
     bridge = _mapping_section(raw, "bridge", "bridge")
     health = _mapping_section(raw, "health", "health")
@@ -111,90 +110,70 @@ def normalize_config(
             default,
         )
 
+    def canonical_value(canonical_path, canonical_section, canonical_key, default):
+        return resolve(
+            canonical_path,
+            (("canonical", canonical_path, canonical_section, canonical_key),),
+            default,
+        )
+
     canonical = {
         "mqtt": {
-            "host": standard(
+            "host": canonical_value(
                 "mqtt.host",
                 mqtt,
                 "host",
-                "frigate.mqtt_server",
-                frigate,
-                "mqtt_server",
                 None,
             ),
-            "port": standard(
+            "port": canonical_value(
                 "mqtt.port",
                 mqtt,
                 "port",
-                "frigate.mqtt_port",
-                frigate,
-                "mqtt_port",
                 1883,
             ),
-            "topic_prefix": standard(
+            "topic_prefix": canonical_value(
                 "mqtt.topic_prefix",
                 mqtt,
                 "topic_prefix",
-                "frigate.main_topic",
-                frigate,
-                "main_topic",
                 None,
             ),
             "authentication": {
-                "enabled": standard(
+                "enabled": canonical_value(
                     "mqtt.authentication.enabled",
                     authentication,
                     "enabled",
-                    "frigate.mqtt_auth",
-                    frigate,
-                    "mqtt_auth",
                     False,
                 ),
-                "username": standard(
+                "username": canonical_value(
                     "mqtt.authentication.username",
                     authentication,
                     "username",
-                    "frigate.mqtt_username",
-                    frigate,
-                    "mqtt_username",
                     None,
                 ),
-                "password": standard(
+                "password": canonical_value(
                     "mqtt.authentication.password",
                     authentication,
                     "password",
-                    "frigate.mqtt_password",
-                    frigate,
-                    "mqtt_password",
                     None,
                 ),
             },
             "tls": {
-                "enabled": standard(
+                "enabled": canonical_value(
                     "mqtt.tls.enabled",
                     tls,
                     "enabled",
-                    "frigate.mqtt_use_tls",
-                    frigate,
-                    "mqtt_use_tls",
                     False,
                 ),
-                "insecure": standard(
+                "insecure": canonical_value(
                     "mqtt.tls.insecure",
                     tls,
                     "insecure",
-                    "frigate.mqtt_tls_insecure",
-                    frigate,
-                    "mqtt_tls_insecure",
                     False,
                 ),
-                "ca_certs": standard(
+                "ca_certs": canonical_value(
                     "mqtt.tls.ca_certs",
                     tls,
                     "ca_certs",
-                    "frigate.mqtt_tls_ca_certs",
-                    frigate,
-                    "mqtt_tls_ca_certs",
                     None,
                 ),
             },
