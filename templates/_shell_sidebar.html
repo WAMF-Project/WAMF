@@ -47,36 +47,65 @@
     {% if shell_admin %}
     <nav class="app-nav app-admin-nav" aria-label="Admin navigation">
       <a
-        class="app-nav-link {% if request.endpoint == 'admin.admin_dashboard' %}active{% endif %}"
-        href="{{ url_for('admin.admin_dashboard') }}"
-        {% if request.endpoint == 'admin.admin_dashboard' %}aria-current="page"{% endif %}
-      >Dashboard</a>
+        class="app-nav-link {% if request.endpoint in ('admin.admin_config', 'admin.change_password', 'admin.admin_api_token') %}active{% endif %}"
+        href="{{ url_for('admin.admin_config') }}"
+        {% if request.endpoint in ('admin.admin_config', 'admin.change_password', 'admin.admin_api_token') %}aria-current="page"{% endif %}
+      >Settings</a>
       <a
         class="app-nav-link {% if request.endpoint == 'admin.admin_species' %}active{% endif %}"
         href="{{ url_for('admin.admin_species') }}"
         {% if request.endpoint == 'admin.admin_species' %}aria-current="page"{% endif %}
-      >Species</a>
+      >Species Metadata</a>
+      <a
+        class="app-nav-link {% if request.endpoint == 'admin.admin_dashboard' %}active{% endif %}"
+        href="{{ url_for('admin.admin_dashboard') }}"
+        {% if request.endpoint == 'admin.admin_dashboard' %}aria-current="page"{% endif %}
+      >System Health</a>
       <a
         class="app-nav-link {% if request.endpoint == 'admin.admin_logs' %}active{% endif %}"
         href="{{ url_for('admin.admin_logs') }}"
         {% if request.endpoint == 'admin.admin_logs' %}aria-current="page"{% endif %}
       >Logs</a>
-      <a
-        class="app-nav-link {% if request.endpoint == 'admin.admin_config' %}active{% endif %}"
-        href="{{ url_for('admin.admin_config') }}"
-        {% if request.endpoint == 'admin.admin_config' %}aria-current="page"{% endif %}
-      >Configuration</a>
-      <a
-        class="app-nav-link {% if request.endpoint == 'admin.change_password' %}active{% endif %}"
-        href="{{ url_for('admin.change_password') }}"
-        {% if request.endpoint == 'admin.change_password' %}aria-current="page"{% endif %}
-      >Password</a>
-      <a
-        class="app-nav-link {% if request.endpoint == 'admin.admin_api_token' %}active{% endif %}"
-        href="{{ url_for('admin.admin_api_token') }}"
-        {% if request.endpoint == 'admin.admin_api_token' %}aria-current="page"{% endif %}
-      >API Token</a>
     </nav>
+
+    {% set admin_overall_state = health.get('overall_state') %}
+    {% if not admin_overall_state %}
+      {% if health.get('database_healthy') and health.get('archive_writable') and health.get('frigate_online') and health.get('mqtt_online') %}
+        {% set admin_overall_state = 'healthy' %}
+      {% else %}
+        {% set admin_overall_state = 'unhealthy' %}
+      {% endif %}
+    {% endif %}
+    <section class="admin-system-status" aria-labelledby="admin-system-status-heading">
+      <div class="admin-system-status-heading">
+        <h2 id="admin-system-status-heading">System Status</h2>
+        <a href="{{ url_for('admin.admin_dashboard') }}">Details</a>
+      </div>
+      <p class="admin-system-overall status-{{ admin_overall_state }}">
+        <span class="admin-status-dot" aria-hidden="true"></span>
+        {% if admin_overall_state == 'healthy' %}All systems OK
+        {% elif admin_overall_state == 'setup_required' %}Setup required
+        {% elif admin_overall_state == 'degraded' %}Attention needed
+        {% else %}Service issue{% endif %}
+      </p>
+      <dl class="admin-system-checks">
+        <div><dt>WAMF</dt><dd class="status-healthy">Online</dd></div>
+        <div>
+          <dt>MQTT</dt>
+          {% if health.get('mqtt_online') is sameas true %}<dd class="status-healthy">Connected</dd>
+          {% elif health.get('mqtt_online') is sameas false %}<dd class="status-unhealthy">Offline</dd>
+          {% else %}<dd class="status-setup_required">Not checked</dd>{% endif %}
+        </div>
+        <div>
+          <dt>Frigate</dt>
+          {% if health.get('frigate_online') is sameas true %}<dd class="status-healthy">Connected</dd>
+          {% elif health.get('frigate_online') is sameas false %}<dd class="status-unhealthy">Offline</dd>
+          {% else %}<dd class="status-setup_required">Not checked</dd>{% endif %}
+        </div>
+        <div><dt>Bridge / Perch</dt><dd>{% if admin_bridge_enabled %}Enabled{% else %}Disabled{% endif %}</dd></div>
+      </dl>
+      <div class="admin-system-version">WAMF {{ version }}</div>
+    </section>
     {% else %}
     <a class="app-nav-link" href="{{ url_for('admin.admin_dashboard') }}">Admin dashboard</a>
     {% endif %}

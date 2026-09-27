@@ -78,43 +78,12 @@
             <p>Detection is paused until configuration is complete.</p>
             <ul>{% for issue in health.configuration_issues %}<li>{{ issue }}</li>{% endfor %}</ul>
             {% endif %}
-            <p><a href="{{ url_for('admin.admin_config') }}">Open Configuration</a>,
-              then use Save &amp; Restart to apply your settings.</p>
+            <p><a href="{{ url_for('admin.admin_config') }}">Open Settings</a>,
+              save your changes, then restart WAMF when the configuration is ready.</p>
           </div>
           {% endif %}
           {% block content %}{% endblock %}
         </main>
-        <footer class="admin-status-bar">
-      {% if health.setup_required %}
-      <span>🟡 Setup required — detection paused</span>
-      {% else %}
-      <span>
-        {% if health.frigate_online %} 🟢 Frigate {% else %} 🔴 Frigate {% endif
-        %}
-      </span>
-
-      <span>
-        {% if health.mqtt_online %} 🟢 MQTT {% else %} 🔴 MQTT {% endif %}
-      </span>
-
-      {% endif %}
-      <span>
-        {% if health.database_healthy %} 🟢 Database {% else %} 🔴 Database {%
-        endif %}
-      </span>
-
-      <span>
-        {% if health.archive_writable %} 🟢 Archive {% else %} 🔴 Archive {%
-        endif %}
-      </span>
-
-      <span>
-        {% if retention_status and retention_status.orphan_count > 0 %} 🟡
-        Retention {% else %} 🟢 Retention {% endif %}
-      </span>
-
-          <span class="footer-version"> WAMF {{ version }} </span>
-        </footer>
       </div>
     </div>
     {% include "_shell_scripts.html" %}

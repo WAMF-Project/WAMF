@@ -1280,7 +1280,8 @@ webui:
 
     response = flask_client.get("/admin/config")
     assert response.status_code == 200
-    assert b"host: localhost" in response.data
+    assert b'name="mqtt_host"' in response.data
+    assert b'value="localhost"' in response.data
     assert b"password_hash" not in response.data
     assert b"hidden-hash" not in response.data
     assert b"token_hash" not in response.data
@@ -1586,7 +1587,7 @@ admin:
     assert persisted_config["admin"]["password_hash"] == "old-hash"
 
 
-def test_change_password_page_renders_admin_status_footer(flask_client, monkeypatch):
+def test_change_password_page_renders_admin_status_sidebar(flask_client, monkeypatch):
     from werkzeug.security import generate_password_hash
     import webui
 
@@ -1616,6 +1617,8 @@ def test_change_password_page_renders_admin_status_footer(flask_client, monkeypa
     response = flask_client.get("/admin/password")
     assert response.status_code == 200
     assert b"Admin Password" in response.data
+    assert b"admin-system-status" in response.data
+    assert b"admin-status-bar" not in response.data
 
 
 # ---------------------------------------------------------------------------

@@ -8,16 +8,25 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.config_editor import (
-    get_config_file_metadata,
     get_config_path,
-    load_config_file_content,
     load_config_from_content,
-    strip_admin_config_block,
     strip_sensitive_config_blocks,
 )
+from app.config_forms import (
+    FIELD_BY_NAME,
+    SettingsFormError,
+    build_settings_candidate,
+    settings_values,
+)
 from app.config_migration import ConfigMigrationError, migrate_config
-from app.config_loader import load_runtime_config
-from app.config_secrets import apply_secrets, get_secrets_path, load_secrets, secret_updates
+from app.config_loader import load_persisted_config, load_runtime_config
+from app.config_secrets import (
+    apply_secrets,
+    get_secrets_path,
+    load_secrets,
+    merge_embedded_secrets,
+    secret_updates,
+)
 from app.config_validation import validate_config
 from app.config_persistence import ConfigPersistenceError
 from app.system_events import log_system_event
@@ -26,6 +35,42 @@ from app.process_control import INSTANCE_ID, schedule_restart
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
+
+
+SETTINGS_SECTIONS = {
+    "webui": "general",
+    "storage": "storage-retention",
+    "media": "storage-retention",
+    "retention": "storage-retention",
+    "mqtt": "mqtt",
+    "frigate": "frigate",
+    "classification": "classification",
+    "camera": "live-view",
+    "live_view": "live-view",
+    "bridge": "bridge-perch",
+    "perch": "bridge-perch",
+    "health": "bridge-perch",
+    "admin": "admin-api",
+    "api": "admin-api",
+}
+
+VALIDATION_FIELD_NAMES = {
+    "webui.host": "webui_host",
+    "webui.port": "webui_port",
+    "frigate.frigate_url": "frigate_url",
+    "frigate.camera": "frigate_cameras",
+    "classification.model": "classification_model",
+    "classification.threshold": "classification_threshold",
+    "mqtt.host": "mqtt_host",
+    "mqtt.port": "mqtt_port",
+    "mqtt.topic_prefix": "mqtt_topic_prefix",
+    "mqtt.authentication.enabled": "mqtt_authentication_enabled",
+    "mqtt.authentication.username": "mqtt_username",
+    "mqtt.authentication.password": "mqtt_password",
+    "mqtt.tls.enabled": "mqtt_tls_enabled",
+    "mqtt.tls.insecure": "mqtt_tls_insecure",
+    "mqtt.tls.ca_certs": "mqtt_tls_ca_certs",
+}
 
 
 def _validation_response(result):
@@ -55,6 +100,75 @@ def _not_ready_response(result):
         error="Configuration is not ready to start WAMF detection.",
     )
     return details, 409
+
+
+def _secret_is_configured(secrets_config, section, field):
+    section_values = secrets_config.get(section)
+    return bool(
+        isinstance(section_values, dict)
+        and section_values.get(field)
+    )
+
+
+def _settings_section_for_field(field):
+    if field in FIELD_BY_NAME:
+        path = FIELD_BY_NAME[field].path
+        return SETTINGS_SECTIONS.get(path[0], "advanced")
+    if field == "retention_species_overrides":
+        return "advanced"
+    return SETTINGS_SECTIONS.get(field.split(".", 1)[0], "advanced")
+
+
+def _settings_context(config, submitted_form=None, errors=(), field_errors=None):
+    secrets_path = get_secrets_path(get_config_path())
+    extracted = merge_embedded_secrets(config, load_secrets(secrets_path))
+    secret_config = extracted.secrets
+    error_section = None
+    if field_errors:
+        error_section = _settings_section_for_field(next(iter(field_errors)))
+
+    return {
+        "settings": settings_values(config, submitted_form),
+        "config_version": migrate_config(config).target_version,
+        "errors": list(errors),
+        "field_errors": field_errors or {},
+        "error_section": error_section,
+        "mqtt_username_configured": _secret_is_configured(
+            secret_config, "mqtt", "username"
+        ),
+        "mqtt_password_configured": _secret_is_configured(
+            secret_config, "mqtt", "password"
+        ),
+        "admin_password_configured": _secret_is_configured(
+            secret_config, "admin", "password_hash"
+        ),
+        "session_secret_configured": _secret_is_configured(
+            secret_config, "admin", "session_secret"
+        ),
+        "api_token_configured": _secret_is_configured(
+            secret_config, "api", "token_hash"
+        ),
+        "restart_instance_id": INSTANCE_ID,
+    }
+
+
+def _render_settings(config, *, submitted_form=None, errors=(), field_errors=None, status=200):
+    return (
+        render_template(
+            "admin_config.html",
+            **_settings_context(config, submitted_form, errors, field_errors),
+        ),
+        status,
+    )
+
+
+def _settings_validation_errors(result):
+    messages = [str(issue) for issue in result.errors]
+    field_errors = {
+        VALIDATION_FIELD_NAMES.get(issue.field, issue.field): issue.message
+        for issue in result.errors
+    }
+    return messages, field_errors
 
 
 @admin_bp.route('/admin')
@@ -194,28 +308,77 @@ def refresh_all_species():
 
 @admin_bp.route('/admin/config')
 def admin_config():
-    with open(
-        get_config_path(),
-        'r'
-    ) as config_file:
-        config_content = strip_admin_config_block(config_file.read())
+    return _render_settings(load_persisted_config())
 
-    metadata = get_config_file_metadata()
 
-    return render_template(
-        'admin_config.html',
-        config_content=config_content,
-        config_path=metadata['config_path'],
-        file_size=metadata['file_size'],
-        last_modified=metadata['last_modified'],
-        backup_count=metadata['backup_count'],
-        restart_instance_id=INSTANCE_ID
-    )
+def _save_settings_form():
+    import webui
+
+    current_config = load_persisted_config()
+
+    try:
+        candidate = build_settings_candidate(current_config, request.form)
+        candidate_content = yaml.safe_dump(candidate, sort_keys=False)
+        result = _validate_config_content(candidate_content)
+        if not result.is_valid:
+            messages, field_errors = _settings_validation_errors(result)
+            return _render_settings(
+                current_config,
+                submitted_form=request.form,
+                errors=messages,
+                field_errors=field_errors,
+                status=400,
+            )
+
+        webui.write_config_preserving_admin(
+            candidate_content,
+            admin_config=candidate.get("admin"),
+            api_config=candidate.get("api"),
+            reload_callback=webui.load_config,
+        )
+        log_system_event("INFO", "CONFIG", "Settings updated via Administration UI")
+        if result.is_ready:
+            flash("Settings saved. Restart WAMF to apply deployment changes.")
+        else:
+            flash(
+                "Settings saved, but setup is incomplete. Complete the required "
+                "settings before restarting WAMF."
+            )
+        section = request.form.get("active_section", "general")
+        if section not in set(SETTINGS_SECTIONS.values()) | {"advanced"}:
+            section = "general"
+        return redirect(url_for("admin.admin_config") + f"#{section}")
+    except SettingsFormError as exc:
+        return _render_settings(
+            current_config,
+            submitted_form=request.form,
+            errors=[exc.message],
+            field_errors={exc.field: exc.message},
+            status=400,
+        )
+    except (yaml.YAMLError, ConfigMigrationError, ValueError):
+        return _render_settings(
+            current_config,
+            submitted_form=request.form,
+            errors=["Settings could not be validated."],
+            status=400,
+        )
+    except ConfigPersistenceError:
+        logger.error("Administration settings save failed during persistence")
+        return _render_settings(
+            current_config,
+            submitted_form=request.form,
+            errors=["Settings could not be saved."],
+            status=500,
+        )
 
 
 @admin_bp.route('/admin/config/save', methods=['POST'])
 def save_config():
     import webui
+
+    if not request.is_json:
+        return _save_settings_form()
 
     data = request.get_json() or {}
     config_content = data.get(

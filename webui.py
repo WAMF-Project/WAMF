@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from app import security
 from app.config_loader import load_runtime_config
+from app.config_normalization import normalize_config
 # Blueprint modules intentionally consume these through the webui module.
 from app.queries import (  # noqa: F401
     recent_detections,
@@ -283,14 +284,21 @@ def inject_admin_status():
         'admin.admin_logs',
         'admin.admin_species',
         'admin.admin_config',
+        'admin.save_config',
         'admin.admin_api_token',
         'admin.change_password',
     }
 
     if endpoint in admin_template_endpoints:
+        try:
+            admin_bridge_enabled = (
+                normalize_config(config or {}).config["perch"]["enabled"] is True
+            )
+        except ValueError:
+            admin_bridge_enabled = False
         context.update({
             "health": get_system_health(),
-            "retention_status": get_retention_status()
+            "admin_bridge_enabled": admin_bridge_enabled,
         })
 
     return context

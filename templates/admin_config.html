@@ -1,285 +1,275 @@
-{% extends "admin_base.html" %} {% block title %} WAMF | Configuration {%
-endblock %}
-{% block page_title %}Configuration{% endblock %}
+{% extends "admin_base.html" %}
+{% block title %}WAMF | Settings{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block page_actions %}
+<div class="settings-page-actions">
+  <button class="settings-button settings-button-secondary" id="restart-btn" type="button">Restart WAMF</button>
+  <button class="settings-button" type="submit" form="settings-form">Save settings</button>
+</div>
+{% endblock %}
 {% block content %}
 
-<div class="wamf-panel">
-  <div class="stats-grid">
-    <div class="stat-card">
-      <h2>Configuration File</h2>
-      <div class="wamf-meta-secondary">{{ config_path }}</div>
-    </div>
+{% with messages = get_flashed_messages() %}
+  {% if messages %}<div class="settings-notice settings-notice-success" role="status">{{ messages[0] }}</div>{% endif %}
+{% endwith %}
 
-    <div class="stat-card">
-      <h2>File Size</h2>
-      <p>{{ file_size }} bytes</p>
-    </div>
-
-    <div class="stat-card">
-      <h2>Last Modified</h2>
-      <p>{{ last_modified }}</p>
-    </div>
-
-    <div class="stat-card">
-      <h2>Backups</h2>
-      <p>{{ backup_count }}</p>
-    </div>
-  </div>
+{% if errors %}
+<div class="settings-notice settings-notice-error" role="alert" tabindex="-1" id="settings-errors">
+  <strong>Settings were not saved.</strong>
+  <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% if error_section %}<a href="#{{ error_section }}">Review the affected section</a>{% endif %}
 </div>
+{% endif %}
+<div id="config-message" class="settings-notice" role="status" style="display: none"></div>
 
-<div class="wamf-panel">
-  <h2 class="wamf-subheading">Configuration Actions</h2>
-  <div id="config-message" class="config-message" style="display: none"></div>
-  <div class="wamf-header-actions">
-    <button id="save-config-btn" class="log-filter-btn">
-      Save Configuration
-    </button>
+<div class="settings-layout">
+  <nav class="settings-section-nav" aria-label="Settings sections">
+    <a href="#general">General</a><a href="#storage-retention">Storage &amp; Retention</a>
+    <a href="#mqtt">MQTT</a><a href="#frigate">Frigate</a>
+    <a href="#classification">Classification</a><a href="#live-view">Live View</a>
+    <a href="#bridge-perch">Bridge / Perch</a><a href="#admin-api">Admin &amp; API</a>
+    <a href="#advanced">Advanced</a>
+  </nav>
 
-    <button id="copy-config-btn" class="log-filter-btn">Copy Visible Config</button>
-    <button
-      id="restart-btn"
-      class="log-filter-btn"
-    >
-      Restart WAMF
-    </button>
-    <button
-      id="save-restart-btn"
-      class="log-filter-btn"
-    >
-      Save & Restart
-    </button>
-  </div>
+  <form id="settings-form" class="settings-form" method="post" action="{{ url_for('admin.save_config') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="hidden" name="active_section" id="active-section" value="{{ error_section or 'general' }}" />
+
+    <section class="settings-section" id="general" aria-labelledby="general-heading">
+      <div class="settings-section-heading"><h2 id="general-heading">General</h2><p>Basic WAMF application and web interface settings.</p></div>
+      <div class="settings-card">
+        <h3>Web interface</h3>
+        <div class="settings-grid">
+          <div class="settings-field"><label for="webui_host">Bind address</label><input id="webui_host" name="webui_host" type="text" value="{{ settings.webui_host }}" aria-describedby="webui_host_help" required /><small id="webui_host_help">Network address used by the WAMF web server.</small>{% if field_errors.webui_host %}<span class="settings-field-error">{{ field_errors.webui_host }}</span>{% endif %}</div>
+          <div class="settings-field"><label for="webui_port">Port</label><input id="webui_port" name="webui_port" type="number" min="1" max="65535" step="1" value="{{ settings.webui_port }}" required />{% if field_errors.webui_port %}<span class="settings-field-error">{{ field_errors.webui_port }}</span>{% endif %}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-section" id="storage-retention" aria-labelledby="storage-retention-heading">
+      <div class="settings-section-heading"><h2 id="storage-retention-heading">Storage &amp; Retention</h2><p>Control where WAMF stores data and how long media and events are retained.</p></div>
+      <div class="settings-card">
+        <h3>Storage paths</h3>
+        <div class="settings-grid">
+          <div class="settings-field settings-field-wide"><label for="database_path">Database path</label><input id="database_path" name="database_path" type="text" value="{{ settings.database_path }}" required /></div>
+          <div class="settings-field"><label for="snapshots_path">Snapshots path</label><input id="snapshots_path" name="snapshots_path" type="text" value="{{ settings.snapshots_path }}" required /></div>
+          <div class="settings-field"><label for="clips_path">Clips path</label><input id="clips_path" name="clips_path" type="text" value="{{ settings.clips_path }}" required /></div>
+        </div>
+      </div>
+      <div class="settings-card">
+        <h3>Media &amp; retention</h3>
+        <div class="settings-toggle-list">
+          <label class="settings-switch"><input type="hidden" name="retention_enabled" value="0" /><input type="checkbox" name="retention_enabled" value="1" {% if settings.retention_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Enable retention</strong><small>Run scheduled retention cleanup.</small></span></label>
+          <label class="settings-switch"><input type="hidden" name="delete_media" value="0" /><input type="checkbox" name="delete_media" value="1" {% if settings.delete_media %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Delete expired media</strong><small>Remove snapshot and clip files with expired records.</small></span></label>
+          <label class="settings-switch"><input type="hidden" name="orphan_scan_enabled" value="0" /><input type="checkbox" name="orphan_scan_enabled" value="1" {% if settings.orphan_scan_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Scan for orphaned media</strong><small>Find media files with no matching database record.</small></span></label>
+          <label class="settings-switch"><input type="hidden" name="delete_orphaned_media" value="0" /><input type="checkbox" name="delete_orphaned_media" value="1" {% if settings.delete_orphaned_media %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Delete orphaned media</strong><small>Remove orphaned files found by the scan.</small></span></label>
+        </div>
+        <div class="settings-grid settings-grid-spaced">
+          <div class="settings-field"><label for="snapshots_days">Snapshot days</label><input id="snapshots_days" name="snapshots_days" type="number" min="0" step="1" value="{{ settings.snapshots_days }}" required /></div>
+          <div class="settings-field"><label for="clips_days">Clip days</label><input id="clips_days" name="clips_days" type="number" min="0" step="1" value="{{ settings.clips_days }}" required /></div>
+          <div class="settings-field"><label for="system_events_days">System event days</label><input id="system_events_days" name="system_events_days" type="number" min="0" step="1" value="{{ settings.system_events_days }}" required /></div>
+          <div class="settings-field"><label for="system_events_min_rows">Minimum event rows</label><input id="system_events_min_rows" name="system_events_min_rows" type="number" min="0" step="1" value="{{ settings.system_events_min_rows }}" required /></div>
+          <div class="settings-field"><label for="config_backups_max_files">Configuration backups</label><input id="config_backups_max_files" name="config_backups_max_files" type="number" min="0" step="1" value="{{ settings.config_backups_max_files }}" required /></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-section" id="mqtt" aria-labelledby="mqtt-heading">
+      <div class="settings-section-heading"><h2 id="mqtt-heading">MQTT</h2><p>Configure the MQTT broker used to receive Frigate events.</p></div>
+      <div class="settings-card">
+        <h3>Broker</h3>
+        <div class="settings-grid">
+          <div class="settings-field"><label for="mqtt_host">Host</label><input id="mqtt_host" name="mqtt_host" type="text" value="{{ settings.mqtt_host }}" required />{% if field_errors.mqtt_host %}<span class="settings-field-error">{{ field_errors.mqtt_host }}</span>{% endif %}</div>
+          <div class="settings-field"><label for="mqtt_port">Port</label><input id="mqtt_port" name="mqtt_port" type="number" min="1" max="65535" step="1" value="{{ settings.mqtt_port }}" required />{% if field_errors.mqtt_port %}<span class="settings-field-error">{{ field_errors.mqtt_port }}</span>{% endif %}</div>
+          <div class="settings-field settings-field-wide"><label for="mqtt_topic_prefix">Topic prefix</label><input id="mqtt_topic_prefix" name="mqtt_topic_prefix" type="text" value="{{ settings.mqtt_topic_prefix }}" required />{% if field_errors.mqtt_topic_prefix %}<span class="settings-field-error">{{ field_errors.mqtt_topic_prefix }}</span>{% endif %}</div>
+        </div>
+      </div>
+      <div class="settings-card">
+        <h3>Authentication</h3>
+        <label class="settings-switch"><input type="hidden" name="mqtt_authentication_enabled" value="0" /><input type="checkbox" name="mqtt_authentication_enabled" value="1" {% if settings.mqtt_authentication_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Use broker authentication</strong><small>Send a username and password when connecting.</small></span></label>
+        <div class="settings-grid settings-grid-spaced">
+          <div class="settings-field"><div class="settings-label-row"><label for="mqtt_username">MQTT username</label><span class="settings-status {% if mqtt_username_configured %}is-configured{% endif %}">{% if mqtt_username_configured %}Configured{% else %}Not configured{% endif %}</span></div><input id="mqtt_username" name="mqtt_username" type="password" value="" autocomplete="off" aria-describedby="mqtt_username_help" /><small id="mqtt_username_help">Leave blank to keep the stored username.</small>{% if field_errors.mqtt_username %}<span class="settings-field-error">{{ field_errors.mqtt_username }}</span>{% endif %}</div>
+          <div class="settings-field"><div class="settings-label-row"><label for="mqtt_password">MQTT password</label><span class="settings-status {% if mqtt_password_configured %}is-configured{% endif %}">{% if mqtt_password_configured %}Configured{% else %}Not configured{% endif %}</span></div><input id="mqtt_password" name="mqtt_password" type="password" value="" autocomplete="new-password" aria-describedby="mqtt_password_help" /><small id="mqtt_password_help">Leave blank to keep the stored password.</small>{% if field_errors.mqtt_password %}<span class="settings-field-error">{{ field_errors.mqtt_password }}</span>{% endif %}</div>
+        </div>
+      </div>
+      <div class="settings-card">
+        <h3>TLS</h3>
+        <div class="settings-toggle-list">
+          <label class="settings-switch"><input type="hidden" name="mqtt_tls_enabled" value="0" /><input type="checkbox" name="mqtt_tls_enabled" value="1" {% if settings.mqtt_tls_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Use TLS</strong><small>Encrypt the connection to the broker.</small></span></label>
+          <label class="settings-switch"><input type="hidden" name="mqtt_tls_insecure" value="0" /><input type="checkbox" name="mqtt_tls_insecure" value="1" {% if settings.mqtt_tls_insecure %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Allow unverified certificate</strong><small>Disable certificate verification for trusted private networks only.</small></span></label>
+        </div>
+        <div class="settings-field settings-grid-spaced"><label for="mqtt_tls_ca_certs">CA certificate path</label><input id="mqtt_tls_ca_certs" name="mqtt_tls_ca_certs" type="text" value="{{ settings.mqtt_tls_ca_certs }}" />{% if field_errors.mqtt_tls_ca_certs %}<span class="settings-field-error">{{ field_errors.mqtt_tls_ca_certs }}</span>{% endif %}</div>
+      </div>
+    </section>
+
+    <section class="settings-section" id="frigate" aria-labelledby="frigate-heading">
+      <div class="settings-section-heading"><h2 id="frigate-heading">Frigate</h2><p>Configure WAMF’s connection to Frigate and monitored cameras.</p></div>
+      <div class="settings-card"><div class="settings-grid">
+        <div class="settings-field settings-field-wide"><label for="frigate_url">Frigate URL</label><input id="frigate_url" name="frigate_url" type="url" value="{{ settings.frigate_url }}" placeholder="http://frigate:5000" required />{% if field_errors.frigate_url %}<span class="settings-field-error">{{ field_errors.frigate_url }}</span>{% endif %}</div>
+        <div class="settings-field"><label for="frigate_cameras">Camera names</label><textarea id="frigate_cameras" name="frigate_cameras" rows="4" required aria-describedby="frigate_cameras_help">{{ settings.frigate_cameras }}</textarea><small id="frigate_cameras_help">Enter one Frigate camera name per line.</small>{% if field_errors.frigate_cameras %}<span class="settings-field-error">{{ field_errors.frigate_cameras }}</span>{% endif %}</div>
+        <div class="settings-field"><label for="frigate_object">Tracked object</label><input id="frigate_object" name="frigate_object" type="text" value="{{ settings.frigate_object }}" required /></div>
+      </div></div>
+    </section>
+
+    <section class="settings-section" id="classification" aria-labelledby="classification-heading">
+      <div class="settings-section-heading"><h2 id="classification-heading">Classification</h2><p>Configure the model and confidence threshold used to identify visitors.</p></div>
+      <div class="settings-card"><div class="settings-grid">
+        <div class="settings-field"><label for="classification_model">Model path</label><input id="classification_model" name="classification_model" type="text" value="{{ settings.classification_model }}" required />{% if field_errors.classification_model %}<span class="settings-field-error">{{ field_errors.classification_model }}</span>{% endif %}</div>
+        <div class="settings-field"><label for="classification_threshold">Confidence threshold</label><input id="classification_threshold" name="classification_threshold" type="number" min="0" max="1" step="0.01" value="{{ settings.classification_threshold }}" required aria-describedby="classification_threshold_help" /><small id="classification_threshold_help">A number from 0 to 1.</small>{% if field_errors.classification_threshold %}<span class="settings-field-error">{{ field_errors.classification_threshold }}</span>{% endif %}</div>
+      </div></div>
+    </section>
+
+    <section class="settings-section" id="live-view" aria-labelledby="live-view-heading">
+      <div class="settings-section-heading"><h2 id="live-view-heading">Live View</h2><p>Configure the live camera view used by WAMF.</p></div>
+      <div class="settings-card"><div class="settings-field"><label for="live_view_url">Live view URL</label><input id="live_view_url" name="live_view_url" type="text" inputmode="url" value="{{ settings.live_view_url }}" placeholder="https://camera.example/live" aria-describedby="live_view_url_help" /><small id="live_view_url_help">Leave blank when no browser-viewable stream is available.</small></div></div>
+    </section>
+
+    <section class="settings-section" id="bridge-perch" aria-labelledby="bridge-heading">
+      <div class="settings-section-heading"><h2 id="bridge-heading">Bridge / Perch</h2><p>Configure optional observation and health event delivery.</p></div>
+      <div class="settings-card">
+        <label class="settings-switch"><input type="hidden" name="bridge_enabled" value="0" /><input type="checkbox" name="bridge_enabled" value="1" {% if settings.bridge_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Enable Bridge delivery</strong><small>Post WAMF observation and health events.</small></span></label>
+        <div class="settings-grid settings-grid-spaced">
+          <div class="settings-field settings-field-wide"><label for="bridge_events_url">Events URL</label><input id="bridge_events_url" name="bridge_events_url" type="url" value="{{ settings.bridge_events_url }}" placeholder="http://bridge:5000/api/events" /></div>
+          <div class="settings-field"><label for="bridge_timeout_seconds">Request timeout (seconds)</label><input id="bridge_timeout_seconds" name="bridge_timeout_seconds" type="number" min="0" step="0.1" value="{{ settings.bridge_timeout_seconds }}" required /></div>
+          <div class="settings-field"><label for="bridge_health_check_interval_seconds">Health interval (seconds)</label><input id="bridge_health_check_interval_seconds" name="bridge_health_check_interval_seconds" type="number" min="0.1" step="0.1" value="{{ settings.bridge_health_check_interval_seconds }}" required /></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-section" id="admin-api" aria-labelledby="admin-api-heading">
+      <div class="settings-section-heading"><h2 id="admin-api-heading">Admin &amp; API</h2><p>Manage WAMF Administration and API access settings.</p></div>
+      <div class="settings-card">
+        <h3>Administration access</h3>
+        <div class="settings-toggle-list">
+          <label class="settings-switch"><input type="hidden" name="admin_auth_enabled" value="0" /><input type="checkbox" name="admin_auth_enabled" value="1" {% if settings.admin_auth_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Require administrator login</strong><small>Protect Administration pages with the configured password.</small></span></label>
+          <label class="settings-switch"><input type="hidden" name="admin_session_cookie_secure" value="0" /><input type="checkbox" name="admin_session_cookie_secure" value="1" {% if settings.admin_session_cookie_secure %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Secure session cookie</strong><small>Send the session cookie over HTTPS only.</small></span></label>
+        </div>
+        <div class="settings-grid settings-grid-spaced"><div class="settings-field"><label for="admin_session_cookie_samesite">Session cookie SameSite</label><select id="admin_session_cookie_samesite" name="admin_session_cookie_samesite"><option value="Lax" {% if settings.admin_session_cookie_samesite == 'Lax' %}selected{% endif %}>Lax</option><option value="Strict" {% if settings.admin_session_cookie_samesite == 'Strict' %}selected{% endif %}>Strict</option><option value="None" {% if settings.admin_session_cookie_samesite == 'None' %}selected{% endif %}>None</option></select></div></div>
+        <div class="settings-managed-row"><div><div class="settings-label-row"><strong>Admin password</strong><span class="settings-status {% if admin_password_configured %}is-configured{% endif %}">{% if admin_password_configured %}Configured{% else %}Not configured{% endif %}</span></div><p>Change the password through the protected password workflow.</p></div><a class="settings-button settings-button-secondary" href="{{ url_for('admin.change_password') }}">Change password</a></div>
+        <div class="settings-managed-row"><div><div class="settings-label-row"><strong>Session secret</strong><span class="settings-status {% if session_secret_configured %}is-configured{% endif %}">{% if session_secret_configured %}Managed{% else %}Not configured{% endif %}</span></div><p>Generated and persisted automatically; its value is never displayed.</p></div></div>
+      </div>
+      <div class="settings-card">
+        <h3>API access</h3>
+        <label class="settings-switch"><input type="hidden" name="api_token_auth_enabled" value="0" /><input type="checkbox" name="api_token_auth_enabled" value="1" {% if settings.api_token_auth_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Require an API token</strong><small>Protect Administration API endpoints with a token.</small></span></label>
+        <div class="settings-managed-row"><div><div class="settings-label-row"><strong>API token</strong><span class="settings-status {% if api_token_configured %}is-configured{% endif %}">{% if api_token_configured %}Configured{% else %}Not configured{% endif %}</span></div><p>Generate a replacement in the existing one-time token workflow.</p></div><a class="settings-button settings-button-secondary" href="{{ url_for('admin.admin_api_token') }}">Manage API token</a></div>
+      </div>
+    </section>
+
+    <section class="settings-section" id="advanced" aria-labelledby="advanced-heading">
+      <div class="settings-section-heading"><h2 id="advanced-heading">Advanced</h2><p>Advanced canonical settings that do not fit the normal forms.</p></div>
+      <div class="settings-card">
+        <div class="settings-label-row"><h3>Species retention overrides</h3><span class="settings-status is-configured">Config v{{ config_version }}</span></div>
+        <div class="settings-field"><label for="retention_species_overrides">Override mapping</label><textarea class="settings-code-input" id="retention_species_overrides" name="retention_species_overrides" rows="8" spellcheck="false" aria-describedby="retention_species_overrides_help">{{ settings.retention_species_overrides }}</textarea><small id="retention_species_overrides_help">Advanced YAML mapping keyed by species name. All ordinary settings above use structured controls.</small>{% if field_errors.retention_species_overrides %}<span class="settings-field-error">{{ field_errors.retention_species_overrides }}</span>{% endif %}</div>
+        <p class="settings-preservation-note">Unrecognized extension settings already present in the configuration are preserved unchanged, but are not editable here.</p>
+      </div>
+    </section>
+
+  </form>
 </div>
-<div class="wamf-panel">
-  <h2 class="wamf-subheading">Configuration Editor</h2>
-
-  <div id="editor"></div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
 
 <script>
-          let messageTimer;
-          function showMessage(
-            message,
-            type,
-            persistent = false
-        ) {
+  (function () {
+    const activeSection = document.getElementById('active-section');
+    if (document.querySelectorAll) {
+      const sectionLinks = document.querySelectorAll('.settings-section-nav a');
+      function setActiveSection(sectionId) {
+        sectionLinks.forEach(function (link) {
+          const isActive = link.getAttribute('href') === '#' + sectionId;
+          link.classList.toggle('is-active', isActive);
+          if (isActive) link.setAttribute('aria-current', 'location');
+          else link.removeAttribute('aria-current');
+        });
+      }
 
-            const messageBox =
-                document.getElementById(
-                    'config-message'
-                );
+      sectionLinks.forEach(function (link) {
+        link.addEventListener('click', function () {
+          activeSection.value = link.getAttribute('href').slice(1);
+          setActiveSection(activeSection.value);
+        });
+      });
 
-            messageBox.className =
-                'config-message ' + type;
+      const initialSection = window.location.hash.slice(1) || activeSection.value;
+      setActiveSection(initialSection);
+      if ('IntersectionObserver' in window) {
+        const sectionObserver = new IntersectionObserver(function (entries) {
+          const visible = entries
+            .filter(function (entry) { return entry.isIntersecting; })
+            .sort(function (left, right) { return left.boundingClientRect.top - right.boundingClientRect.top; });
+          if (visible.length) setActiveSection(visible[0].target.id);
+        }, {rootMargin: '-15% 0px -70% 0px'});
+        document.querySelectorAll('.settings-section').forEach(function (section) {
+          sectionObserver.observe(section);
+        });
+      }
+    }
 
-            messageBox.textContent =
-                message;
-
-            messageBox.style.display =
-                'block';
-
-            clearTimeout(messageTimer);
-            if (persistent) return;
-            messageTimer = setTimeout(
-                function () {
-
-                    messageBox.style.display =
-                        'none';
-
-                },
-                5000
-            );
-
-        }
-          let editor;
-
-          require.config({
-              paths: {
-                  vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs'
-              }
-          });
-
-          require(['vs/editor/editor.main'], function () {
-
-              editor = monaco.editor.create(
-                  document.getElementById('editor'),
-                  {
-                      value: {{ config_content|tojson }},
-                      language: 'yaml',
-                      theme: 'vs-dark',
-                      automaticLayout: true,
-                      minimap: {
-                          enabled: false
-                      }
-                  }
-              );
-
-              document
-                  .getElementById('save-config-btn')
-                  .addEventListener(
-                      'click',
-                      async function () {
-
-                          const response =
-                              await fetch(
-                                  '/admin/config/save',
-                                  {
-                                      method: 'POST',
-                                      headers: {
-                                          'Content-Type': 'application/json',
-                                          'X-CSRFToken': {{ csrf_token|tojson }}
-                                      },
-                                      body: JSON.stringify({
-                                          config_content: editor.getValue()
-                                      })
-                                  }
-                              );
-
-                          const result =
-                              await response.json();
-
-                          if (result.success) {
-
-                              showMessage(
-          result.message,
-          'success',
-          result.restart_required
+    function showMessage(message, type, persistent) {
+      const box = document.getElementById('config-message');
+      box.className = 'settings-notice ' + (
+        type === 'error' ? 'settings-notice-error' : 'settings-notice-success'
       );
+      box.textContent = message;
+      box.style.display = 'block';
+    }
 
-                          }
-                          else {
+    let restartPending = false;
 
-                              showMessage(
-        result.error,
-        'error'
-    );
+    function setRestartPending(pending) {
+      restartPending = pending;
+      document.getElementById('restart-btn').disabled = pending;
+    }
 
-                          }
-
-                      }
-                  );
-
-          let restartPending = false;
-
-          function setRestartPending(pending) {
-              restartPending = pending;
-              for (const id of ['save-config-btn', 'restart-btn', 'save-restart-btn']) {
-                  document.getElementById(id).disabled = pending;
-              }
+    async function reconnectAfterRestart() {
+      const deadline = Date.now() + 90000;
+      while (Date.now() < deadline) {
+        await new Promise(function (resolve) { setTimeout(resolve, 1000); });
+        try {
+          const response = await fetch('{{ url_for("admin.restart_status") }}', {cache: 'no-store'});
+          if (response.redirected) { window.location.assign(response.url); return; }
+          if (response.ok) {
+            const status = await response.json();
+            if (status.instance_id !== {{ restart_instance_id|tojson }}) { window.location.reload(); return; }
           }
+        } catch (error) {
+          // A disconnected request is expected while the process restarts.
+        }
+      }
+      setRestartPending(false);
+      showMessage('WAMF has not reconnected yet. Check the startup console and refresh this page.', 'error', true);
+    }
 
-          async function reconnectAfterRestart() {
-              showMessage('Restarting WAMF. Waiting for the Admin UI…', 'success', true);
-              const deadline = Date.now() + 90000;
-              while (Date.now() < deadline) {
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  try {
-                      const response = await fetch('/admin/config/restart-status', {
-                          cache: 'no-store',
-                          signal: AbortSignal.timeout(3000)
-                      });
-                      if (response.redirected) {
-                          window.location.assign(response.url);
-                          return;
-                      }
-                      if (response.ok) {
-                          const status = await response.json();
-                          if (typeof status.instance_id === 'string' && status.instance_id !== {{ restart_instance_id|tojson }}) {
-                              window.location.reload();
-                              return;
-                          }
-                      }
-                  } catch (error) {
-                      // A disconnected request is expected while workers restart.
-                  }
-              }
-              setRestartPending(false);
-              showMessage('WAMF has not reconnected yet. Check the startup console and refresh this page. If you changed the web address or port, open the new address.', 'error', true);
-          }
-
-          async function postConfigAction(url, includeConfig) {
-              if (restartPending) return;
-              setRestartPending(true);
-              const options = {
-                  method: 'POST',
-                  headers: {
-                      'Content-Type': 'application/json',
-                      'X-CSRFToken': {{ csrf_token|tojson }}
-                  },
-                  signal: AbortSignal.timeout(10000)
-              };
-              if (includeConfig) {
-                  options.body = JSON.stringify({config_content: editor.getValue()});
-              }
-              try {
-                  const response = await fetch(url, options);
-                  if (response.redirected) {
-                      window.location.assign(response.url);
-                      return;
-                  }
-                  const result = await response.json();
-                  if (!response.ok || !result.success) {
-                      setRestartPending(false);
-                      showMessage(result.error || result.message || 'Request failed', 'error', true);
-                      return;
-                  }
-              } catch (error) {
-                  // The parent may have restarted before the response arrived.
-                  // Poll only: never automatically repeat the mutation.
-              }
-              await reconnectAfterRestart();
-          }
+    async function postConfigAction(url, includeConfig) {
+      if (restartPending) return;
+      setRestartPending(true);
+      showMessage('Restarting WAMF. Waiting for the Administration UI…', 'success', true);
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': {{ csrf_token|tojson }}},
+          body: '{}'
+        });
+        if (response.redirected) { window.location.assign(response.url); return; }
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          setRestartPending(false);
+          showMessage(result.error || result.message || 'Restart request failed.', 'error', true);
+          return;
+        }
+      } catch (error) {
+        // The process can exit before returning its successful response.
+      }
+      await reconnectAfterRestart();
+    }
 
           document
               .getElementById('restart-btn')
               .addEventListener('click', function () {
-                  postConfigAction('/admin/config/restart', false);
+                postConfigAction('{{ url_for("admin.restart_wamf") }}', false);
               });
 
-          document
-              .getElementById('save-restart-btn')
-              .addEventListener('click', function () {
-                  postConfigAction('/admin/config/save-and-restart', true);
-              });
-
-          document
-              .getElementById('copy-config-btn')
-              .addEventListener(
-                  'click',
-                  function () {
-
-                      const textarea =
-                          document.createElement(
-                              'textarea'
-                          );
-
-                      textarea.value =
-                          editor.getValue();
-
-                      document.body.appendChild(
-                          textarea
-                      );
-
-                      textarea.select();
-
-                      document.execCommand(
-                          'copy'
-                      );
-
-                      document.body.removeChild(
-                          textarea
-                      );
-
-                      showMessage(
-      'Configuration copied to clipboard',
-      'success'
-  );
-
-                  }
-              );
-
-          });
+    const errors = document.getElementById('settings-errors');
+    if (errors && errors.focus) errors.focus();
+  }());
 </script>
+
 {% endblock %}
