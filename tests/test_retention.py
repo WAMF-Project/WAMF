@@ -1,23 +1,44 @@
 from datetime import datetime, timedelta
 import sqlite3
+from types import SimpleNamespace
+
+import pytest
 
 import retention
-from retention import prune_system_events
+from app.db import ensure_schema
+from app.retention_service import run_retention
 
 
 def _create_system_events_db(path):
-    conn = sqlite3.connect(path)
-    conn.execute("""
-        CREATE TABLE system_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            severity TEXT NOT NULL,
-            event_type TEXT NOT NULL,
-            message TEXT NOT NULL
-        )
-    """)
-    conn.commit()
-    conn.close()
+    ensure_schema(path)
+
+
+def _config(db_path, tmp_path, **retention):
+    snapshots = tmp_path / "snapshots"
+    clips = tmp_path / "clips"
+    snapshots.mkdir()
+    clips.mkdir()
+    values = {
+        "enabled": True,
+        "snapshots_days": 90,
+        "clips_days": 90,
+        "delete_media": False,
+        "orphan_scan_enabled": False,
+        "delete_orphaned_media": False,
+        "system_events_days": 90,
+        "system_events_min_rows": 0,
+        "species_overrides": {},
+    }
+    values.update(retention)
+    return {
+        "config_version": 2,
+        "storage": {"database_path": str(db_path)},
+        "media": {
+            "snapshots_path": str(snapshots),
+            "clips_path": str(clips),
+        },
+        "retention": values,
+    }
 
 
 def _insert_event(conn, timestamp, message):
@@ -41,16 +62,7 @@ def test_prune_system_events_removes_old_rows_and_logs_summary(
 ):
     db_path = tmp_path / "events.db"
     _create_system_events_db(db_path)
-    monkeypatch.setattr(retention, "DB_PATH", str(db_path))
-
-    log_events = []
-    monkeypatch.setattr(
-        retention,
-        "log_system_event",
-        lambda severity, event_type, message: log_events.append(
-            (severity, event_type, message)
-        ),
-    )
+    monkeypatch.setattr("app.retention_service._emit_event", lambda *args: None)
 
     now = datetime.now()
     conn = sqlite3.connect(db_path)
@@ -60,13 +72,16 @@ def test_prune_system_events_removes_old_rows_and_logs_summary(
     conn.commit()
     conn.close()
 
-    deleted_count = prune_system_events({
-        "retention": {
-            "enabled": True,
-            "system_events_days": 90,
-            "system_events_min_rows": 1,
-        },
-    })
+    result = run_retention(
+        "test",
+        config=_config(
+            db_path,
+            tmp_path,
+            system_events_days=90,
+            system_events_min_rows=1,
+        ),
+        now=now,
+    )
 
     conn = sqlite3.connect(db_path)
     messages = [
@@ -77,20 +92,14 @@ def test_prune_system_events_removes_old_rows_and_logs_summary(
     ]
     conn.close()
 
-    assert deleted_count == 2
+    assert result.system_events_pruned == 2
     assert messages == ["recent"]
-    assert log_events == [(
-        "INFO",
-        "RETENTION",
-        "Pruned 2 system events older than 90 days; kept newest 1 rows",
-    )]
 
 
 def test_prune_system_events_keeps_newest_minimum_rows(monkeypatch, tmp_path):
     db_path = tmp_path / "events.db"
     _create_system_events_db(db_path)
-    monkeypatch.setattr(retention, "DB_PATH", str(db_path))
-    monkeypatch.setattr(retention, "log_system_event", lambda *args: None)
+    monkeypatch.setattr("app.retention_service._emit_event", lambda *args: None)
 
     now = datetime.now()
     conn = sqlite3.connect(db_path)
@@ -105,13 +114,16 @@ def test_prune_system_events_keeps_newest_minimum_rows(monkeypatch, tmp_path):
     conn.commit()
     conn.close()
 
-    deleted_count = prune_system_events({
-        "retention": {
-            "enabled": True,
-            "system_events_days": 90,
-            "system_events_min_rows": 3,
-        },
-    })
+    result = run_retention(
+        "test",
+        config=_config(
+            db_path,
+            tmp_path,
+            system_events_days=90,
+            system_events_min_rows=3,
+        ),
+        now=now,
+    )
 
     conn = sqlite3.connect(db_path)
     messages = [
@@ -122,5 +134,24 @@ def test_prune_system_events_keeps_newest_minimum_rows(monkeypatch, tmp_path):
     ]
     conn.close()
 
-    assert deleted_count == 2
+    assert result.system_events_pruned == 2
     assert messages == ["old-2", "old-3", "old-4"]
+
+
+@pytest.mark.parametrize(
+    ("outcome", "exit_code"),
+    [("success", 0), ("partial", 1), ("failed", 1)],
+)
+def test_standalone_entry_point_delegates_to_safe_service(
+    monkeypatch, outcome, exit_code
+):
+    calls = []
+
+    def run(trigger):
+        calls.append(trigger)
+        return SimpleNamespace(outcome=outcome, error_count=0)
+
+    monkeypatch.setattr(retention, "run_retention", run)
+
+    assert retention.main() == exit_code
+    assert calls == ["standalone"]

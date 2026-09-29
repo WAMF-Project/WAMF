@@ -1,7 +1,6 @@
 from flask import Flask, request, redirect, url_for, jsonify, session, flash
 import logging
 from datetime import datetime
-from pathlib import Path
 from app import security
 from app.config_loader import load_runtime_config
 from app.config_normalization import normalize_config
@@ -47,10 +46,9 @@ from app.config_editor import (  # noqa: F401
     write_config_preserving_admin,
 )
 from wamf_paths import (
+    delete_wamf_media_files,
     ensure_storage_paths,
-    get_clips_path,
-    get_snapshots_path,
-    resolve_media_path,
+    is_wamf_media_path,
 )
 
 app = Flask(__name__)
@@ -165,51 +163,6 @@ def is_safe_next_url(next_url):
 
 def get_safe_next_url(default_endpoint='admin.admin_dashboard'):
     return security.get_safe_next_url(default_endpoint)
-
-
-def is_wamf_media_path(path, media_type=None):
-    if not path:
-        return False
-
-    try:
-        if media_type:
-            media_path = resolve_media_path(path, media_type).resolve()
-        else:
-            media_path = Path(path).resolve()
-        allowed_dirs = (
-            get_snapshots_path().resolve(),
-            get_clips_path().resolve(),
-        )
-        return any(
-            media_path == allowed_dir or allowed_dir in media_path.parents
-            for allowed_dir in allowed_dirs
-        )
-    except OSError:
-        return False
-
-
-def delete_wamf_media_files(snapshot_path=None, clip_path=None):
-    deleted = []
-
-    for media_path, media_type in (
-        (snapshot_path, "snapshots"),
-        (clip_path, "clips"),
-    ):
-        if not is_wamf_media_path(media_path, media_type):
-            continue
-
-        path = resolve_media_path(media_path, media_type)
-
-        if not path.exists():
-            continue
-
-        if not path.is_file():
-            continue
-
-        path.unlink()
-        deleted.append(str(path))
-
-    return deleted
 
 
 @app.before_request

@@ -44,7 +44,9 @@ def normalize_message(message):
 def log_system_event(
     severity,
     event_type,
-    message
+    message,
+    *,
+    db_path=None,
 ):
     severity = normalize_severity(severity)
     event_type = normalize_event_type(event_type)
@@ -52,7 +54,8 @@ def log_system_event(
     conn = None
 
     try:
-        conn = connect_db(DB_PATH, row_factory=False)
+        target_path = DB_PATH if db_path is None else db_path
+        conn = connect_db(target_path, row_factory=False)
         cursor = conn.cursor()
 
         cursor.execute("""

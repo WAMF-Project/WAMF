@@ -774,19 +774,12 @@ def test_delete_detection_idempotent(flask_client, tmp_dbs):
 def test_delete_detection_removes_archived_media(
     flask_client, tmp_dbs, tmp_path, monkeypatch
 ):
-    import webui
+    import wamf_paths
 
     snapshot_root = tmp_path / "snapshots"
     clip_root = tmp_path / "clips"
-    monkeypatch.setattr(webui, "get_snapshots_path", lambda: snapshot_root)
-    monkeypatch.setattr(webui, "get_clips_path", lambda: clip_root)
-    monkeypatch.setattr(
-        webui,
-        "resolve_media_path",
-        lambda value, media_type: (
-            snapshot_root if media_type == "snapshots" else clip_root
-        ) / Path(value).name,
-    )
+    monkeypatch.setattr(wamf_paths, "get_snapshots_path", lambda config=None: snapshot_root)
+    monkeypatch.setattr(wamf_paths, "get_clips_path", lambda config=None: clip_root)
 
     snapshot_path = snapshot_root / "test-delete-media.jpg"
     clip_path = clip_root / "test-delete-media.mp4"
