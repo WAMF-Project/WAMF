@@ -1,77 +1,54 @@
 {% extends "admin_base.html" %} {% block title %} WAMF | System Logs {% endblock
 %}
 {% block page_title %}System Logs{% endblock %}
-{% block page_actions %}
-
-<div class="log-filters">
-  <a
-    href="{{ url_for('admin.admin_logs') }}"
-    class="log-filter-btn {% if not current_filter %}active{% endif %}"
-  >
-    All
-  </a>
-
-  <a
-    href="{{ url_for('admin.admin_logs', filter='SYSTEM') }}"
-    class="log-filter-btn {% if current_filter == 'SYSTEM' %}active{% endif %}"
-  >
-    System
-  </a>
-
-  <a
-    href="{{ url_for('admin.admin_logs', filter='RETENTION') }}"
-    class="log-filter-btn {% if current_filter == 'RETENTION' %}active{% endif %}"
-  >
-    Retention
-  </a>
-
-  <a
-    href="{{ url_for('admin.admin_logs', filter='MQTT') }}"
-    class="log-filter-btn {% if current_filter == 'MQTT' %}active{% endif %}"
-  >
-    MQTT
-  </a>
-  <a
-    href="{{ url_for('admin.admin_logs', filter='SPECIES') }}"
-    class="log-filter-btn {% if current_filter == 'SPECIES' %}active{% endif %}"
-  >
-    Species
-  </a>
-  <a
-    href="{{ url_for('admin.admin_logs', filter='CONFIG') }}"
-    class="log-filter-btn {% if current_filter == 'CONFIG' %}active{% endif %}"
-  >
-    Config
-  </a>
-</div>
+{% block page_description %}
+<p class="app-page-description">Review WAMF system and component activity.</p>
 {% endblock %}
 {% block content %}
 
-<div class="admin-card">
-  <table class="log-table">
-    <thead>
-      <tr>
-        <th>Type</th>
-        <th>Timestamp</th>
-        <th>Component</th>
-        <th>Message</th>
-      </tr>
-    </thead>
+<section class="settings-section logs-section" aria-labelledby="logs-heading">
+  <div class="settings-section-heading">
+    <h2 id="logs-heading">Logs</h2>
+  </div>
 
-    <tbody>
-      {% for log in logs %}
-      <tr>
-        <td>
-          <span class="log-badge log-{{ log.severity|lower }}">
-            {{ log.severity }}
-          </span>
-        </td>
-        <td>{{ log.timestamp }}</td>
-        <td>{{ log.event_type }}</td>
-        <td>{{ log.message }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+  <form class="settings-field log-filter-form" method="get" action="{{ url_for('admin.admin_logs') }}">
+    <label for="log-type">Log type</label>
+    <select id="log-type" name="filter" onchange="this.form.submit()">
+      <option value="" {% if not current_filter %}selected{% endif %}>All</option>
+      <option value="SYSTEM" {% if current_filter == 'SYSTEM' %}selected{% endif %}>System</option>
+      <option value="RETENTION" {% if current_filter == 'RETENTION' %}selected{% endif %}>Retention</option>
+      <option value="MQTT" {% if current_filter == 'MQTT' %}selected{% endif %}>MQTT</option>
+      <option value="SPECIES" {% if current_filter == 'SPECIES' %}selected{% endif %}>Species</option>
+      <option value="CONFIG" {% if current_filter == 'CONFIG' %}selected{% endif %}>Config</option>
+    </select>
+  </form>
+
+  <div class="admin-card log-table-card">
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Timestamp</th>
+          <th>Component</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td>
+            <span class="log-badge log-{{ log.severity|lower }}">
+              {{ log.severity }}
+            </span>
+          </td>
+          <td>{{ log.timestamp }}</td>
+          <td>{{ log.event_type }}</td>
+          <td>{{ log.message }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}

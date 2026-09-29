@@ -287,6 +287,78 @@ def test_public_pages_do_not_run_admin_health_checks(flask_client, monkeypatch):
     assert response.status_code == 200
 
 
+def test_admin_logs_select_preserves_existing_filter_values(
+    flask_client,
+    monkeypatch,
+):
+    import webui
+
+    calls = []
+
+    def recent_events(limit, event_type):
+        calls.append((limit, event_type))
+        return []
+
+    monkeypatch.setattr(webui, "get_recent_system_events", recent_events)
+    filters = (
+        (None, "", "All"),
+        ("SYSTEM", "SYSTEM", "System"),
+        ("RETENTION", "RETENTION", "Retention"),
+        ("MQTT", "MQTT", "MQTT"),
+        ("SPECIES", "SPECIES", "Species"),
+        ("CONFIG", "CONFIG", "Config"),
+    )
+
+    for query_filter, option_value, label in filters:
+        path = "/admin/logs"
+        if query_filter is not None:
+            path += f"?filter={query_filter}"
+
+        response = flask_client.get(path)
+        html = response.get_data(as_text=True)
+        select = html.split('<select id="log-type"', 1)[1].split(
+            "</select>", 1
+        )[0]
+
+        assert response.status_code == 200
+        assert 'name="filter"' in select
+        assert 'onchange="this.form.submit()"' in select
+        assert select.count(" selected>") == 1
+        assert re.findall(r'<option value="([A-Z]*)"', select) == [
+            "",
+            "SYSTEM",
+            "RETENTION",
+            "MQTT",
+            "SPECIES",
+            "CONFIG",
+        ]
+        assert (
+            f'<option value="{option_value}" selected>{label}</option>'
+            in select
+        )
+
+        if query_filter is None:
+            page_header = html.split('<header class="app-page-header">', 1)[
+                1
+            ].split("</header>", 1)[0]
+            assert "Review WAMF system and component activity." in page_header
+            assert "log-filters" not in page_header
+            assert '<h2 id="logs-heading">Logs</h2>' in html
+            assert (
+                'method="get" action="/admin/logs"'
+                in html
+            )
+
+    assert calls == [
+        (100, None),
+        (100, "SYSTEM"),
+        (100, "RETENTION"),
+        (100, "MQTT"),
+        (100, "SPECIES"),
+        (100, "CONFIG"),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Activity
 # ---------------------------------------------------------------------------

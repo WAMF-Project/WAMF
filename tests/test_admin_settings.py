@@ -104,6 +104,38 @@ def test_settings_page_renders_canonical_values_and_sections(
     assert b'value="0.7"' in response.data
 
 
+def test_frigate_fields_render_refined_labels_and_help(
+    flask_client, tmp_path, monkeypatch
+):
+    configure_paths(tmp_path, monkeypatch)
+    disable_runtime_reload(monkeypatch)
+
+    html = flask_client.get("/admin/config").get_data(as_text=True)
+    frigate = html.split('id="frigate"', 1)[1].split("</section>", 1)[0]
+
+    assert '<label for="frigate_url">Frigate URL</label>' in frigate
+    assert 'name="frigate_url" type="url"' in frigate
+    assert 'aria-describedby="frigate_url_help"' in frigate
+    assert (
+        '<small id="frigate_url_help">Frigate server URL used by WAMF '
+        'for API requests and media retrieval.</small>'
+    ) in frigate
+    assert '<label for="frigate_cameras">Monitored cameras</label>' in frigate
+    assert '<label for="frigate_cameras">Camera names</label>' not in frigate
+    assert 'name="frigate_cameras" rows="4"' in frigate
+    assert (
+        '<small id="frigate_cameras_help">Enter one Frigate camera name per '
+        'line.</small>'
+    ) in frigate
+    assert '<label for="frigate_object">Tracked object</label>' in frigate
+    assert 'name="frigate_object" type="text"' in frigate
+    assert 'aria-describedby="frigate_object_help"' in frigate
+    assert (
+        '<small id="frigate_object_help">Frigate object label WAMF processes '
+        'from monitored cameras.</small>'
+    ) in frigate
+
+
 def test_settings_page_never_renders_secret_values_or_secret_storage_fields(
     flask_client, tmp_path, monkeypatch
 ):
@@ -148,6 +180,188 @@ def test_settings_secret_state_reports_not_configured(
     html = flask_client.get("/admin/config").get_data(as_text=True)
 
     assert html.count("Not configured") >= 4
+
+
+def test_mqtt_helpers_and_dependency_states_match_current_configuration(
+    flask_client, tmp_path, monkeypatch
+):
+    config = ready_config()
+    config["mqtt"]["topic_prefix"] = "bird-lab"
+    config["mqtt"]["authentication"]["enabled"] = True
+    config["mqtt"]["tls"] = {
+        "enabled": True,
+        "insecure": True,
+        "ca_certs": "/certs/broker-ca.pem",
+    }
+    configure_paths(
+        tmp_path,
+        monkeypatch,
+        config=config,
+        secrets={
+            "secrets_version": 1,
+            "mqtt": {
+                "username": "SECRET-MQTT-USER",
+                "password": "SECRET-MQTT-PASSWORD",
+            },
+        },
+    )
+    disable_runtime_reload(monkeypatch)
+
+    html = flask_client.get("/admin/config").get_data(as_text=True)
+    mqtt = html.split('id="mqtt"', 1)[1].split("</section>", 1)[0]
+
+    assert "SECRET-MQTT-USER" not in html
+    assert "SECRET-MQTT-PASSWORD" not in html
+    assert "Leave blank to keep the stored username." in mqtt
+    assert "Leave blank to keep the stored password." in mqtt
+    assert "Enter the broker username." not in mqtt
+    assert "Enter the broker password." not in mqtt
+    assert (
+        "Frigate MQTT topic prefix. WAMF listens for events on "
+        "<code>bird-lab/events</code>."
+    ) in mqtt
+    assert (
+        "Optional path to a CA certificate used to verify the broker."
+        in mqtt
+    )
+    assert re.search(
+        r'<fieldset class="settings-dependent-fields" '
+        r'data-settings-dependency="mqtt_authentication_enabled"[^>]*>',
+        mqtt,
+    ).group(0).endswith('>')
+    assert re.search(
+        r'<fieldset class="settings-dependent-fields" '
+        r'data-settings-dependency="mqtt_tls_enabled"[^>]*>',
+        mqtt,
+    ).group(0).endswith('>')
+    assert not re.search(
+        r'data-settings-dependency="(?:mqtt_authentication_enabled|mqtt_tls_enabled)"'
+        r'[^>]* disabled',
+        mqtt,
+    )
+
+
+def test_mqtt_unconfigured_dependencies_render_inactive_without_secret_values(
+    flask_client, tmp_path, monkeypatch
+):
+    config = ready_config()
+    config["mqtt"]["authentication"]["enabled"] = False
+    config["mqtt"]["tls"]["enabled"] = False
+    configure_paths(tmp_path, monkeypatch, config=config)
+    disable_runtime_reload(monkeypatch)
+
+    html = flask_client.get("/admin/config").get_data(as_text=True)
+    mqtt = html.split('id="mqtt"', 1)[1].split("</section>", 1)[0]
+
+    assert "Enter the broker username." in mqtt
+    assert "Enter the broker password." in mqtt
+    assert "Leave blank to keep the stored username." not in mqtt
+    assert "Leave blank to keep the stored password." not in mqtt
+    for controller in ("mqtt_authentication_enabled", "mqtt_tls_enabled"):
+        fieldset = re.search(
+            rf'<fieldset class="settings-dependent-fields" '
+            rf'data-settings-dependency="{controller}"[^>]*>',
+            mqtt,
+        ).group(0)
+        assert " disabled" in fieldset
+    assert "group.disabled = !controller.checked;" in html
+
+
+def test_inactive_mqtt_fields_can_be_omitted_without_clearing_stored_values(
+    flask_client, tmp_path, monkeypatch
+):
+    config = ready_config()
+    config["mqtt"]["authentication"]["enabled"] = False
+    config["mqtt"]["tls"] = {
+        "enabled": False,
+        "insecure": True,
+        "ca_certs": "/certs/preserved-ca.pem",
+    }
+    config_path, secrets_path = configure_paths(
+        tmp_path,
+        monkeypatch,
+        config=config,
+        secrets={
+            "secrets_version": 1,
+            "mqtt": {
+                "username": "preserved-user",
+                "password": "preserved-password",
+            },
+        },
+    )
+    disable_runtime_reload(monkeypatch)
+
+    response = flask_client.post(
+        "/admin/config/save",
+        data={
+            "mqtt_authentication_enabled": "0",
+            "mqtt_tls_enabled": "0",
+            "active_section": "mqtt",
+        },
+    )
+
+    assert response.status_code == 302
+    persisted = yaml.safe_load(config_path.read_text())
+    secrets = yaml.safe_load(secrets_path.read_text())
+    assert persisted["mqtt"]["authentication"]["enabled"] is False
+    assert persisted["mqtt"]["tls"] == {
+        "enabled": False,
+        "insecure": True,
+        "ca_certs": "/certs/preserved-ca.pem",
+    }
+    assert secrets["mqtt"] == {
+        "username": "preserved-user",
+        "password": "preserved-password",
+    }
+
+
+def test_all_settings_switches_limit_labels_to_control_and_name(
+    flask_client, tmp_path, monkeypatch
+):
+    configure_paths(tmp_path, monkeypatch)
+    disable_runtime_reload(monkeypatch)
+
+    html = flask_client.get("/admin/config").get_data(as_text=True)
+    labels = re.findall(
+        r'<label class="settings-switch-label"[^>]*>(.*?)</label>',
+        html,
+        re.DOTALL,
+    )
+
+    assert len(labels) == 11
+    assert 'class="settings-switch"' not in html
+    assert all("<small" not in label for label in labels)
+    for field_name in (
+        "mqtt_authentication_enabled",
+        "mqtt_tls_enabled",
+        "mqtt_tls_insecure",
+        "bridge_enabled",
+        "admin_auth_enabled",
+        "admin_session_cookie_secure",
+        "api_token_auth_enabled",
+    ):
+        assert html.count(f'name="{field_name}"') == 2
+        assert f'id="{field_name}" type="checkbox"' in html
+        assert f'for="{field_name}"' in html
+
+
+def test_admin_session_cookie_samesite_has_concise_help(
+    flask_client, tmp_path, monkeypatch
+):
+    configure_paths(tmp_path, monkeypatch)
+    disable_runtime_reload(monkeypatch)
+
+    html = flask_client.get("/admin/config").get_data(as_text=True)
+    admin_api = html.split('id="admin-api"', 1)[1].split("</section>", 1)[0]
+
+    assert '<label for="admin_session_cookie_samesite">' in admin_api
+    assert 'name="admin_session_cookie_samesite"' in admin_api
+    assert 'aria-describedby="admin_session_cookie_samesite_help"' in admin_api
+    assert (
+        '<small id="admin_session_cookie_samesite_help">Controls when the '
+        'browser sends the administration session cookie with cross-site '
+        'requests.</small>'
+    ) in admin_api
 
 
 def test_blank_mqtt_secret_submission_preserves_stored_values(
@@ -459,6 +673,103 @@ def test_storage_retention_controls_are_moved_without_duplication(
     assert storage.count('name="retention_enabled"') == 2
 
 
+def test_storage_paths_are_readonly_and_survive_settings_save(
+    flask_client, tmp_path, monkeypatch
+):
+    expected_paths = {
+        "database_path": str(tmp_path / "storage" / "current.db"),
+        "snapshots_path": str(tmp_path / "media" / "snapshots"),
+        "clips_path": str(tmp_path / "media" / "clips"),
+    }
+    config = ready_config()
+    config["storage"]["database_path"] = expected_paths["database_path"]
+    config["media"]["snapshots_path"] = expected_paths["snapshots_path"]
+    config["media"]["clips_path"] = expected_paths["clips_path"]
+    config_path, _ = configure_paths(
+        tmp_path,
+        monkeypatch,
+        config=config,
+    )
+    disable_runtime_reload(monkeypatch)
+
+    html = flask_client.get("/admin/config").get_data(as_text=True)
+
+    for field_name, path in expected_paths.items():
+        assert re.search(
+            rf'id="{field_name}" name="{field_name}" type="text" '
+            rf'value="{re.escape(path)}" readonly required',
+            html,
+        )
+
+    response = flask_client.post(
+        "/admin/config/save",
+        data={**expected_paths, "active_section": "storage-retention"},
+    )
+
+    assert response.status_code == 302
+    persisted = yaml.safe_load(config_path.read_text())
+    assert persisted["storage"]["database_path"] == expected_paths["database_path"]
+    assert persisted["media"]["snapshots_path"] == expected_paths["snapshots_path"]
+    assert persisted["media"]["clips_path"] == expected_paths["clips_path"]
+
+
+def test_retention_controls_use_compact_explicit_labels_and_accurate_help(
+    flask_client, tmp_path, monkeypatch
+):
+    config = ready_config()
+    config["retention"].update({
+        "enabled": True,
+        "delete_media": True,
+        "orphan_scan_enabled": False,
+        "delete_orphaned_media": False,
+    })
+    configure_paths(tmp_path, monkeypatch, config=config)
+    disable_runtime_reload(monkeypatch)
+
+    html = flask_client.get("/admin/config").get_data(as_text=True)
+    storage = html.split('id="storage-retention"', 1)[1].split("</section>", 1)[0]
+
+    assert storage.count('class="settings-toggle-grid"') == 1
+    assert storage.count('class="settings-toggle-item"') == 4
+    for field_name, checked in (
+        ("retention_enabled", True),
+        ("delete_media", True),
+        ("orphan_scan_enabled", False),
+        ("delete_orphaned_media", False),
+    ):
+        checkbox = re.search(
+            rf'<input class="settings-switch-input" id="{field_name}"[^>]+>',
+            storage,
+        ).group(0)
+        assert f'name="{field_name}"' in checkbox
+        assert (' checked' in checkbox) is checked
+        assert f'<label class="settings-switch-label" for="{field_name}">' in storage
+        assert storage.count(f'name="{field_name}"') == 2
+
+    assert "<small" not in "".join(
+        re.findall(
+            r'<label class="settings-switch-label"[^>]*>(.*?)</label>',
+            storage,
+            re.DOTALL,
+        )
+    )
+    for field_name, help_text in (
+        ("snapshots_days", "Number of days to retain archived snapshots."),
+        ("clips_days", "Number of days to retain archived clips."),
+        ("system_events_days", "Number of days to retain system log events."),
+        (
+            "system_events_min_rows",
+            "Minimum number of recent system events to keep regardless of age.",
+        ),
+        (
+            "config_backups_max_files",
+            "Number of previous configuration backups to retain.",
+        ),
+    ):
+        assert f'aria-describedby="{field_name}_help"' in storage
+        assert f'<small id="{field_name}_help">{help_text}</small>' in storage
+
+
 def test_admin_status_moves_to_authenticated_sidebar_and_uses_real_states(
     flask_client, tmp_path, monkeypatch
 ):
@@ -508,18 +819,33 @@ def test_sidebar_status_is_absent_from_public_and_login_pages(
     assert b"admin-system-status" not in flask_client.get("/login").data
 
 
-def test_settings_has_only_top_save_and_restart_actions(
+def test_settings_has_only_sticky_save_and_restart_actions(
     flask_client, tmp_path, monkeypatch
 ):
     configure_paths(tmp_path, monkeypatch)
     disable_runtime_reload(monkeypatch)
 
     html = flask_client.get("/admin/config").get_data(as_text=True)
+    page_header = re.search(
+        r'<header class="app-page-header">(.*?)</header>', html, re.DOTALL
+    ).group(1)
+    action_bar = re.search(
+        r'<div class="settings-action-bar" role="group" aria-label="Settings actions">(.*?)</div>\s*</div>\s*</div>',
+        html,
+        re.DOTALL,
+    ).group(1)
 
     assert html.count(">Save settings</button>") == 1
     assert html.count(">Restart WAMF</button>") == 1
-    assert 'form="settings-form"' in html
-    assert "settings-save-bar" not in html
+    assert "Save settings" not in page_header
+    assert "Restart WAMF" not in page_header
+    assert "Configure WAMF services, integrations and application behaviour." in page_header
+    assert 'class="app-page-description"' in page_header
+    assert "Restart WAMF" in action_bar
+    assert "Save settings" in action_bar
+    assert 'type="submit" form="settings-form"' in action_bar
+    assert 'id="restart-btn" type="button"' in action_bar
+    assert html.index('</form>') < html.index('class="settings-action-bar"')
 
 
 def test_canonical_perch_and_health_values_use_bridge_perch_controls(

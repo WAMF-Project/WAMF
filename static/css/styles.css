@@ -3268,10 +3268,146 @@ a:hover {
   }
 }
 
+/* Administration species metadata */
+.species-metadata-action-section {
+  margin-bottom: 1.5rem;
+}
+
+.species-metadata-section-heading {
+  margin-bottom: 0.75rem;
+}
+
+.species-metadata-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.species-metadata-actions form {
+  margin: 0;
+}
+
+.species-metadata-stats {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 1rem;
+  margin: 0 0 2.25rem;
+}
+
+.species-metadata-stats .stat-card {
+  padding: 0.85rem 1rem;
+}
+
+.species-metadata-stats .stat-card h2 {
+  margin-bottom: 0.35rem;
+}
+
+.species-metadata-table-section {
+  min-width: 0;
+}
+
+.species-metadata-page .wamf-species-metadata-table th {
+  padding: 0.65rem 0.75rem;
+}
+
+.species-metadata-page .wamf-species-metadata-table td {
+  padding: 0.5rem 0.75rem;
+}
+
+.species-metadata-row-action {
+  min-height: 36px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+/* Administration health */
+.app-page-description {
+  margin: 0.35rem 0 0;
+  color: var(--wamf-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.admin-health-card {
+  margin-bottom: 0;
+}
+
+.admin-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 1rem;
+}
+
+.admin-health-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-health-label {
+  color: var(--wamf-text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-health-value {
+  overflow-wrap: anywhere;
+  color: var(--wamf-text);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.admin-health-value.retention-warning {
+  color: var(--wamf-danger);
+}
+
+/* Administration logs */
+.logs-section .settings-section-heading {
+  margin-bottom: 0.75rem;
+}
+
+.log-filter-form {
+  width: min(100%, 14rem);
+  margin: 0 0 1rem;
+}
+
+.log-table-card {
+  margin-top: 0;
+  padding: clamp(0.5rem, 1vw, 0.75rem);
+}
+
+.log-table-card .log-table {
+  table-layout: fixed;
+}
+
+.log-table-card .log-table th:nth-child(1) {
+  width: 100px;
+}
+
+.log-table-card .log-table th:nth-child(2) {
+  width: 220px;
+}
+
+.log-table-card .log-table th:nth-child(3) {
+  width: 160px;
+}
+
+.log-table-card .log-table th,
+.log-table-card .log-table td {
+  padding: 0.45rem 0.6rem;
+}
+
+.log-table-card .log-table td:nth-child(4) {
+  overflow-wrap: anywhere;
+}
+
 /* Administration settings */
 .settings-page-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.75rem;
 }
 
@@ -3374,8 +3510,24 @@ a:hover {
   color: var(--wamf-forest-900);
 }
 
+.settings-content,
 .settings-form {
   min-width: 0;
+}
+
+.settings-form {
+  padding-bottom: 1.25rem;
+}
+
+.settings-action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin-top: -0.25rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--wamf-border);
+  background: rgba(255, 254, 249, 0.96);
+  box-shadow: 0 -8px 18px rgba(32, 53, 40, 0.08);
 }
 
 .settings-section {
@@ -3462,16 +3614,23 @@ a:hover {
 .settings-field textarea {
   display: block;
   width: 100%;
-  min-height: 44px;
-  padding: 0.65rem 0.75rem;
+  min-height: 36px;
+  padding: 0.4rem 0.75rem;
   border: 1px solid var(--wamf-border);
   border-radius: 8px;
   background: #fff;
   color: var(--wamf-text);
 }
 
+.settings-field input[readonly] {
+  background: var(--wamf-surface-muted);
+  color: var(--wamf-text);
+  cursor: text;
+}
+
 .settings-field textarea {
   min-height: 7rem;
+  padding: 0.65rem 0.75rem;
   resize: vertical;
 }
 
@@ -3508,6 +3667,83 @@ a:hover {
 .settings-toggle-list {
   display: grid;
   gap: 0;
+}
+
+.settings-toggle-list > .settings-toggle-item {
+  padding: 0.8rem 0;
+}
+
+.settings-toggle-list > .settings-toggle-item + .settings-toggle-item {
+  border-top: 1px solid var(--wamf-border);
+}
+
+.settings-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: clamp(1.25rem, 3vw, 2rem);
+  row-gap: 0.85rem;
+}
+
+.settings-toggle-item {
+  position: relative;
+  min-width: 0;
+}
+
+.settings-switch-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.settings-switch-label {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: flex-start;
+  gap: 0.8rem;
+  cursor: pointer;
+}
+
+.settings-switch-label strong {
+  padding-top: 0.12rem;
+  color: var(--wamf-text);
+  font-size: 0.92rem;
+}
+
+.settings-toggle-item small {
+  display: block;
+  margin: 0.3rem 0 0 3.55rem;
+  color: var(--wamf-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.settings-dependent-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-dependent-fields[disabled] {
+  opacity: 0.55;
+}
+
+.settings-dependent-fields[disabled] .settings-switch-label {
+  cursor: not-allowed;
+}
+
+.settings-switch-input:checked + .settings-switch-label .settings-switch-control {
+  background: var(--wamf-forest-700);
+}
+
+.settings-switch-input:checked + .settings-switch-label .settings-switch-control::after {
+  transform: translateX(1.2rem);
+}
+
+.settings-switch-input:focus-visible + .settings-switch-label .settings-switch-control {
+  outline: 3px solid var(--wamf-focus);
+  outline-offset: 3px;
 }
 
 .settings-switch {
@@ -3644,6 +3880,7 @@ a:hover {
 @media (max-width: 720px) {
   .settings-page-actions,
   .settings-grid,
+  .settings-toggle-grid,
   .settings-managed-row {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3656,6 +3893,16 @@ a:hover {
   .settings-page-actions .settings-button,
   .settings-managed-row .settings-button {
     width: 100%;
+  }
+
+  .settings-action-bar .settings-page-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .settings-action-bar .settings-button {
+    flex: 0 1 auto;
+    width: auto;
   }
 
   .settings-grid {

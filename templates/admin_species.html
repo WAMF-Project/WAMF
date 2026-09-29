@@ -1,22 +1,29 @@
-{% extends "admin_base.html" %} {% block title %} WAMF | Species Metadata {%
-endblock %}
+{% extends "admin_base.html" %}
+{% block title %}WAMF | Species Metadata{% endblock %}
 {% block page_title %}Species Metadata{% endblock %}
-{% block page_actions %}
-
-<div class="wamf-header-actions">
-  <form method="post" action="{{ url_for('admin.refresh_missing_species') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <button type="submit" class="log-filter-btn">Refresh Missing Metadata</button>
-  </form>
-  <form method="post" action="{{ url_for('admin.refresh_all_species') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <button type="submit" class="log-filter-btn">Refresh All Metadata</button>
-  </form>
-</div>
+{% block page_description %}
+<p class="app-page-description">Manage cached species descriptions and thumbnails.</p>
 {% endblock %}
 {% block content %}
 
-<div class="stats-grid">
+<div class="species-metadata-page">
+<section class="species-metadata-action-section" aria-labelledby="metadata-heading">
+  <div class="settings-section-heading species-metadata-section-heading">
+    <h2 id="metadata-heading">Metadata</h2>
+  </div>
+  <div class="species-metadata-actions">
+    <form method="post" action="{{ url_for('admin.refresh_missing_species') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button type="submit" class="settings-button">Refresh Missing Metadata</button>
+    </form>
+    <form method="post" action="{{ url_for('admin.refresh_all_species') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button type="submit" class="settings-button">Refresh All Metadata</button>
+    </form>
+  </div>
+</section>
+
+<div class="stats-grid species-metadata-stats">
   <div class="stat-card">
     <h2>Total Species Cached</h2>
     <p>{{ species_count }}</p>
@@ -35,6 +42,11 @@ endblock %}
     <h2>Last Metadata Refresh</h2>
     <p>{{ latest_update }}</p>
   </div>
+</div>
+
+<section class="species-metadata-table-section" aria-labelledby="cached-species-heading">
+<div class="settings-section-heading species-metadata-section-heading">
+  <h2 id="cached-species-heading">Cached Species</h2>
 </div>
 <div class="wamf-species-metadata-container">
   <table class="wamf-species-metadata-table">
@@ -64,12 +76,14 @@ endblock %}
     ) }}"
         >
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-          <button type="submit" class="log-filter-btn">Refresh</button>
+          <button type="submit" class="log-filter-btn species-metadata-row-action">Refresh</button>
         </form>
       </td>
     </tr>
 
     {% endfor %}
   </table>
+</div>
+</section>
 </div>
 {% endblock %}

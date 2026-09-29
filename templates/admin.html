@@ -1,119 +1,104 @@
-{% extends "admin_base.html" %} {% block title %}
-
-  WAMF | Dashboard
+{% extends "admin_base.html" %}
+{% block title %}WAMF | System Health{% endblock %}
+{% block page_title %}System Health{% endblock %}
+{% block page_description %}
+<p class="app-page-description">Monitor WAMF services, storage and archive health.</p>
 {% endblock %}
-{% block page_title %}Admin Dashboard{% endblock %}
 {% block content %}
 
-<div class="stats-grid">
-  <div class="stat-card">
-    <h2>Total Detections</h2>
-    <p>{{ stats.total_detections }}</p>
+<section class="settings-section" aria-labelledby="system-health-heading">
+  <div class="settings-section-heading">
+    <h2 id="system-health-heading">System Health</h2>
   </div>
-
-  <div class="stat-card">
-    <h2>Archived Snapshots</h2>
-    <p>{{ stats.archived_snapshots }}</p>
-  </div>
-
-  <div class="stat-card">
-    <h2>Archived Clips</h2>
-    <p>{{ stats.archived_clips }}</p>
-  </div>
-
-  <div class="stat-card">
-    <h2>Archive Size</h2>
-    <p>{{ stats.archive_size_mb }} MB</p>
-  </div>
-</div>
-
-<h2 class="admin-section-title">System Health</h2>
-
-<div class="stats-grid">
-  <div class="stat-card">
-    <h2>Frigate</h2>
-
-    <p>
-      {% if health.setup_required %} 🟡 Setup required {% elif health.frigate_online %} 🟢 Online {% else %} 🔴 Offline {% endif %}
-    </p>
-  </div>
-
-  <div class="stat-card">
-    <h2>Database</h2>
-
-    <p>
-      {% if health.database_healthy %} 🟢 Healthy {% else %} 🔴 Error {% endif
-      %}
-    </p>
-  </div>
-
-  <div class="stat-card">
-    <h2>Archive Storage</h2>
-
-    <p>
-      {% if health.archive_writable %} 🟢 Writable {% else %} 🔴 Problem {%
-      endif %}
-    </p>
-  </div>
-
-  <div class="stat-card">
-    <h2>MQTT</h2>
-
-    <p>
-      {% if health.setup_required %} 🟡 Setup required {% elif health.mqtt_online %} 🟢 Online {% else %} 🔴 Offline {% endif %}
-    </p>
-  </div>
-
-  <div class="stat-card">
-    <h2>System Disk</h2>
-
-    <p>
-      {% if health.disk_used_percent < 75 %} 🟢 {% elif health.disk_used_percent
-      < 90 %} 🟡 {% else %} 🔴 {% endif %} {{ health.disk_used_percent }}%
-    </p>
-  </div>
-</div>
-<h2 class="admin-section-title">Archive Retention</h2>
-
-<div class="stat-card retention-card">
-  
-    {% if retention_status %}
-
-    <div class="retention-grid">
-      <div class="retention-item">
-        <span class="retention-label">Last Run</span>
-        <span class="retention-value"> {{ retention_status.last_run }} </span>
-      </div>
-
-      <div class="retention-item">
-        <span class="retention-label">Rows Scanned</span>
-        <span class="retention-value">
-          {{ retention_status.rows_scanned }}
+  <div class="settings-card admin-health-card">
+    <div class="admin-health-grid">
+      <div class="admin-health-item">
+        <span class="admin-health-label">Frigate</span>
+        <span class="admin-health-value">
+          {% if health.setup_required %}🟡 Setup required{% elif health.frigate_online %}🟢 Online{% else %}🔴 Offline{% endif %}
         </span>
       </div>
-
-      <div class="retention-item">
-        <span class="retention-label">Orphans Found</span>
-        <span
-          class="retention-value {% if retention_status.orphan_count > 0 %} retention-warning {% endif %}"
-        >
-          {{ retention_status.orphan_count }}
+      <div class="admin-health-item">
+        <span class="admin-health-label">Database</span>
+        <span class="admin-health-value">
+          {% if health.database_healthy %}🟢 Healthy{% else %}🔴 Error{% endif %}
         </span>
       </div>
-
-      <div class="retention-item">
-        <span class="retention-label">Missing Files</span>
-        <span class="retention-value">
-          {{ retention_status.missing_count }}
+      <div class="admin-health-item">
+        <span class="admin-health-label">Archive Storage</span>
+        <span class="admin-health-value">
+          {% if health.archive_writable %}🟢 Writable{% else %}🔴 Problem{% endif %}
+        </span>
+      </div>
+      <div class="admin-health-item">
+        <span class="admin-health-label">MQTT</span>
+        <span class="admin-health-value">
+          {% if health.setup_required %}🟡 Setup required{% elif health.mqtt_online %}🟢 Online{% else %}🔴 Offline{% endif %}
+        </span>
+      </div>
+      <div class="admin-health-item">
+        <span class="admin-health-label">System Disk</span>
+        <span class="admin-health-value">
+          {% if health.disk_used_percent < 75 %}🟢{% elif health.disk_used_percent < 90 %}🟡{% else %}🔴{% endif %} {{ health.disk_used_percent }}%
         </span>
       </div>
     </div>
+  </div>
+</section>
 
+<section class="settings-section" aria-labelledby="archive-heading">
+  <div class="settings-section-heading">
+    <h2 id="archive-heading">Archive</h2>
+  </div>
+  <div class="settings-card admin-health-card">
+    <div class="admin-health-grid">
+      <div class="admin-health-item">
+        <span class="admin-health-label">Total Detections</span>
+        <span class="admin-health-value">{{ stats.total_detections }}</span>
+      </div>
+      <div class="admin-health-item">
+        <span class="admin-health-label">Archived Snapshots</span>
+        <span class="admin-health-value">{{ stats.archived_snapshots }}</span>
+      </div>
+      <div class="admin-health-item">
+        <span class="admin-health-label">Archived Clips</span>
+        <span class="admin-health-value">{{ stats.archived_clips }}</span>
+      </div>
+      <div class="admin-health-item">
+        <span class="admin-health-label">Archive Size</span>
+        <span class="admin-health-value">{{ stats.archive_size_mb }} MB</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="settings-section" aria-labelledby="archive-retention-heading">
+  <div class="settings-section-heading">
+    <h2 id="archive-retention-heading">Archive Retention</h2>
+  </div>
+  <div class="settings-card admin-health-card">
+    {% if retention_status %}
+    <div class="admin-health-grid">
+      <div class="admin-health-item">
+        <span class="admin-health-label">Last Run</span>
+        <span class="admin-health-value">{{ retention_status.last_run }}</span>
+      </div>
+      <div class="admin-health-item">
+        <span class="admin-health-label">Rows Scanned</span>
+        <span class="admin-health-value">{{ retention_status.rows_scanned }}</span>
+      </div>
+      <div class="admin-health-item">
+        <span class="admin-health-label">Orphans Found</span>
+        <span class="admin-health-value{% if retention_status.orphan_count > 0 %} retention-warning{% endif %}">{{ retention_status.orphan_count }}</span>
+      </div>
+      <div class="admin-health-item">
+        <span class="admin-health-label">Missing Files</span>
+        <span class="admin-health-value">{{ retention_status.missing_count }}</span>
+      </div>
+    </div>
     {% else %}
-
     <p>No retention data available</p>
-
     {% endif %}
   </div>
-</div>
+</section>
 {% endblock %}

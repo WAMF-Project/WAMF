@@ -1,11 +1,8 @@
 {% extends "admin_base.html" %}
 {% block title %}WAMF | Settings{% endblock %}
 {% block page_title %}Settings{% endblock %}
-{% block page_actions %}
-<div class="settings-page-actions">
-  <button class="settings-button settings-button-secondary" id="restart-btn" type="button">Restart WAMF</button>
-  <button class="settings-button" type="submit" form="settings-form">Save settings</button>
-</div>
+{% block page_description %}
+<p class="app-page-description">Configure WAMF services, integrations and application behaviour.</p>
 {% endblock %}
 {% block content %}
 
@@ -31,7 +28,8 @@
     <a href="#advanced">Advanced</a>
   </nav>
 
-  <form id="settings-form" class="settings-form" method="post" action="{{ url_for('admin.save_config') }}">
+  <div class="settings-content">
+    <form id="settings-form" class="settings-form" method="post" action="{{ url_for('admin.save_config') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <input type="hidden" name="active_section" id="active-section" value="{{ error_section or 'general' }}" />
 
@@ -51,25 +49,45 @@
       <div class="settings-card">
         <h3>Storage paths</h3>
         <div class="settings-grid">
-          <div class="settings-field settings-field-wide"><label for="database_path">Database path</label><input id="database_path" name="database_path" type="text" value="{{ settings.database_path }}" required /></div>
-          <div class="settings-field"><label for="snapshots_path">Snapshots path</label><input id="snapshots_path" name="snapshots_path" type="text" value="{{ settings.snapshots_path }}" required /></div>
-          <div class="settings-field"><label for="clips_path">Clips path</label><input id="clips_path" name="clips_path" type="text" value="{{ settings.clips_path }}" required /></div>
+          <div class="settings-field settings-field-wide"><label for="database_path">Database path</label><input id="database_path" name="database_path" type="text" value="{{ settings.database_path }}" readonly required /></div>
+          <div class="settings-field"><label for="snapshots_path">Snapshots path</label><input id="snapshots_path" name="snapshots_path" type="text" value="{{ settings.snapshots_path }}" readonly required /></div>
+          <div class="settings-field"><label for="clips_path">Clips path</label><input id="clips_path" name="clips_path" type="text" value="{{ settings.clips_path }}" readonly required /></div>
         </div>
       </div>
       <div class="settings-card">
         <h3>Media &amp; retention</h3>
-        <div class="settings-toggle-list">
-          <label class="settings-switch"><input type="hidden" name="retention_enabled" value="0" /><input type="checkbox" name="retention_enabled" value="1" {% if settings.retention_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Enable retention</strong><small>Run scheduled retention cleanup.</small></span></label>
-          <label class="settings-switch"><input type="hidden" name="delete_media" value="0" /><input type="checkbox" name="delete_media" value="1" {% if settings.delete_media %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Delete expired media</strong><small>Remove snapshot and clip files with expired records.</small></span></label>
-          <label class="settings-switch"><input type="hidden" name="orphan_scan_enabled" value="0" /><input type="checkbox" name="orphan_scan_enabled" value="1" {% if settings.orphan_scan_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Scan for orphaned media</strong><small>Find media files with no matching database record.</small></span></label>
-          <label class="settings-switch"><input type="hidden" name="delete_orphaned_media" value="0" /><input type="checkbox" name="delete_orphaned_media" value="1" {% if settings.delete_orphaned_media %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Delete orphaned media</strong><small>Remove orphaned files found by the scan.</small></span></label>
+        <div class="settings-toggle-grid">
+          <div class="settings-toggle-item">
+            <input type="hidden" name="retention_enabled" value="0" />
+            <input class="settings-switch-input" id="retention_enabled" type="checkbox" name="retention_enabled" value="1" aria-describedby="retention_enabled_help" {% if settings.retention_enabled %}checked{% endif %} />
+            <label class="settings-switch-label" for="retention_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Enable retention</strong></label>
+            <small id="retention_enabled_help">Run scheduled retention cleanup.</small>
+          </div>
+          <div class="settings-toggle-item">
+            <input type="hidden" name="delete_media" value="0" />
+            <input class="settings-switch-input" id="delete_media" type="checkbox" name="delete_media" value="1" aria-describedby="delete_media_help" {% if settings.delete_media %}checked{% endif %} />
+            <label class="settings-switch-label" for="delete_media"><span class="settings-switch-control" aria-hidden="true"></span><strong>Delete expired media</strong></label>
+            <small id="delete_media_help">Remove snapshot and clip files with expired records.</small>
+          </div>
+          <div class="settings-toggle-item">
+            <input type="hidden" name="orphan_scan_enabled" value="0" />
+            <input class="settings-switch-input" id="orphan_scan_enabled" type="checkbox" name="orphan_scan_enabled" value="1" aria-describedby="orphan_scan_enabled_help" {% if settings.orphan_scan_enabled %}checked{% endif %} />
+            <label class="settings-switch-label" for="orphan_scan_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Scan for orphaned media</strong></label>
+            <small id="orphan_scan_enabled_help">Find media files with no matching database record.</small>
+          </div>
+          <div class="settings-toggle-item">
+            <input type="hidden" name="delete_orphaned_media" value="0" />
+            <input class="settings-switch-input" id="delete_orphaned_media" type="checkbox" name="delete_orphaned_media" value="1" aria-describedby="delete_orphaned_media_help" {% if settings.delete_orphaned_media %}checked{% endif %} />
+            <label class="settings-switch-label" for="delete_orphaned_media"><span class="settings-switch-control" aria-hidden="true"></span><strong>Delete orphaned media</strong></label>
+            <small id="delete_orphaned_media_help">Remove orphaned files found by the scan.</small>
+          </div>
         </div>
         <div class="settings-grid settings-grid-spaced">
-          <div class="settings-field"><label for="snapshots_days">Snapshot days</label><input id="snapshots_days" name="snapshots_days" type="number" min="0" step="1" value="{{ settings.snapshots_days }}" required /></div>
-          <div class="settings-field"><label for="clips_days">Clip days</label><input id="clips_days" name="clips_days" type="number" min="0" step="1" value="{{ settings.clips_days }}" required /></div>
-          <div class="settings-field"><label for="system_events_days">System event days</label><input id="system_events_days" name="system_events_days" type="number" min="0" step="1" value="{{ settings.system_events_days }}" required /></div>
-          <div class="settings-field"><label for="system_events_min_rows">Minimum event rows</label><input id="system_events_min_rows" name="system_events_min_rows" type="number" min="0" step="1" value="{{ settings.system_events_min_rows }}" required /></div>
-          <div class="settings-field"><label for="config_backups_max_files">Configuration backups</label><input id="config_backups_max_files" name="config_backups_max_files" type="number" min="0" step="1" value="{{ settings.config_backups_max_files }}" required /></div>
+          <div class="settings-field"><label for="snapshots_days">Snapshot days</label><input id="snapshots_days" name="snapshots_days" type="number" min="0" step="1" value="{{ settings.snapshots_days }}" aria-describedby="snapshots_days_help" required /><small id="snapshots_days_help">Number of days to retain archived snapshots.</small></div>
+          <div class="settings-field"><label for="clips_days">Clip days</label><input id="clips_days" name="clips_days" type="number" min="0" step="1" value="{{ settings.clips_days }}" aria-describedby="clips_days_help" required /><small id="clips_days_help">Number of days to retain archived clips.</small></div>
+          <div class="settings-field"><label for="system_events_days">System event days</label><input id="system_events_days" name="system_events_days" type="number" min="0" step="1" value="{{ settings.system_events_days }}" aria-describedby="system_events_days_help" required /><small id="system_events_days_help">Number of days to retain system log events.</small></div>
+          <div class="settings-field"><label for="system_events_min_rows">Minimum event rows</label><input id="system_events_min_rows" name="system_events_min_rows" type="number" min="0" step="1" value="{{ settings.system_events_min_rows }}" aria-describedby="system_events_min_rows_help" required /><small id="system_events_min_rows_help">Minimum number of recent system events to keep regardless of age.</small></div>
+          <div class="settings-field"><label for="config_backups_max_files">Configuration backups</label><input id="config_backups_max_files" name="config_backups_max_files" type="number" min="0" step="1" value="{{ settings.config_backups_max_files }}" aria-describedby="config_backups_max_files_help" required /><small id="config_backups_max_files_help">Number of previous configuration backups to retain.</small></div>
         </div>
       </div>
     </section>
@@ -81,33 +99,50 @@
         <div class="settings-grid">
           <div class="settings-field"><label for="mqtt_host">Host</label><input id="mqtt_host" name="mqtt_host" type="text" value="{{ settings.mqtt_host }}" required />{% if field_errors.mqtt_host %}<span class="settings-field-error">{{ field_errors.mqtt_host }}</span>{% endif %}</div>
           <div class="settings-field"><label for="mqtt_port">Port</label><input id="mqtt_port" name="mqtt_port" type="number" min="1" max="65535" step="1" value="{{ settings.mqtt_port }}" required />{% if field_errors.mqtt_port %}<span class="settings-field-error">{{ field_errors.mqtt_port }}</span>{% endif %}</div>
-          <div class="settings-field settings-field-wide"><label for="mqtt_topic_prefix">Topic prefix</label><input id="mqtt_topic_prefix" name="mqtt_topic_prefix" type="text" value="{{ settings.mqtt_topic_prefix }}" required />{% if field_errors.mqtt_topic_prefix %}<span class="settings-field-error">{{ field_errors.mqtt_topic_prefix }}</span>{% endif %}</div>
+          <div class="settings-field settings-field-wide"><label for="mqtt_topic_prefix">Topic prefix</label><input id="mqtt_topic_prefix" name="mqtt_topic_prefix" type="text" value="{{ settings.mqtt_topic_prefix }}" aria-describedby="mqtt_topic_prefix_help" required /><small id="mqtt_topic_prefix_help">Frigate MQTT topic prefix. WAMF listens for events on <code>{{ settings.mqtt_topic_prefix }}/events</code>.</small>{% if field_errors.mqtt_topic_prefix %}<span class="settings-field-error">{{ field_errors.mqtt_topic_prefix }}</span>{% endif %}</div>
         </div>
       </div>
       <div class="settings-card">
         <h3>Authentication</h3>
-        <label class="settings-switch"><input type="hidden" name="mqtt_authentication_enabled" value="0" /><input type="checkbox" name="mqtt_authentication_enabled" value="1" {% if settings.mqtt_authentication_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Use broker authentication</strong><small>Send a username and password when connecting.</small></span></label>
-        <div class="settings-grid settings-grid-spaced">
-          <div class="settings-field"><div class="settings-label-row"><label for="mqtt_username">MQTT username</label><span class="settings-status {% if mqtt_username_configured %}is-configured{% endif %}">{% if mqtt_username_configured %}Configured{% else %}Not configured{% endif %}</span></div><input id="mqtt_username" name="mqtt_username" type="password" value="" autocomplete="off" aria-describedby="mqtt_username_help" /><small id="mqtt_username_help">Leave blank to keep the stored username.</small>{% if field_errors.mqtt_username %}<span class="settings-field-error">{{ field_errors.mqtt_username }}</span>{% endif %}</div>
-          <div class="settings-field"><div class="settings-label-row"><label for="mqtt_password">MQTT password</label><span class="settings-status {% if mqtt_password_configured %}is-configured{% endif %}">{% if mqtt_password_configured %}Configured{% else %}Not configured{% endif %}</span></div><input id="mqtt_password" name="mqtt_password" type="password" value="" autocomplete="new-password" aria-describedby="mqtt_password_help" /><small id="mqtt_password_help">Leave blank to keep the stored password.</small>{% if field_errors.mqtt_password %}<span class="settings-field-error">{{ field_errors.mqtt_password }}</span>{% endif %}</div>
+        <div class="settings-toggle-item">
+          <input type="hidden" name="mqtt_authentication_enabled" value="0" />
+          <input class="settings-switch-input" id="mqtt_authentication_enabled" type="checkbox" name="mqtt_authentication_enabled" value="1" aria-describedby="mqtt_authentication_enabled_help" {% if settings.mqtt_authentication_enabled %}checked{% endif %} />
+          <label class="settings-switch-label" for="mqtt_authentication_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Use broker authentication</strong></label>
+          <small id="mqtt_authentication_enabled_help">Send a username and password when connecting.</small>
         </div>
+        <fieldset class="settings-dependent-fields" data-settings-dependency="mqtt_authentication_enabled" aria-label="Broker authentication credentials" {% if not settings.mqtt_authentication_enabled %}disabled{% endif %}>
+          <div class="settings-grid settings-grid-spaced">
+            <div class="settings-field"><div class="settings-label-row"><label for="mqtt_username">MQTT username</label><span class="settings-status {% if mqtt_username_configured %}is-configured{% endif %}">{% if mqtt_username_configured %}Configured{% else %}Not configured{% endif %}</span></div><input id="mqtt_username" name="mqtt_username" type="password" value="" autocomplete="off" aria-describedby="mqtt_username_help" /><small id="mqtt_username_help">{% if mqtt_username_configured %}Leave blank to keep the stored username.{% else %}Enter the broker username.{% endif %}</small>{% if field_errors.mqtt_username %}<span class="settings-field-error">{{ field_errors.mqtt_username }}</span>{% endif %}</div>
+            <div class="settings-field"><div class="settings-label-row"><label for="mqtt_password">MQTT password</label><span class="settings-status {% if mqtt_password_configured %}is-configured{% endif %}">{% if mqtt_password_configured %}Configured{% else %}Not configured{% endif %}</span></div><input id="mqtt_password" name="mqtt_password" type="password" value="" autocomplete="new-password" aria-describedby="mqtt_password_help" /><small id="mqtt_password_help">{% if mqtt_password_configured %}Leave blank to keep the stored password.{% else %}Enter the broker password.{% endif %}</small>{% if field_errors.mqtt_password %}<span class="settings-field-error">{{ field_errors.mqtt_password }}</span>{% endif %}</div>
+          </div>
+        </fieldset>
       </div>
       <div class="settings-card">
         <h3>TLS</h3>
-        <div class="settings-toggle-list">
-          <label class="settings-switch"><input type="hidden" name="mqtt_tls_enabled" value="0" /><input type="checkbox" name="mqtt_tls_enabled" value="1" {% if settings.mqtt_tls_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Use TLS</strong><small>Encrypt the connection to the broker.</small></span></label>
-          <label class="settings-switch"><input type="hidden" name="mqtt_tls_insecure" value="0" /><input type="checkbox" name="mqtt_tls_insecure" value="1" {% if settings.mqtt_tls_insecure %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Allow unverified certificate</strong><small>Disable certificate verification for trusted private networks only.</small></span></label>
+        <div class="settings-toggle-item">
+          <input type="hidden" name="mqtt_tls_enabled" value="0" />
+          <input class="settings-switch-input" id="mqtt_tls_enabled" type="checkbox" name="mqtt_tls_enabled" value="1" aria-describedby="mqtt_tls_enabled_help" {% if settings.mqtt_tls_enabled %}checked{% endif %} />
+          <label class="settings-switch-label" for="mqtt_tls_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Use TLS</strong></label>
+          <small id="mqtt_tls_enabled_help">Encrypt the connection to the broker.</small>
         </div>
-        <div class="settings-field settings-grid-spaced"><label for="mqtt_tls_ca_certs">CA certificate path</label><input id="mqtt_tls_ca_certs" name="mqtt_tls_ca_certs" type="text" value="{{ settings.mqtt_tls_ca_certs }}" />{% if field_errors.mqtt_tls_ca_certs %}<span class="settings-field-error">{{ field_errors.mqtt_tls_ca_certs }}</span>{% endif %}</div>
+        <fieldset class="settings-dependent-fields" data-settings-dependency="mqtt_tls_enabled" aria-label="TLS verification settings" {% if not settings.mqtt_tls_enabled %}disabled{% endif %}>
+          <div class="settings-toggle-item settings-grid-spaced">
+            <input type="hidden" name="mqtt_tls_insecure" value="0" />
+            <input class="settings-switch-input" id="mqtt_tls_insecure" type="checkbox" name="mqtt_tls_insecure" value="1" aria-describedby="mqtt_tls_insecure_help" {% if settings.mqtt_tls_insecure %}checked{% endif %} />
+            <label class="settings-switch-label" for="mqtt_tls_insecure"><span class="settings-switch-control" aria-hidden="true"></span><strong>Allow unverified certificate</strong></label>
+            <small id="mqtt_tls_insecure_help">Disable certificate verification. Use only on trusted private networks.</small>
+          </div>
+          <div class="settings-field settings-grid-spaced"><label for="mqtt_tls_ca_certs">CA certificate path</label><input id="mqtt_tls_ca_certs" name="mqtt_tls_ca_certs" type="text" value="{{ settings.mqtt_tls_ca_certs }}" aria-describedby="mqtt_tls_ca_certs_help" /><small id="mqtt_tls_ca_certs_help">Optional path to a CA certificate used to verify the broker.</small>{% if field_errors.mqtt_tls_ca_certs %}<span class="settings-field-error">{{ field_errors.mqtt_tls_ca_certs }}</span>{% endif %}</div>
+        </fieldset>
       </div>
     </section>
 
     <section class="settings-section" id="frigate" aria-labelledby="frigate-heading">
       <div class="settings-section-heading"><h2 id="frigate-heading">Frigate</h2><p>Configure WAMF’s connection to Frigate and monitored cameras.</p></div>
       <div class="settings-card"><div class="settings-grid">
-        <div class="settings-field settings-field-wide"><label for="frigate_url">Frigate URL</label><input id="frigate_url" name="frigate_url" type="url" value="{{ settings.frigate_url }}" placeholder="http://frigate:5000" required />{% if field_errors.frigate_url %}<span class="settings-field-error">{{ field_errors.frigate_url }}</span>{% endif %}</div>
-        <div class="settings-field"><label for="frigate_cameras">Camera names</label><textarea id="frigate_cameras" name="frigate_cameras" rows="4" required aria-describedby="frigate_cameras_help">{{ settings.frigate_cameras }}</textarea><small id="frigate_cameras_help">Enter one Frigate camera name per line.</small>{% if field_errors.frigate_cameras %}<span class="settings-field-error">{{ field_errors.frigate_cameras }}</span>{% endif %}</div>
-        <div class="settings-field"><label for="frigate_object">Tracked object</label><input id="frigate_object" name="frigate_object" type="text" value="{{ settings.frigate_object }}" required /></div>
+        <div class="settings-field settings-field-wide"><label for="frigate_url">Frigate URL</label><input id="frigate_url" name="frigate_url" type="url" value="{{ settings.frigate_url }}" placeholder="http://frigate:5000" required aria-describedby="frigate_url_help" /><small id="frigate_url_help">Frigate server URL used by WAMF for API requests and media retrieval.</small>{% if field_errors.frigate_url %}<span class="settings-field-error">{{ field_errors.frigate_url }}</span>{% endif %}</div>
+        <div class="settings-field"><label for="frigate_cameras">Monitored cameras</label><textarea id="frigate_cameras" name="frigate_cameras" rows="4" required aria-describedby="frigate_cameras_help">{{ settings.frigate_cameras }}</textarea><small id="frigate_cameras_help">Enter one Frigate camera name per line.</small>{% if field_errors.frigate_cameras %}<span class="settings-field-error">{{ field_errors.frigate_cameras }}</span>{% endif %}</div>
+        <div class="settings-field"><label for="frigate_object">Tracked object</label><input id="frigate_object" name="frigate_object" type="text" value="{{ settings.frigate_object }}" required aria-describedby="frigate_object_help" /><small id="frigate_object_help">Frigate object label WAMF processes from monitored cameras.</small></div>
       </div></div>
     </section>
 
@@ -127,7 +162,12 @@
     <section class="settings-section" id="bridge-perch" aria-labelledby="bridge-heading">
       <div class="settings-section-heading"><h2 id="bridge-heading">Bridge / Perch</h2><p>Configure optional observation and health event delivery.</p></div>
       <div class="settings-card">
-        <label class="settings-switch"><input type="hidden" name="bridge_enabled" value="0" /><input type="checkbox" name="bridge_enabled" value="1" {% if settings.bridge_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Enable Bridge delivery</strong><small>Post WAMF observation and health events.</small></span></label>
+        <div class="settings-toggle-item">
+          <input type="hidden" name="bridge_enabled" value="0" />
+          <input class="settings-switch-input" id="bridge_enabled" type="checkbox" name="bridge_enabled" value="1" aria-describedby="bridge_enabled_help" {% if settings.bridge_enabled %}checked{% endif %} />
+          <label class="settings-switch-label" for="bridge_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Enable Bridge delivery</strong></label>
+          <small id="bridge_enabled_help">Post WAMF observation and health events.</small>
+        </div>
         <div class="settings-grid settings-grid-spaced">
           <div class="settings-field settings-field-wide"><label for="bridge_events_url">Events URL</label><input id="bridge_events_url" name="bridge_events_url" type="url" value="{{ settings.bridge_events_url }}" placeholder="http://bridge:5000/api/events" /></div>
           <div class="settings-field"><label for="bridge_timeout_seconds">Request timeout (seconds)</label><input id="bridge_timeout_seconds" name="bridge_timeout_seconds" type="number" min="0" step="0.1" value="{{ settings.bridge_timeout_seconds }}" required /></div>
@@ -141,16 +181,31 @@
       <div class="settings-card">
         <h3>Administration access</h3>
         <div class="settings-toggle-list">
-          <label class="settings-switch"><input type="hidden" name="admin_auth_enabled" value="0" /><input type="checkbox" name="admin_auth_enabled" value="1" {% if settings.admin_auth_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Require administrator login</strong><small>Protect Administration pages with the configured password.</small></span></label>
-          <label class="settings-switch"><input type="hidden" name="admin_session_cookie_secure" value="0" /><input type="checkbox" name="admin_session_cookie_secure" value="1" {% if settings.admin_session_cookie_secure %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Secure session cookie</strong><small>Send the session cookie over HTTPS only.</small></span></label>
+          <div class="settings-toggle-item">
+            <input type="hidden" name="admin_auth_enabled" value="0" />
+            <input class="settings-switch-input" id="admin_auth_enabled" type="checkbox" name="admin_auth_enabled" value="1" aria-describedby="admin_auth_enabled_help" {% if settings.admin_auth_enabled %}checked{% endif %} />
+            <label class="settings-switch-label" for="admin_auth_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Require administrator login</strong></label>
+            <small id="admin_auth_enabled_help">Protect Administration pages with the configured password.</small>
+          </div>
+          <div class="settings-toggle-item">
+            <input type="hidden" name="admin_session_cookie_secure" value="0" />
+            <input class="settings-switch-input" id="admin_session_cookie_secure" type="checkbox" name="admin_session_cookie_secure" value="1" aria-describedby="admin_session_cookie_secure_help" {% if settings.admin_session_cookie_secure %}checked{% endif %} />
+            <label class="settings-switch-label" for="admin_session_cookie_secure"><span class="settings-switch-control" aria-hidden="true"></span><strong>Secure session cookie</strong></label>
+            <small id="admin_session_cookie_secure_help">Send the session cookie over HTTPS only.</small>
+          </div>
         </div>
-        <div class="settings-grid settings-grid-spaced"><div class="settings-field"><label for="admin_session_cookie_samesite">Session cookie SameSite</label><select id="admin_session_cookie_samesite" name="admin_session_cookie_samesite"><option value="Lax" {% if settings.admin_session_cookie_samesite == 'Lax' %}selected{% endif %}>Lax</option><option value="Strict" {% if settings.admin_session_cookie_samesite == 'Strict' %}selected{% endif %}>Strict</option><option value="None" {% if settings.admin_session_cookie_samesite == 'None' %}selected{% endif %}>None</option></select></div></div>
+        <div class="settings-grid settings-grid-spaced"><div class="settings-field"><label for="admin_session_cookie_samesite">Session cookie SameSite</label><select id="admin_session_cookie_samesite" name="admin_session_cookie_samesite" aria-describedby="admin_session_cookie_samesite_help"><option value="Lax" {% if settings.admin_session_cookie_samesite == 'Lax' %}selected{% endif %}>Lax</option><option value="Strict" {% if settings.admin_session_cookie_samesite == 'Strict' %}selected{% endif %}>Strict</option><option value="None" {% if settings.admin_session_cookie_samesite == 'None' %}selected{% endif %}>None</option></select><small id="admin_session_cookie_samesite_help">Controls when the browser sends the administration session cookie with cross-site requests.</small></div></div>
         <div class="settings-managed-row"><div><div class="settings-label-row"><strong>Admin password</strong><span class="settings-status {% if admin_password_configured %}is-configured{% endif %}">{% if admin_password_configured %}Configured{% else %}Not configured{% endif %}</span></div><p>Change the password through the protected password workflow.</p></div><a class="settings-button settings-button-secondary" href="{{ url_for('admin.change_password') }}">Change password</a></div>
         <div class="settings-managed-row"><div><div class="settings-label-row"><strong>Session secret</strong><span class="settings-status {% if session_secret_configured %}is-configured{% endif %}">{% if session_secret_configured %}Managed{% else %}Not configured{% endif %}</span></div><p>Generated and persisted automatically; its value is never displayed.</p></div></div>
       </div>
       <div class="settings-card">
         <h3>API access</h3>
-        <label class="settings-switch"><input type="hidden" name="api_token_auth_enabled" value="0" /><input type="checkbox" name="api_token_auth_enabled" value="1" {% if settings.api_token_auth_enabled %}checked{% endif %} /><span class="settings-switch-control" aria-hidden="true"></span><span><strong>Require an API token</strong><small>Protect Administration API endpoints with a token.</small></span></label>
+        <div class="settings-toggle-item">
+          <input type="hidden" name="api_token_auth_enabled" value="0" />
+          <input class="settings-switch-input" id="api_token_auth_enabled" type="checkbox" name="api_token_auth_enabled" value="1" aria-describedby="api_token_auth_enabled_help" {% if settings.api_token_auth_enabled %}checked{% endif %} />
+          <label class="settings-switch-label" for="api_token_auth_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Require an API token</strong></label>
+          <small id="api_token_auth_enabled_help">Protect Administration API endpoints with a token.</small>
+        </div>
         <div class="settings-managed-row"><div><div class="settings-label-row"><strong>API token</strong><span class="settings-status {% if api_token_configured %}is-configured{% endif %}">{% if api_token_configured %}Configured{% else %}Not configured{% endif %}</span></div><p>Generate a replacement in the existing one-time token workflow.</p></div><a class="settings-button settings-button-secondary" href="{{ url_for('admin.admin_api_token') }}">Manage API token</a></div>
       </div>
     </section>
@@ -164,7 +219,15 @@
       </div>
     </section>
 
-  </form>
+    </form>
+
+    <div class="settings-action-bar" role="group" aria-label="Settings actions">
+      <div class="settings-page-actions">
+        <button class="settings-button settings-button-secondary" id="restart-btn" type="button">Restart WAMF</button>
+        <button class="settings-button" type="submit" form="settings-form">Save settings</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -201,6 +264,15 @@
           sectionObserver.observe(section);
         });
       }
+
+      document.querySelectorAll('[data-settings-dependency]').forEach(function (group) {
+        const controller = document.getElementById(group.dataset.settingsDependency);
+        function syncDependency() {
+          group.disabled = !controller.checked;
+        }
+        controller.addEventListener('change', syncDependency);
+        syncDependency();
+      });
     }
 
     function showMessage(message, type, persistent) {
