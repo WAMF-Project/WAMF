@@ -208,6 +208,7 @@ def test_expired_media_deletes_contained_files_and_clears_references(tmp_path):
     assert result.expired_clip_count == 1
     assert result.deleted_snapshot_count == 1
     assert result.deleted_clip_count == 1
+    assert result.phases["expired_media"].action == "delete"
     assert not snapshot.exists()
     assert not clip.exists()
     assert media_values(config, row_id) == (None, None)
@@ -229,6 +230,7 @@ def test_expired_missing_file_clears_reference_without_counting_deletion(tmp_pat
     assert result.outcome == "success"
     assert result.expired_snapshot_count == 1
     assert result.deleted_snapshot_count == 0
+    assert result.phases["expired_media"].action == "delete"
     assert media_values(config, row_id)[0] is None
 
 
@@ -253,6 +255,7 @@ def test_report_only_expired_media_preserves_file_and_reference(tmp_path):
     assert result.outcome == "success"
     assert result.expired_snapshot_count == 1
     assert result.deleted_snapshot_count == 0
+    assert result.phases["expired_media"].action == "report_only"
     assert snapshot.exists()
     assert media_values(config, row_id)[0] == str(snapshot)
 
@@ -395,8 +398,15 @@ def test_orphan_scan_reports_missing_and_isolates_deletion_failure(
     assert not deleted.exists()
 
     conn = sqlite3.connect(config["storage"]["database_path"])
-    assert conn.execute("SELECT COUNT(*) FROM retention_status").fetchone()[0] == 0
+    status = conn.execute(
+        """
+        SELECT last_attempt_outcome, orphan_scan_outcome,
+               orphan_count, orphan_deletion_count, missing_reference_count
+        FROM retention_status WHERE id = 1
+        """
+    ).fetchone()
     conn.close()
+    assert status == ("partial", "partial", 2, 1, 1)
 
 
 def test_orphan_deletion_rejects_symlink_resolving_outside_archive(tmp_path):

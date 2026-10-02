@@ -10,6 +10,7 @@ from app.db import (
     NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
     DETECTION_SELECT,
 )
+from app.retention_state import get_retention_state
 from wamf_paths import get_clips_path, get_snapshots_path
 
 
@@ -821,38 +822,16 @@ def get_recent_system_events(limit=100, event_type=None):
 
 
 def get_retention_status():
+    state = get_retention_state(DBPATH)
+    if state is None:
+        return None
 
-    conn = connect_db(DBPATH)
-    
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT
-            last_run,
-            rows_scanned,
-            orphan_count,
-            missing_count
-        FROM retention_status
-        LIMIT 1
-    """)
-
-    row = cursor.fetchone()
-
-    conn.close()
-
-    if row:
-
-        row = dict(row)
-
-        dt = datetime.fromisoformat(
-            row["last_run"]
-        )
-
-        row["last_run"] = dt.strftime(
-            "%d %b %Y %H:%M"
-        )
-
-        return row
-
-    return None
-   
+    if isinstance(state["last_run"], str) and state["last_run"]:
+        try:
+            dt = datetime.fromisoformat(state["last_run"].replace("Z", "+00:00"))
+            state["last_run"] = dt.strftime("%d %b %Y %H:%M")
+        except (TypeError, ValueError):
+            # Preserve malformed legacy display data without treating it as a
+            # native whole-run timestamp.
+            pass
+    return state

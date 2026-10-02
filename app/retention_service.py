@@ -3,8 +3,9 @@
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
+import time
 
 from app.config_loader import load_runtime_config
 from app.config_migration import migrate_config
@@ -14,6 +15,7 @@ from app.media_coordination import (
     media_activity_guard,
     retention_execution_guard,
 )
+from app.retention_state import RetentionStateRepository
 from app.system_events import log_system_event
 from wamf_paths import (
     contained_media_path,
@@ -62,6 +64,7 @@ class RetentionPolicy:
 class RetentionPhaseResult:
     name: str
     outcome: str = "success"
+    action: str | None = None
     rows_scanned: int = 0
     items_scanned: int = 0
     error_summaries: list[str] = field(default_factory=list)
@@ -86,6 +89,9 @@ class RetentionRunResult:
     missing_reference_count: int = 0
     system_events_pruned: int = 0
     error_summaries: list[str] = field(default_factory=list)
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    duration_ms: int | None = None
 
     @property
     def error_count(self):
@@ -244,7 +250,7 @@ def _new_result(trigger):
 def _safe_error_summary(message, exc=None):
     if exc is None:
         return str(message)[:500]
-    return f"{message}: {type(exc).__name__}: {exc}"[:500]
+    return f"{message} ({type(exc).__name__})"[:500]
 
 
 def _add_error(result, phase, message, exc=None):
@@ -254,7 +260,10 @@ def _add_error(result, phase, message, exc=None):
     if phase_result.outcome == "success":
         phase_result.outcome = "partial"
     result.error_summaries.append(summary)
-    logger.warning("Retention %s", summary)
+    if exc is None:
+        logger.warning("Retention %s", summary)
+    else:
+        logger.warning("Retention %s: %s", summary, exc)
 
 
 def _emit_event(database_path, severity, message):
@@ -497,20 +506,6 @@ def _run_expired_media(result, config, policy, now, database_path):
                 conn.close()
 
 
-def _update_retention_status(conn, now, rows, orphan_count, missing_count):
-    conn.execute("DELETE FROM retention_status")
-    conn.execute(
-        """
-        INSERT INTO retention_status (
-            last_run, rows_scanned, orphan_count, missing_count
-        )
-        VALUES (?, ?, ?, ?)
-        """,
-        (now.isoformat(), rows, orphan_count, missing_count),
-    )
-    conn.commit()
-
-
 def _run_orphan_scan(result, config, policy, now, database_path):
     phase = result.phases["orphan_scan"]
     if not policy.orphan_scan_enabled:
@@ -606,14 +601,6 @@ def _run_orphan_scan(result, config, policy, now, database_path):
                     logger.warning("[MISSING] %s", file_path)
                     result.missing_reference_count += 1
 
-            if phase.error_count == 0:
-                _update_retention_status(
-                    conn,
-                    now,
-                    len(rows),
-                    result.orphan_count,
-                    result.missing_reference_count,
-                )
         finally:
             if conn is not None:
                 conn.close()
@@ -739,6 +726,9 @@ def _run_acquired(result, config_snapshot, policy, run_now, database_path):
         database_path,
     )
     _finalize_outcome(result)
+
+
+def _log_run_result(result, database_path):
     severity = "INFO" if result.outcome == "success" else "ERROR"
     _emit_event(
         database_path,
@@ -754,38 +744,123 @@ def _run_acquired(result, config_snapshot, policy, run_now, database_path):
         f"events pruned: {result.system_events_pruned}; "
         f"errors: {result.error_count}",
     )
-    return result
+
+
+def _utc_now():
+    return datetime.now(timezone.utc)
+
+
+def _monotonic():
+    return time.monotonic()
+
+
+def _start_timing(result):
+    result.started_at = _utc_now()
+    return _monotonic()
+
+
+def _finish_timing(result, monotonic_started):
+    result.completed_at = _utc_now()
+    result.duration_ms = max(0, int((_monotonic() - monotonic_started) * 1000))
+
+
+def _persist_final_state(result, database_path):
+    try:
+        RetentionStateRepository(database_path).persist(result)
+    except Exception as exc:
+        summary = _safe_error_summary(
+            "retention operational state could not be persisted", exc
+        )
+        result.error_summaries.append(summary)
+        if result.outcome == "success":
+            result.outcome = "partial"
+        logger.exception("Retention operational-state persistence failed")
+
+
+def _set_effective_actions(result, policy):
+    result.phases["expired_media"].action = (
+        "disabled"
+        if not policy.enabled
+        else "delete" if policy.delete_media else "report_only"
+    )
+    result.phases["orphan_scan"].action = (
+        "disabled"
+        if not policy.orphan_scan_enabled
+        else "delete" if policy.delete_orphaned_media else "report_only"
+    )
+
+
+def _safe_explicit_database_target(config_snapshot):
+    if not isinstance(config_snapshot, Mapping):
+        return None
+    storage = config_snapshot.get("storage")
+    if not isinstance(storage, Mapping):
+        return None
+    value = storage.get("database_path")
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return get_database_path(config_snapshot)
+    except Exception:
+        return None
 
 
 def run_retention(trigger="direct", *, config=None, now=None):
     """Run all independent retention phases without allowing overlap."""
 
     result = _new_result(trigger)
+    preparation_started = _start_timing(result)
+    database_path = _safe_explicit_database_target(config)
     try:
-        config_snapshot = _effective_config(config)
+        if config is None:
+            config_snapshot = load_runtime_config()
+            database_path = _safe_explicit_database_target(config_snapshot)
+        else:
+            config_snapshot = migrate_config(deepcopy(config)).config
+            database_path = (
+                _safe_explicit_database_target(config_snapshot) or database_path
+            )
+        validation = validate_config(config_snapshot)
+        if validation.errors:
+            fields = ", ".join(issue.field for issue in validation.errors)
+            raise RetentionPolicyError(
+                f"effective configuration is structurally invalid: {fields}"
+            )
         policy = build_retention_policy(config_snapshot)
         database_path = get_database_path(config_snapshot)
     except Exception as exc:
         result.outcome = "failed"
+        message = "retention configuration could not be prepared"
+        if isinstance(exc, RetentionPolicyError):
+            message = f"{message}: {exc}"
         result.error_summaries.append(
-            _safe_error_summary("retention configuration could not be prepared", exc)
+            _safe_error_summary(message, exc)
         )
         for phase in result.phases.values():
             phase.outcome = "skipped"
         logger.warning("Retention configuration could not be prepared: %s", exc)
+        _finish_timing(result, preparation_started)
+        if database_path is not None:
+            _persist_final_state(result, database_path)
         return result
 
-    started = False
+    acquired_run = False
+    acquired_started = None
     try:
         with retention_execution_guard(database_path) as acquired:
             if not acquired:
                 result.outcome = "already_running"
                 for phase in result.phases.values():
                     phase.outcome = "skipped"
+                result.started_at = None
+                result.completed_at = None
+                result.duration_ms = None
                 logger.info("Retention run rejected because another run is active")
                 return result
-            started = True
-            return _run_acquired(
+            acquired_run = True
+            acquired_started = _start_timing(result)
+            _set_effective_actions(result, policy)
+            _run_acquired(
                 result,
                 config_snapshot,
                 policy,
@@ -796,8 +871,14 @@ def run_retention(trigger="direct", *, config=None, now=None):
         result.outcome = "failed"
         summary = _safe_error_summary("retention run failed outside a phase", exc)
         result.error_summaries.append(summary)
-        if not started:
+        if not acquired_run:
             for phase in result.phases.values():
                 phase.outcome = "skipped"
         logger.warning("Retention run failed outside a phase: %s", exc)
-        return result
+        if not acquired_run:
+            return result
+
+    _finish_timing(result, acquired_started)
+    _persist_final_state(result, database_path)
+    _log_run_result(result, database_path)
+    return result
