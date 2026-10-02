@@ -38,6 +38,12 @@ from wamf_paths import ensure_storage_paths
 from integrations.bridge import post_observation_event
 from app.health import start_health_monitor, set_detection_worker_enabled
 from app.frigate_client import FrigateClient, FrigateError
+from app.retention_schedule import parse_retention_schedule
+from app.retention_scheduler import (
+    SHUTDOWN_GRACE_SECONDS as RETENTION_SCHEDULER_SHUTDOWN_GRACE_SECONDS,
+    build_scheduler_config_snapshot,
+    run_scheduler_child,
+)
 
 classifier = None
 classifier_input = None
@@ -52,6 +58,12 @@ logger = logging.getLogger(__name__)
 DBPATH = None
 CLASSIFIER_MAX_RESULTS = 5
 CLASSIFIER_SCORE_THRESHOLD = 0.05
+SCHEDULER_RESTART_INITIAL_SECONDS = 5.0
+SCHEDULER_RESTART_MAX_SECONDS = 60.0
+SCHEDULER_RESTART_STABLE_SECONDS = 300.0
+SCHEDULER_PARENT_SHUTDOWN_GRACE_SECONDS = (
+    RETENTION_SCHEDULER_SHUTDOWN_GRACE_SECONDS + 2.0
+)
 
 
 @dataclass(frozen=True)
@@ -60,6 +72,63 @@ class Category:
     score: float
     display_name: str
     category_name: str
+
+
+@dataclass
+class SchedulerWorkerState:
+    config_snapshot: dict
+    process: object = None
+    started_at: float | None = None
+    restart_at: float | None = None
+    restart_delay: float = SCHEDULER_RESTART_INITIAL_SECONDS
+
+
+def _start_scheduler_worker(workers, state, *, monotonic=time.monotonic):
+    state.process = workers.start(
+        run_scheduler_child,
+        args=(state.config_snapshot,),
+        shutdown_grace_seconds=SCHEDULER_PARENT_SHUTDOWN_GRACE_SECONDS,
+    )
+    state.started_at = monotonic()
+    state.restart_at = None
+    return state.process
+
+
+def _monitor_scheduler_worker(workers, state, *, monotonic=time.monotonic):
+    """Restart an exited scheduler with capped exponential backoff."""
+
+    now = monotonic()
+    if state.process is not None:
+        if state.process.is_alive():
+            if (
+                state.started_at is not None
+                and now - state.started_at >= SCHEDULER_RESTART_STABLE_SECONDS
+            ):
+                state.restart_delay = SCHEDULER_RESTART_INITIAL_SECONDS
+            return state.process
+
+        exitcode = state.process.exitcode
+        workers.reap(state.process)
+        delay = state.restart_delay
+        state.process = None
+        state.started_at = None
+        state.restart_at = now + delay
+        state.restart_delay = min(
+            delay * 2,
+            SCHEDULER_RESTART_MAX_SECONDS,
+        )
+        logger.error(
+            "Retention scheduler subprocess exited unexpectedly with code %s; "
+            "restarting in %.1f seconds",
+            exitcode,
+            delay,
+        )
+        return None
+
+    if state.restart_at is not None and now >= state.restart_at:
+        logger.warning("Restarting retention scheduler subprocess")
+        return _start_scheduler_worker(workers, state, monotonic=monotonic)
+    return None
 
 
 def configure_logging():
@@ -875,8 +944,15 @@ def main():
 
     setup_issues = preflight(config)
     setupdb()
+    retention_schedule = parse_retention_schedule(config)
+    scheduler_state = None
+    if retention_schedule.enabled:
+        scheduler_state = SchedulerWorkerState(
+            config_snapshot=build_scheduler_config_snapshot(config)
+        )
 
     with WorkerSupervisor(multiprocessing.Process) as workers:
+        mqtt_process = None
         if setup_issues:
             logger.warning(
                 "WAMF setup/configuration required: %s. Starting web/admin UI on port %s; "
@@ -886,19 +962,29 @@ def main():
                 config.get('webui', {}).get('port', DEFAULT_PORT),
             )
             flask_process = workers.start(run_webui)
-            while not workers.stopping and flask_process.is_alive():
-                flask_process.join(timeout=0.5)
         else:
             logger.info("Starting processes for Flask and MQTT")
             flask_process = workers.start(run_webui)
             mqtt_process = workers.start(run_mqtt_client)
 
-            # Keep the normal MQTT watchdog, but never respawn during shutdown
-            # or after the Flask worker has exited.
-            while not workers.stopping and flask_process.is_alive():
+        if scheduler_state is not None:
+            logger.info("Starting native retention scheduler process")
+            _start_scheduler_worker(workers, scheduler_state)
+
+        # Keep worker watchdogs active while Flask is serving, but never
+        # respawn during shutdown or after the Flask worker has exited.
+        while not workers.stopping and flask_process.is_alive():
+            if mqtt_process is None:
+                flask_process.join(timeout=0.5)
+            else:
                 mqtt_process.join(timeout=0.5)
-                if workers.stopping or not flask_process.is_alive():
-                    break
+            if workers.stopping or not flask_process.is_alive():
+                break
+
+            if scheduler_state is not None:
+                _monitor_scheduler_worker(workers, scheduler_state)
+
+            if mqtt_process is not None:
                 if not mqtt_process.is_alive():
                     workers.reap(mqtt_process)
                     logger.warning("MQTT subprocess exited unexpectedly; restarting")

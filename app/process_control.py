@@ -58,6 +58,7 @@ class WorkerSupervisor:
         self.children_joined = False
         self.owner_pid = os.getpid()
         self.previous_handlers = {}
+        self.shutdown_grace_seconds = {}
 
     def _request_shutdown(self, signum, frame):
         # fork() initially inherits these handlers. A TERM arriving before the
@@ -93,19 +94,22 @@ class WorkerSupervisor:
             )
         return self
 
-    def start(self, target):
+    def start(self, target, *, args=(), shutdown_grace_seconds=None):
         if self.stopping:
             return None
-        process = self.process_factory(target=target)
+        process = self.process_factory(target=target, args=args)
         # Register before start: a signal during fork must not leave an
         # untracked child. The signal handler only sets a flag in the parent.
         self.children.append(process)
+        if shutdown_grace_seconds is not None:
+            self.shutdown_grace_seconds[id(process)] = shutdown_grace_seconds
         process.start()
         return process
 
     def reap(self, process):
         process.join()
         self.children.remove(process)
+        self.shutdown_grace_seconds.pop(id(process), None)
 
     def __exit__(self, exc_type, exc_value, traceback):
         global _supervisor_pid
@@ -117,7 +121,20 @@ class WorkerSupervisor:
                     process.terminate()
             for process in self.children:
                 if process.pid is not None:
-                    process.join()
+                    grace = self.shutdown_grace_seconds.get(id(process))
+                    if grace is None:
+                        process.join()
+                        continue
+                    process.join(timeout=grace)
+                    if process.is_alive():
+                        logger.error(
+                            "Worker PID %s exceeded its %.1f-second shutdown "
+                            "grace; killing it",
+                            process.pid,
+                            grace,
+                        )
+                        process.kill()
+                        process.join()
             self.children_joined = True
             if exc_type is None and self.restart_requested:
                 logger.info("All child processes joined; re-executing WAMF")

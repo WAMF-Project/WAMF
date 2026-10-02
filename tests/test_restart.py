@@ -38,6 +38,20 @@ def test_restart_joins_all_workers_before_exec_and_stop_overrides_restart(ordina
     assert reexec.call_count == (ordinary_stop is None)
 
 
+def test_restart_reaps_scheduler_with_bounded_grace_before_reexec():
+    scheduler = MagicMock(pid=103)
+    scheduler.is_alive.side_effect = [True, False]
+    with patch('app.process_control.reexec_application') as reexec:
+        with WorkerSupervisor(MagicMock(return_value=scheduler)) as workers:
+            workers.start(lambda: None, shutdown_grace_seconds=32)
+            workers._request_shutdown(signal.SIGUSR1, None)
+
+    scheduler.terminate.assert_called_once()
+    scheduler.join.assert_called_once_with(timeout=32)
+    scheduler.kill.assert_not_called()
+    reexec.assert_called_once()
+
+
 @pytest.mark.parametrize('signum', [signal.SIGINT, signal.SIGTERM])
 def test_stop_can_cancel_restart_after_children_have_been_joined(signum):
     with pytest.raises(SystemExit), patch('app.process_control.reexec_application') as reexec:

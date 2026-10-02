@@ -240,6 +240,22 @@ The config backup created by that migration may still contain the formerly
 embedded credentials; it remains 0600 rollback material and ages out through
 the normal backup-retention policy.
 
+Automatic retention scheduling is optional and disabled by default. WAMF
+supports one daily local wall-clock time in an explicit IANA timezone:
+
+```yaml
+retention:
+  schedule:
+    enabled: false
+    time: "03:00"
+    timezone: "UTC"
+```
+
+Schedule changes take effect after restarting WAMF. A first start, enable, or
+schedule change waits for the next future occurrence; schedules missed while
+WAMF was offline are not replayed. The supported deployment model is one WAMF
+Core supervisor per WAMF database.
+
 # Example:
 
 ```yaml

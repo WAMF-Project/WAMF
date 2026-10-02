@@ -55,6 +55,11 @@ retention:
   system_events_min_rows: 1000
   config_backups_max_files: 10
   species_overrides: {}
+  # One optional daily local-time schedule. Changes require a WAMF restart.
+  schedule:
+    enabled: false
+    time: "03:00"
+    timezone: "UTC"
 
 admin:
   auth_enabled: true

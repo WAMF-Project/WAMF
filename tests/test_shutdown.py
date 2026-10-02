@@ -68,6 +68,19 @@ def test_inherited_handler_does_not_swallow_termination_before_worker_initialize
         assert not workers.stopping
 
 
+def test_supervisor_kills_graceful_worker_after_bounded_join():
+    child = MagicMock(pid=101)
+    child.is_alive.side_effect = [True, True]
+
+    with WorkerSupervisor(MagicMock(return_value=child)) as workers:
+        workers.start(lambda: None, shutdown_grace_seconds=30)
+
+    child.terminate.assert_called_once()
+    child.join.assert_any_call(timeout=30)
+    child.kill.assert_called_once()
+    assert child.join.call_args_list[-1].kwargs == {}
+
+
 @pytest.mark.parametrize('signum', [signal.SIGINT, signal.SIGTERM])
 def test_watchdog_does_not_respawn_when_shutdown_requested_during_wait(monkeypatch, signum):
     import speciesid

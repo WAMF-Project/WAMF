@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from app.config_normalization import normalize_config
+from app.retention_schedule import RetentionScheduleError, parse_retention_schedule
 
 
 @dataclass(frozen=True)
@@ -220,6 +221,16 @@ def _validate_classification(config, errors, readiness_issues):
         )
 
 
+def _validate_retention_schedule(config, errors):
+    retention = config.get("retention")
+    if retention is not None and not isinstance(retention, Mapping):
+        return
+    try:
+        parse_retention_schedule(config)
+    except RetentionScheduleError as exc:
+        errors.append(ValidationIssue(exc.field, exc.message))
+
+
 def validate_config(config):
     """Validate loaded configuration without I/O, mutation, or connectivity checks."""
 
@@ -233,6 +244,7 @@ def validate_config(config):
     _validate_webui(config, errors, readiness_issues)
     _validate_frigate(config, errors, readiness_issues)
     _validate_classification(config, errors, readiness_issues)
+    _validate_retention_schedule(config, errors)
 
     normalization_blocking_fields = {
         "mqtt",
