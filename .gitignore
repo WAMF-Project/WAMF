@@ -43,3 +43,10 @@ static/test-images/
 .vscode/
 docker-test/
 test-scripts/
+
+# Development-only browser QA (including authenticated session state)
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+.playwright/

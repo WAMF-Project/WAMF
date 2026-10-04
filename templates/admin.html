@@ -6,43 +6,38 @@
 {% endblock %}
 {% block content %}
 
+{% macro status(text, tone) -%}
+<span class="admin-semantic-status status-{{ tone }}"><span class="admin-status-icon" aria-hidden="true">{% if tone == 'success' %}✓{% elif tone == 'warning' %}!{% elif tone == 'danger' %}×{% else %}–{% endif %}</span>{{ text }}</span>
+{%- endmacro %}
+<div class="admin-health-page">
 <section class="settings-section" aria-labelledby="system-health-heading">
   <div class="settings-section-heading">
     <h2 id="system-health-heading">System Health</h2>
   </div>
   <div class="settings-card admin-health-card">
-    <div class="admin-health-grid">
-      <div class="admin-health-item">
-        <span class="admin-health-label">Frigate</span>
-        <span class="admin-health-value">
-          {% if health.setup_required %}🟡 Setup required{% elif health.frigate_online %}🟢 Online{% else %}🔴 Offline{% endif %}
-        </span>
+    <dl class="admin-service-grid">
+      <div>
+        <dt>Frigate</dt>
+        <dd>{% if health.setup_required %}{{ status('Setup required', 'warning') }}{% elif health.frigate_online %}{{ status('Online', 'success') }}{% else %}{{ status('Offline', 'danger') }}{% endif %}</dd>
       </div>
-      <div class="admin-health-item">
-        <span class="admin-health-label">Database</span>
-        <span class="admin-health-value">
-          {% if health.database_healthy %}🟢 Healthy{% else %}🔴 Error{% endif %}
-        </span>
+      <div>
+        <dt>Database</dt>
+        <dd>{% if health.database_healthy %}{{ status('Healthy', 'success') }}{% else %}{{ status('Error', 'danger') }}{% endif %}</dd>
       </div>
-      <div class="admin-health-item">
-        <span class="admin-health-label">Archive Storage</span>
-        <span class="admin-health-value">
-          {% if health.archive_writable %}🟢 Writable{% else %}🔴 Problem{% endif %}
-        </span>
+      <div>
+        <dt>Archive Storage</dt>
+        <dd>{% if health.archive_writable %}{{ status('Writable', 'success') }}{% else %}{{ status('Problem', 'danger') }}{% endif %}</dd>
       </div>
-      <div class="admin-health-item">
-        <span class="admin-health-label">MQTT</span>
-        <span class="admin-health-value">
-          {% if health.setup_required %}🟡 Setup required{% elif health.mqtt_online %}🟢 Online{% else %}🔴 Offline{% endif %}
-        </span>
+      <div>
+        <dt>MQTT</dt>
+        <dd>{% if health.setup_required %}{{ status('Setup required', 'warning') }}{% elif health.mqtt_online %}{{ status('Online', 'success') }}{% else %}{{ status('Offline', 'danger') }}{% endif %}</dd>
       </div>
-      <div class="admin-health-item">
-        <span class="admin-health-label">System Disk</span>
-        <span class="admin-health-value">
-          {% if health.disk_used_percent < 75 %}🟢{% elif health.disk_used_percent < 90 %}🟡{% else %}🔴{% endif %} {{ health.disk_used_percent }}%
-        </span>
+      <div class="admin-disk-usage">
+        <dt>System Disk</dt>
+        <dd><span class="admin-disk-percent">{{ health.disk_used_percent }}%</span> <span class="admin-disk-state">{% if health.disk_used_percent < 75 %}Normal{% elif health.disk_used_percent < 90 %}Elevated{% else %}High{% endif %}</span></dd>
+        <meter min="0" max="100" low="75" high="90" optimum="0" value="{{ health.disk_used_percent }}" aria-label="System disk utilisation">{{ health.disk_used_percent }}% used</meter>
       </div>
-    </div>
+    </dl>
   </div>
 </section>
 
@@ -72,33 +67,67 @@
   </div>
 </section>
 
-<section class="settings-section" aria-labelledby="archive-retention-heading">
+<section class="settings-section" aria-labelledby="retention-heading">
   <div class="settings-section-heading">
-    <h2 id="archive-retention-heading">Archive Retention</h2>
+    <h2 id="retention-heading">Retention</h2>
   </div>
-  <div class="settings-card admin-health-card">
-    {% if retention_status %}
-    <div class="admin-health-grid">
-      <div class="admin-health-item">
-        <span class="admin-health-label">Last Run</span>
-        <span class="admin-health-value">{{ retention_status.last_run }}</span>
+  <div class="settings-card admin-health-card admin-retention-card">
+    {% set attempt = dict(retention.primary) %}
+    <div class="admin-retention-summary">
+      <div>
+        <span class="admin-health-label">Latest attempt status</span>
+        <div class="admin-retention-outcome">{{ status(retention.status, retention.status_tone) }}</div>
       </div>
-      <div class="admin-health-item">
-        <span class="admin-health-label">Rows Scanned</span>
-        <span class="admin-health-value">{{ retention_status.rows_scanned }}</span>
+      {% if attempt %}
+      <div>
+        <span class="admin-health-label">Latest attempt completed</span>
+        <div class="admin-retention-completed">{{ attempt['Latest attempt completed'] }}</div>
       </div>
-      <div class="admin-health-item">
-        <span class="admin-health-label">Orphans Found</span>
-        <span class="admin-health-value{% if retention_status.orphan_count > 0 %} retention-warning{% endif %}">{{ retention_status.orphan_count }}</span>
-      </div>
-      <div class="admin-health-item">
-        <span class="admin-health-label">Missing Files</span>
-        <span class="admin-health-value">{{ retention_status.missing_count }}</span>
-      </div>
+      {% endif %}
     </div>
-    {% else %}
-    <p>No retention data available</p>
+    <dl class="admin-retention-metadata">
+      <div class="admin-retention-schedule"><dt>Configured automatic cleanup</dt><dd>{{ retention.schedule }}</dd></div>
+      {% if attempt %}
+      <div><dt>Trigger</dt><dd>{{ attempt['Trigger'] }}</dd></div>
+      <div><dt>Duration</dt><dd>{{ attempt['Duration'] }}</dd></div>
+      {% if retention.show_last_success %}
+      <div class="admin-retention-last-success"><dt>Last successful run</dt><dd>{{ attempt['Last successful run'] }}</dd></div>
+      {% endif %}
+      {% endif %}
+    </dl>
+    {% if retention.results %}
+    <dl class="admin-retention-results" aria-label="Cleanup results">
+      {% for label, value in retention.results %}
+      <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+      {% endfor %}
+    </dl>
+    {% endif %}
+    {% if retention.diagnostics %}
+    <p class="admin-retention-diagnostic-note">Diagnostics recorded — open attempt details below.</p>
+    {% endif %}
+    <p class="admin-retention-timezone">{{ retention.timezone_note }}</p>
+    {% if retention.legacy_scan %}
+    <p class="admin-retention-legacy">Legacy orphan scan: {{ retention.legacy_scan }}. This is not a native retention run.</p>
+    {% endif %}
+    {% if retention.details %}
+    <details class="admin-retention-details">
+      <summary>Attempt details and diagnostics{% if retention.diagnostics %} · {{ retention.diagnostics|length }} summaries{% endif %}</summary>
+      <dl class="admin-retention-detail-grid">
+        {% if attempt and not retention.show_last_success %}
+        <div><dt>Last successful run</dt><dd>{{ attempt['Last successful run'] }}</dd></div>
+        {% endif %}
+        {% for label, value in retention.details %}
+        <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+        {% endfor %}
+      </dl>
+      {% if retention.diagnostics %}
+      <ul>
+        {% for summary in retention.diagnostics %}<li>{{ summary }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </details>
     {% endif %}
   </div>
 </section>
+</div>
 {% endblock %}

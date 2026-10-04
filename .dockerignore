@@ -10,3 +10,14 @@ media/
 logs/
 *.log
 *.db.backup
+
+# Browser QA stays outside production build context (including session files).
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+tests/browser/
+package.json
+package-lock.json
+playwright.config.cjs

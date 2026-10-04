@@ -1216,7 +1216,7 @@ a:hover {
 
 .admin-system-status {
   margin: 0.85rem 0.15rem;
-  padding: 0.85rem;
+  padding: 0.65rem 0.75rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
   background: rgba(23, 39, 29, 0.72);
@@ -1252,17 +1252,27 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin: 0.7rem 0;
+  margin: 0.5rem 0 0;
   font-size: 0.82rem;
   font-weight: 750;
+  text-decoration: none;
 }
 
-.admin-status-dot {
-  flex: 0 0 0.55rem;
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  background: currentColor;
+.admin-system-overall:hover {
+  text-decoration: underline;
+}
+
+.admin-status-icon {
+  display: inline-block;
+  flex: 0 0 0.85rem;
+  width: 0.85rem;
+  text-align: center;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.admin-system-link-arrow {
+  margin-left: auto;
 }
 
 .admin-system-status .status-healthy {
@@ -1308,8 +1318,8 @@ a:hover {
 }
 
 .admin-system-version {
-  margin-top: 0.7rem;
-  padding-top: 0.55rem;
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(247, 245, 237, 0.58);
   font-size: 0.68rem;
@@ -3360,6 +3370,205 @@ a:hover {
 
 .admin-health-value.retention-warning {
   color: var(--wamf-danger);
+}
+
+.admin-health-page .settings-section {
+  margin-bottom: 1.25rem;
+}
+
+.admin-health-page .settings-section + .settings-section {
+  padding-top: 1.25rem;
+}
+
+.admin-health-page .settings-section-heading {
+  margin-bottom: 0.65rem;
+}
+
+.admin-health-page .settings-section-heading h2 {
+  font-size: 1.15rem;
+}
+
+.admin-health-page .admin-health-card {
+  padding: 1rem;
+  box-shadow: none;
+}
+
+.admin-health-page .admin-health-value {
+  font-size: 1.05rem;
+}
+
+.admin-service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0;
+}
+
+.admin-service-grid dt,
+.admin-retention-metadata dt,
+.admin-retention-results dt,
+.admin-retention-detail-grid dt {
+  color: var(--wamf-text-muted);
+  font-size: 0.8rem;
+}
+
+.admin-service-grid dd {
+  margin: 0.3rem 0 0;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.admin-semantic-status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.admin-semantic-status.status-success {
+  color: var(--wamf-forest-700);
+}
+
+.admin-semantic-status.status-warning {
+  color: #805a13;
+}
+
+.admin-semantic-status.status-danger {
+  color: var(--wamf-danger);
+}
+
+.admin-semantic-status.status-neutral {
+  color: var(--wamf-text-muted);
+}
+
+.admin-disk-percent,
+.admin-retention-completed,
+.admin-retention-results dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-disk-state {
+  margin-left: 0.25rem;
+  color: var(--wamf-text-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.admin-disk-usage meter {
+  display: block;
+  width: 100%;
+  height: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.admin-retention-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.65rem 2rem;
+}
+
+.admin-retention-outcome,
+.admin-retention-completed {
+  margin-top: 0.2rem;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.admin-retention-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0.85rem 0;
+}
+
+.admin-retention-metadata > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.5rem;
+  min-width: 0;
+}
+
+.admin-retention-schedule,
+.admin-retention-last-success {
+  flex-basis: 100%;
+}
+
+.admin-retention-metadata dd,
+.admin-retention-results dd,
+.admin-retention-detail-grid dd {
+  margin: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-retention-results,
+.admin-retention-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.55rem 1.75rem;
+  margin: 0;
+}
+
+.admin-retention-results {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--wamf-border);
+}
+
+.admin-retention-results > div,
+.admin-retention-detail-grid > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.admin-retention-results dd {
+  font-weight: 700;
+}
+
+.admin-retention-timezone,
+.admin-retention-legacy {
+  margin: 0.65rem 0 0;
+  color: var(--wamf-text-muted);
+  font-size: 0.75rem;
+}
+
+.admin-retention-diagnostic-note {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.admin-retention-details {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--wamf-border);
+  font-size: 0.8rem;
+}
+
+.admin-retention-details summary {
+  cursor: pointer;
+  padding: 0.25rem 0;
+  font-weight: 650;
+}
+
+.admin-retention-details summary:focus-visible {
+  outline: 3px solid var(--wamf-focus);
+  outline-offset: 3px;
+}
+
+.admin-retention-detail-grid {
+  margin-top: 0.75rem;
+}
+
+.admin-retention-detail-grid dd {
+  text-align: right;
+}
+
+.admin-retention-details li {
+  overflow-wrap: anywhere;
 }
 
 /* Administration logs */

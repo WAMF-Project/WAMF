@@ -80,29 +80,16 @@
       <div class="admin-system-status-heading">
         <h2 id="admin-system-status-heading">System Health</h2>
       </div>
-      <p class="admin-system-overall status-{{ admin_overall_state }}">
-        <span class="admin-status-dot" aria-hidden="true"></span>
+      <a class="admin-system-overall status-{{ admin_overall_state }}" href="{{ url_for('admin.admin_dashboard') }}" aria-labelledby="admin-system-status-heading admin-system-status-text">
+        <span class="admin-status-icon" aria-hidden="true">{% if admin_overall_state == 'healthy' %}✓{% elif admin_overall_state in ('setup_required', 'degraded') %}!{% else %}×{% endif %}</span>
+        <span id="admin-system-status-text">
         {% if admin_overall_state == 'healthy' %}All systems OK
         {% elif admin_overall_state == 'setup_required' %}Setup required
         {% elif admin_overall_state == 'degraded' %}Attention needed
         {% else %}Service issue{% endif %}
-      </p>
-      <dl class="admin-system-checks">
-        <div><dt>WAMF</dt><dd class="status-healthy">Online</dd></div>
-        <div>
-          <dt>MQTT</dt>
-          {% if health.get('mqtt_online') is sameas true %}<dd class="status-healthy">Connected</dd>
-          {% elif health.get('mqtt_online') is sameas false %}<dd class="status-unhealthy">Offline</dd>
-          {% else %}<dd class="status-setup_required">Not checked</dd>{% endif %}
-        </div>
-        <div>
-          <dt>Frigate</dt>
-          {% if health.get('frigate_online') is sameas true %}<dd class="status-healthy">Connected</dd>
-          {% elif health.get('frigate_online') is sameas false %}<dd class="status-unhealthy">Offline</dd>
-          {% else %}<dd class="status-setup_required">Not checked</dd>{% endif %}
-        </div>
-        <div><dt>Bridge / Perch</dt><dd>{% if admin_bridge_enabled %}Enabled{% else %}Disabled{% endif %}</dd></div>
-      </dl>
+        </span>
+        <span class="admin-system-link-arrow" aria-hidden="true">→</span>
+      </a>
       <div class="admin-system-version">WAMF {{ version }}</div>
     </section>
     {% else %}

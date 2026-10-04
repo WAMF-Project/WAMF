@@ -1,0 +1,14 @@
+{
+  "name": "wamf-browser-qa",
+  "private": true,
+  "description": "Development-only browser QA for an already-running WAMF UI",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test:browser": "playwright test",
+    "test:browser:headed": "playwright test --headed",
+    "browser:install": "playwright install chromium",
+    "browser:login": "node tests/browser/login.cjs",
+    "browser:screenshots": "playwright test --grep @screenshot"
+  },
+  "devDependencies": { "@playwright/test": "1.63.0" }
+}

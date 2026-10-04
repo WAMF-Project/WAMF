@@ -34,6 +34,10 @@ from app.config_validation import validate_config
 from app.config_persistence import ConfigPersistenceError
 from app.system_events import log_system_event
 from app.process_control import INSTANCE_ID, schedule_restart
+from app.retention_presentation import (
+    build_retention_presentation,
+    unavailable_retention_presentation,
+)
 
 
 admin_bp = Blueprint('admin', __name__)
@@ -300,14 +304,33 @@ def admin_dashboard():
     stats = webui.get_admin_stats()
     health = webui.get_system_health()
     events = webui.get_recent_system_events()
-    retention_status = webui.get_retention_status()
+    try:
+        retention_status = webui.get_retention_status()
+        status_available = True
+    except Exception:
+        # Do not log raw exceptions: retention diagnostics may contain secrets.
+        logger.warning("Retention status is unavailable for System Health")
+        retention_status = None
+        status_available = False
+    try:
+        retention_config = load_runtime_config()
+    except Exception:
+        logger.warning("Retention schedule configuration is unavailable for System Health")
+        retention_config = None
+    try:
+        retention = build_retention_presentation(
+            retention_status, retention_config, status_available=status_available
+        )
+    except Exception:
+        logger.warning("Retention presentation is unavailable for System Health")
+        retention = unavailable_retention_presentation()
 
     return render_template(
         'admin.html',
         stats=stats,
         health=health,
         events=events,
-        retention_status=retention_status
+        retention=retention
     )
 
 

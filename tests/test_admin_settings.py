@@ -1697,9 +1697,15 @@ def test_admin_status_moves_to_authenticated_sidebar_and_uses_real_states(
 
     assert 'class="admin-system-status"' in html
     assert "Attention needed" in html
-    assert re.search(r"MQTT</dt>\s*<dd[^>]*>Offline</dd>", html)
-    assert re.search(r"Frigate</dt>\s*<dd[^>]*>Connected</dd>", html)
-    assert re.search(r"Bridge / Perch</dt><dd>Enabled</dd>", html)
+    sidebar_status = re.search(
+        r'<section class="admin-system-status".*?</section>', html, re.S
+    ).group(0)
+    assert 'href="/admin"' in sidebar_status
+    assert 'aria-labelledby="admin-system-status-heading admin-system-status-text"' in sidebar_status
+    assert "MQTT" not in sidebar_status
+    assert "Frigate" not in sidebar_status
+    assert "Bridge / Perch" not in sidebar_status
+    assert "admin-system-checks" not in sidebar_status
     assert f"WAMF {VERSION}" in html
     assert "admin-status-bar" not in html
 
