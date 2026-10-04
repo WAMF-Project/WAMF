@@ -7,7 +7,13 @@
 {% block content %}
 
 {% with messages = get_flashed_messages() %}
-  {% if messages %}<div class="settings-notice settings-notice-success" role="status">{{ messages[0] }}</div>{% endif %}
+  {% if messages %}
+  <div class="settings-toast" id="settings-save-toast">
+    <span class="settings-toast-message">{{ messages[0] }}</span>
+    <span class="settings-toast-announcement" role="status" aria-live="polite" aria-atomic="true"></span>
+    <button class="settings-toast-dismiss" type="button" aria-label="Dismiss save confirmation">&times;</button>
+  </div>
+  {% endif %}
 {% endwith %}
 
 {% if errors %}
@@ -25,7 +31,6 @@
     <a href="#mqtt">MQTT</a><a href="#frigate">Frigate</a>
     <a href="#classification">Classification</a><a href="#live-view">Live View</a>
     <a href="#bridge-perch">Bridge / Perch</a><a href="#admin-api">Admin &amp; API</a>
-    <a href="#advanced">Advanced</a>
   </nav>
 
   <div class="settings-content">
@@ -55,36 +60,91 @@
         </div>
       </div>
       <div class="settings-card">
-        <h3>Media &amp; retention</h3>
+        <h3>Media cleanup</h3>
+        <div class="settings-grid">
+          <div class="settings-field"><label for="snapshots_days">Default snapshot retention (days)</label><input id="snapshots_days" name="snapshots_days" type="number" min="0" step="1" value="{{ settings.snapshots_days }}" aria-describedby="snapshots_days_help" required /><small id="snapshots_days_help">Keep snapshots for this many days unless a species override applies. Zero is allowed.</small>{% if field_errors.snapshots_days %}<span class="settings-field-error">{{ field_errors.snapshots_days }}</span>{% endif %}</div>
+          <div class="settings-field"><label for="clips_days">Default clip retention (days)</label><input id="clips_days" name="clips_days" type="number" min="0" step="1" value="{{ settings.clips_days }}" aria-describedby="clips_days_help" required /><small id="clips_days_help">Keep clips for this many days unless a species override applies. Zero is allowed.</small>{% if field_errors.clips_days %}<span class="settings-field-error">{{ field_errors.clips_days }}</span>{% endif %}</div>
+        </div>
         <div class="settings-toggle-grid">
           <div class="settings-toggle-item">
             <input type="hidden" name="retention_enabled" value="0" />
             <input class="settings-switch-input" id="retention_enabled" type="checkbox" name="retention_enabled" value="1" aria-describedby="retention_enabled_help" {% if settings.retention_enabled %}checked{% endif %} />
-            <label class="settings-switch-label" for="retention_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Enable retention</strong></label>
-            <small id="retention_enabled_help">Run scheduled retention cleanup.</small>
+            <label class="settings-switch-label" for="retention_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Apply retention policy</strong></label>
+            <small id="retention_enabled_help">Process expired stored media and prune old system events when retention runs. Orphan scanning and automatic cleanup are configured separately.</small>
           </div>
-          <div class="settings-toggle-item">
-            <input type="hidden" name="delete_media" value="0" />
-            <input class="settings-switch-input" id="delete_media" type="checkbox" name="delete_media" value="1" aria-describedby="delete_media_help" {% if settings.delete_media %}checked{% endif %} />
-            <label class="settings-switch-label" for="delete_media"><span class="settings-switch-control" aria-hidden="true"></span><strong>Delete expired media</strong></label>
-            <small id="delete_media_help">Remove snapshot and clip files with expired records.</small>
-          </div>
+          <fieldset class="settings-dependent-fields" data-settings-dependency="retention_enabled" aria-label="Expired media action" {% if not settings.retention_enabled %}disabled{% endif %}>
+            <div class="settings-toggle-item">
+              <input type="hidden" name="delete_media" value="0" />
+              <input class="settings-switch-input" id="delete_media" type="checkbox" name="delete_media" value="1" aria-describedby="delete_media_help" {% if settings.delete_media %}checked{% endif %} />
+              <label class="settings-switch-label" for="delete_media"><span class="settings-switch-control" aria-hidden="true"></span><strong>Delete expired media</strong></label>
+              <small id="delete_media_help">Delete expired snapshot and clip files and clear their stored references. When off, expired media is reported only.</small>
+            </div>
+          </fieldset>
           <div class="settings-toggle-item">
             <input type="hidden" name="orphan_scan_enabled" value="0" />
             <input class="settings-switch-input" id="orphan_scan_enabled" type="checkbox" name="orphan_scan_enabled" value="1" aria-describedby="orphan_scan_enabled_help" {% if settings.orphan_scan_enabled %}checked{% endif %} />
             <label class="settings-switch-label" for="orphan_scan_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Scan for orphaned media</strong></label>
-            <small id="orphan_scan_enabled_help">Find media files with no matching database record.</small>
+            <small id="orphan_scan_enabled_help">Find archive files that have no matching database reference whenever retention runs.</small>
           </div>
-          <div class="settings-toggle-item">
-            <input type="hidden" name="delete_orphaned_media" value="0" />
-            <input class="settings-switch-input" id="delete_orphaned_media" type="checkbox" name="delete_orphaned_media" value="1" aria-describedby="delete_orphaned_media_help" {% if settings.delete_orphaned_media %}checked{% endif %} />
-            <label class="settings-switch-label" for="delete_orphaned_media"><span class="settings-switch-control" aria-hidden="true"></span><strong>Delete orphaned media</strong></label>
-            <small id="delete_orphaned_media_help">Remove orphaned files found by the scan.</small>
-          </div>
+          <fieldset class="settings-dependent-fields" data-settings-dependency="orphan_scan_enabled" aria-label="Orphaned media action" {% if not settings.orphan_scan_enabled %}disabled{% endif %}>
+            <div class="settings-toggle-item">
+              <input type="hidden" name="delete_orphaned_media" value="0" />
+              <input class="settings-switch-input" id="delete_orphaned_media" type="checkbox" name="delete_orphaned_media" value="1" aria-describedby="delete_orphaned_media_help" {% if settings.delete_orphaned_media %}checked{% endif %} />
+              <label class="settings-switch-label" for="delete_orphaned_media"><span class="settings-switch-control" aria-hidden="true"></span><strong>Delete orphaned media</strong></label>
+              <small id="delete_orphaned_media_help">Delete orphaned files found by the scan. When off, they are reported only.</small>
+            </div>
+          </fieldset>
         </div>
-        <div class="settings-grid settings-grid-spaced">
-          <div class="settings-field"><label for="snapshots_days">Snapshot days</label><input id="snapshots_days" name="snapshots_days" type="number" min="0" step="1" value="{{ settings.snapshots_days }}" aria-describedby="snapshots_days_help" required /><small id="snapshots_days_help">Number of days to retain archived snapshots.</small></div>
-          <div class="settings-field"><label for="clips_days">Clip days</label><input id="clips_days" name="clips_days" type="number" min="0" step="1" value="{{ settings.clips_days }}" aria-describedby="clips_days_help" required /><small id="clips_days_help">Number of days to retain archived clips.</small></div>
+      </div>
+      <div class="settings-card">
+        <div class="settings-label-row"><h3>Automatic cleanup</h3><span class="settings-status">Restart required</span></div>
+        <div class="settings-toggle-item">
+          <input type="hidden" name="retention_schedule_enabled" value="0" />
+          <input class="settings-switch-input" id="retention_schedule_enabled" type="checkbox" name="retention_schedule_enabled" value="1" aria-describedby="retention_schedule_enabled_help" {% if settings.retention_schedule_enabled %}checked{% endif %} />
+          <label class="settings-switch-label" for="retention_schedule_enabled"><span class="settings-switch-control" aria-hidden="true"></span><strong>Run cleanup automatically</strong></label>
+          <small id="retention_schedule_enabled_help">Run retention once each day. Enabling this does not run cleanup immediately, and runs missed while WAMF is offline are not replayed.</small>
+        </div>
+        <fieldset class="settings-dependent-fields settings-grid-spaced" data-settings-dependency="retention_schedule_enabled" aria-label="Automatic cleanup schedule" {% if not settings.retention_schedule_enabled %}disabled{% endif %}>
+          <div class="settings-grid">
+            <div class="settings-field"><label for="retention_schedule_time">Daily cleanup time</label><input id="retention_schedule_time" name="retention_schedule_time" type="time" step="60" value="{{ settings.retention_schedule_time }}" aria-describedby="retention_schedule_time_help" required /><small id="retention_schedule_time_help">Daily local wall-clock time in the selected time zone.</small>{% if field_errors.retention_schedule_time %}<span class="settings-field-error">{{ field_errors.retention_schedule_time }}</span>{% endif %}</div>
+            <div class="settings-field"><label for="retention_schedule_timezone">Time zone</label><input id="retention_schedule_timezone" name="retention_schedule_timezone" type="text" list="retention-timezones" value="{{ settings.retention_schedule_timezone }}" aria-describedby="retention_schedule_timezone_help" autocomplete="off" required /><datalist id="retention-timezones">{% for timezone in retention_timezones %}<option value="{{ timezone }}"></option>{% endfor %}</datalist><small id="retention_schedule_timezone_help">IANA time zone used to interpret the daily time, for example Europe/London.</small>{% if field_errors.retention_schedule_timezone %}<span class="settings-field-error">{{ field_errors.retention_schedule_timezone }}</span>{% endif %}</div>
+          </div>
+        </fieldset>
+        <p class="settings-preservation-note">Schedule changes take effect after WAMF is restarted.</p>
+      </div>
+      <div class="settings-card" id="retention-species-editor">
+        <h3>Species overrides</h3>
+        <p class="settings-preservation-note" id="retention_species_editor_help">Set optional snapshot and clip retention periods for known species.</p>
+        <input type="hidden" name="retention_species_overrides_present" value="1" />
+        {% if field_errors.retention_species_editor %}<span class="settings-field-error" role="alert">{{ field_errors.retention_species_editor }}</span>{% endif %}
+        <div class="settings-species-add">
+          <div class="settings-field">
+            <label for="retention_species_add">Add species override</label>
+            <select id="retention_species_add" aria-describedby="retention_species_add_help" {% if not species_override_choices %}disabled{% endif %}>
+              <option value="">Choose a cached species</option>
+              {% for species in species_override_choices %}<option value="{{ species.scientific_name }}">{% if species.common_name %}{{ species.common_name }} — {% endif %}{{ species.scientific_name }}</option>{% endfor %}
+            </select>
+            <small id="retention_species_add_help">Choices come from species metadata already cached by WAMF.</small>
+          </div>
+          <button class="settings-button settings-button-secondary" id="retention-species-add-btn" type="button" {% if not species_override_choices %}disabled{% endif %}>Add override</button>
+        </div>
+        <div class="settings-species-rows" id="retention-species-rows" data-next-row-index="{{ species_override_next_row }}" data-snapshot-default="{{ species_snapshot_default }}" data-clip-default="{{ species_clip_default }}">
+          {% for row in species_override_rows %}
+          <div class="settings-species-row" data-scientific-name="{{ row.scientific_name }}" data-option-label="{% if row.common_name %}{{ row.common_name }} — {% endif %}{{ row.scientific_name }}" data-metadata-cached="{{ 'true' if row.metadata_cached else 'false' }}">
+            <input type="hidden" name="retention_species_row" value="{{ row.row_id }}" />
+            <input type="hidden" name="retention_species_scientific_name_{{ row.row_id }}" value="{{ row.scientific_name }}" />
+            <div class="settings-species-identity"><strong>{% if row.common_name %}{{ row.common_name }} — {% endif %}{{ row.scientific_name }}</strong>{% if not row.metadata_cached %}<small>Metadata not currently cached</small>{% endif %}</div>
+            <div class="settings-field"><label for="retention_species_snapshots_days_{{ row.row_id }}">Snapshot days</label><input id="retention_species_snapshots_days_{{ row.row_id }}" name="retention_species_snapshots_days_{{ row.row_id }}" type="number" min="0" step="1" value="{{ row.snapshots_days }}" placeholder="Inherit ({{ species_snapshot_default }} days)" aria-describedby="retention_species_snapshots_days_{{ row.row_id }}_help" /><small id="retention_species_snapshots_days_{{ row.row_id }}_help">Blank inherits the default.</small>{% if field_errors.get('retention_species_snapshots_days_' ~ row.row_id) %}<span class="settings-field-error">{{ field_errors.get('retention_species_snapshots_days_' ~ row.row_id) }}</span>{% endif %}</div>
+            <div class="settings-field"><label for="retention_species_clips_days_{{ row.row_id }}">Clip days</label><input id="retention_species_clips_days_{{ row.row_id }}" name="retention_species_clips_days_{{ row.row_id }}" type="number" min="0" step="1" value="{{ row.clips_days }}" placeholder="Inherit ({{ species_clip_default }} days)" aria-describedby="retention_species_clips_days_{{ row.row_id }}_help" /><small id="retention_species_clips_days_{{ row.row_id }}_help">Blank inherits the default.</small>{% if field_errors.get('retention_species_clips_days_' ~ row.row_id) %}<span class="settings-field-error">{{ field_errors.get('retention_species_clips_days_' ~ row.row_id) }}</span>{% endif %}</div>
+            <button class="settings-button settings-button-secondary settings-species-remove" type="button" aria-label="Remove retention override for {{ row.scientific_name }}">Remove</button>
+          </div>
+          {% endfor %}
+        </div>
+        {% if not species_override_rows %}<p class="settings-empty-state" id="retention-species-empty">No species overrides configured.</p>{% endif %}
+      </div>
+      <div class="settings-card">
+        <h3>Other retained data</h3>
+        <div class="settings-grid">
           <div class="settings-field"><label for="system_events_days">System event days</label><input id="system_events_days" name="system_events_days" type="number" min="0" step="1" value="{{ settings.system_events_days }}" aria-describedby="system_events_days_help" required /><small id="system_events_days_help">Number of days to retain system log events.</small></div>
           <div class="settings-field"><label for="system_events_min_rows">Minimum event rows</label><input id="system_events_min_rows" name="system_events_min_rows" type="number" min="0" step="1" value="{{ settings.system_events_min_rows }}" aria-describedby="system_events_min_rows_help" required /><small id="system_events_min_rows_help">Minimum number of recent system events to keep regardless of age.</small></div>
           <div class="settings-field"><label for="config_backups_max_files">Configuration backups</label><input id="config_backups_max_files" name="config_backups_max_files" type="number" min="0" step="1" value="{{ settings.config_backups_max_files }}" aria-describedby="config_backups_max_files_help" required /><small id="config_backups_max_files_help">Number of previous configuration backups to retain.</small></div>
@@ -210,15 +270,6 @@
       </div>
     </section>
 
-    <section class="settings-section" id="advanced" aria-labelledby="advanced-heading">
-      <div class="settings-section-heading"><h2 id="advanced-heading">Advanced</h2><p>Advanced canonical settings that do not fit the normal forms.</p></div>
-      <div class="settings-card">
-        <div class="settings-label-row"><h3>Species retention overrides</h3><span class="settings-status is-configured">Config v{{ config_version }}</span></div>
-        <div class="settings-field"><label for="retention_species_overrides">Override mapping</label><textarea class="settings-code-input" id="retention_species_overrides" name="retention_species_overrides" rows="8" spellcheck="false" aria-describedby="retention_species_overrides_help">{{ settings.retention_species_overrides }}</textarea><small id="retention_species_overrides_help">Advanced YAML mapping keyed by species name. All ordinary settings above use structured controls.</small>{% if field_errors.retention_species_overrides %}<span class="settings-field-error">{{ field_errors.retention_species_overrides }}</span>{% endif %}</div>
-        <p class="settings-preservation-note">Unrecognized extension settings already present in the configuration are preserved unchanged, but are not editable here.</p>
-      </div>
-    </section>
-
     </form>
 
     <div class="settings-action-bar" role="group" aria-label="Settings actions">
@@ -273,6 +324,118 @@
         controller.addEventListener('change', syncDependency);
         syncDependency();
       });
+
+      const speciesRows = document.getElementById('retention-species-rows');
+      const speciesSelect = document.getElementById('retention_species_add');
+      const speciesAddButton = document.getElementById('retention-species-add-btn');
+      if (speciesRows && speciesSelect && speciesAddButton) {
+        let nextSpeciesRow = Number(speciesRows.dataset.nextRowIndex || 0);
+
+        function syncSpeciesEmptyState() {
+          let empty = document.getElementById('retention-species-empty');
+          if (speciesRows.children.length && empty) empty.remove();
+          if (!speciesRows.children.length && !empty) {
+            empty = document.createElement('p');
+            empty.className = 'settings-empty-state';
+            empty.id = 'retention-species-empty';
+            empty.textContent = 'No species overrides configured.';
+            speciesRows.after(empty);
+          }
+          speciesAddButton.disabled = speciesSelect.options.length <= 1;
+          speciesSelect.disabled = speciesSelect.options.length <= 1;
+        }
+
+        function restoreSpeciesOption(row) {
+          if (row.dataset.metadataCached !== 'true') return;
+          const scientificName = row.dataset.scientificName;
+          if (Array.from(speciesSelect.options).some(function (option) {
+            return option.value === scientificName;
+          })) return;
+          const option = document.createElement('option');
+          option.value = scientificName;
+          option.textContent = row.dataset.optionLabel;
+          speciesSelect.append(option);
+        }
+
+        function bindSpeciesRemove(button) {
+          button.addEventListener('click', function () {
+            const row = button.closest('.settings-species-row');
+            restoreSpeciesOption(row);
+            row.remove();
+            syncSpeciesEmptyState();
+          });
+        }
+
+        function addOverrideField(row, rowId, kind, labelText) {
+          const field = document.createElement('div');
+          field.className = 'settings-field';
+          const inputId = 'retention_species_' + kind + '_days_' + rowId;
+          const helperId = inputId + '_help';
+          const label = document.createElement('label');
+          label.htmlFor = inputId;
+          label.textContent = labelText;
+          const input = document.createElement('input');
+          input.id = inputId;
+          input.name = inputId;
+          input.type = 'number';
+          input.min = '0';
+          input.step = '1';
+          const defaultDays = kind === 'snapshots'
+            ? speciesRows.dataset.snapshotDefault
+            : speciesRows.dataset.clipDefault;
+          input.placeholder = 'Inherit (' + defaultDays + ' days)';
+          input.setAttribute('aria-describedby', helperId);
+          const helper = document.createElement('small');
+          helper.id = helperId;
+          helper.textContent = 'Blank inherits the default.';
+          field.append(label, input, helper);
+          row.append(field);
+        }
+
+        speciesRows.querySelectorAll('.settings-species-remove').forEach(bindSpeciesRemove);
+        speciesAddButton.addEventListener('click', function () {
+          const option = speciesSelect.options[speciesSelect.selectedIndex];
+          if (!option || !option.value) return;
+          const rowId = String(nextSpeciesRow++);
+          const scientificName = option.value;
+          const displayName = option.textContent;
+          const row = document.createElement('div');
+          row.className = 'settings-species-row';
+          row.dataset.scientificName = scientificName;
+          row.dataset.optionLabel = displayName;
+          row.dataset.metadataCached = 'true';
+
+          const rowMarker = document.createElement('input');
+          rowMarker.type = 'hidden';
+          rowMarker.name = 'retention_species_row';
+          rowMarker.value = rowId;
+          const nameInput = document.createElement('input');
+          nameInput.type = 'hidden';
+          nameInput.name = 'retention_species_scientific_name_' + rowId;
+          nameInput.value = scientificName;
+          const identity = document.createElement('div');
+          identity.className = 'settings-species-identity';
+          const identityText = document.createElement('strong');
+          identityText.textContent = displayName;
+          identity.append(identityText);
+          row.append(rowMarker, nameInput, identity);
+          addOverrideField(row, rowId, 'snapshots', 'Snapshot days');
+          addOverrideField(row, rowId, 'clips', 'Clip days');
+
+          const removeButton = document.createElement('button');
+          removeButton.className = 'settings-button settings-button-secondary settings-species-remove';
+          removeButton.type = 'button';
+          removeButton.textContent = 'Remove';
+          removeButton.setAttribute('aria-label', 'Remove retention override for ' + scientificName);
+          row.append(removeButton);
+          bindSpeciesRemove(removeButton);
+          speciesRows.append(row);
+          option.remove();
+          speciesSelect.selectedIndex = 0;
+          syncSpeciesEmptyState();
+        });
+        syncSpeciesEmptyState();
+      }
     }
 
     function showMessage(message, type, persistent) {
@@ -341,6 +504,62 @@
 
     const errors = document.getElementById('settings-errors');
     if (errors && errors.focus) errors.focus();
+
+    const toast = document.getElementById('settings-save-toast');
+    if (toast) {
+      const dismissButton = toast.querySelector('.settings-toast-dismiss');
+      const duration = 7000;
+      let remaining = duration;
+      let startedAt;
+      let timer;
+      let dismissing = false;
+
+      // Populate the initially empty live region after it has been registered.
+      const toastMessage = toast.querySelector('.settings-toast-message');
+      toastMessage.setAttribute('aria-hidden', 'true');
+      window.setTimeout(function () {
+        if (!dismissing) {
+          toast.querySelector('.settings-toast-announcement').textContent = toastMessage.textContent;
+        }
+      }, 100);
+
+      function removeToast() {
+        if (dismissing) return;
+        dismissing = true;
+        window.clearTimeout(timer);
+        timer = null;
+        toast.inert = true;
+        dismissButton.disabled = true;
+        toast.classList.add('is-dismissing');
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          toast.remove();
+        } else {
+          window.setTimeout(function () { toast.remove(); }, 250);
+        }
+      }
+
+      function pauseDismissal() {
+        if (!timer) return;
+        window.clearTimeout(timer);
+        timer = null;
+        remaining -= Date.now() - startedAt;
+      }
+
+      function resumeDismissal() {
+        if (dismissing || timer || toast.matches(':hover') || toast.contains(document.activeElement)) return;
+        startedAt = Date.now();
+        timer = window.setTimeout(removeToast, Math.max(0, remaining));
+      }
+
+      toast.addEventListener('mouseenter', pauseDismissal);
+      toast.addEventListener('mouseleave', resumeDismissal);
+      toast.addEventListener('focusin', pauseDismissal);
+      toast.addEventListener('focusout', function () {
+        window.setTimeout(resumeDismissal, 0);
+      });
+      dismissButton.addEventListener('click', removeToast);
+      resumeDismissal();
+    }
   }());
 </script>
 

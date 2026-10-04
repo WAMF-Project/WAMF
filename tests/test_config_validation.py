@@ -198,3 +198,44 @@ def test_secret_values_never_appear_in_diagnostics():
     assert secret not in diagnostics
     assert "mqtt.authentication.username" in diagnostics
     assert "mqtt.port" in diagnostics
+
+
+@pytest.mark.parametrize(
+    ("retention", "expected_field"),
+    [
+        ({"snapshots_days": -1}, "retention.snapshots_days"),
+        ({"clips_days": True}, "retention.clips_days"),
+        (
+            {"species_overrides": {"Turdus merula": {"clips_days": None}}},
+            "retention.species_overrides['Turdus merula'].clips_days",
+        ),
+        (
+            {"species_overrides": {"Turdus merula": None}},
+            "retention.species_overrides['Turdus merula']",
+        ),
+    ],
+)
+def test_validation_reuses_canonical_retention_policy_rules(
+    retention, expected_field
+):
+    config = ready_config()
+    config["retention"] = retention
+
+    result = validate_config(config)
+
+    assert expected_field in issue_fields(result.errors)
+
+
+def test_validation_rejects_canonical_normalized_species_duplicates():
+    config = ready_config()
+    config["retention"] = {
+        "species_overrides": {
+            "Turdus merula": {"snapshots_days": 10},
+            " turdus MERULA ": {"clips_days": 20},
+        }
+    }
+
+    result = validate_config(config)
+
+    assert issue_fields(result.errors) == ["retention.species_overrides"]
+    assert "duplicate scientific name" in result.errors[0].message

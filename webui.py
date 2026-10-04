@@ -249,8 +249,28 @@ def inject_admin_status():
             )
         except ValueError:
             admin_bridge_enabled = False
+        try:
+            health = get_system_health()
+        except ValueError:
+            if endpoint not in {'admin.admin_config', 'admin.save_config'}:
+                raise
+            logger.warning(
+                "System health summary is unavailable while Settings contains "
+                "invalid configuration",
+                exc_info=True,
+            )
+            health = {
+                "configuration_issues": [
+                    "Configuration contains invalid values. Review Settings."
+                ],
+                "restart_required": False,
+                "setup_required": True,
+                "frigate_online": None,
+                "mqtt_online": None,
+                "overall_state": "setup_required",
+            }
         context.update({
-            "health": get_system_health(),
+            "health": health,
             "admin_bridge_enabled": admin_bridge_enabled,
         })
 

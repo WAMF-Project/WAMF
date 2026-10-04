@@ -2,6 +2,7 @@
 
 import logging
 import secrets
+from zoneinfo import available_timezones
 
 import yaml
 from flask import Blueprint, flash, redirect, render_template, request, url_for
@@ -16,6 +17,8 @@ from app.config_forms import (
     FIELD_BY_NAME,
     SettingsFormError,
     build_settings_candidate,
+    normalized_species_catalog,
+    settings_species_override_rows,
     settings_values,
 )
 from app.config_migration import ConfigMigrationError, migrate_config
@@ -35,6 +38,22 @@ from app.process_control import INSTANCE_ID, schedule_restart
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)
+
+
+GEOGRAPHIC_TIMEZONE_AREAS = frozenset(
+    {
+        "Africa",
+        "America",
+        "Antarctica",
+        "Arctic",
+        "Asia",
+        "Atlantic",
+        "Australia",
+        "Europe",
+        "Indian",
+        "Pacific",
+    }
+)
 
 
 SETTINGS_SECTIONS = {
@@ -70,6 +89,17 @@ VALIDATION_FIELD_NAMES = {
     "mqtt.tls.enabled": "mqtt_tls_enabled",
     "mqtt.tls.insecure": "mqtt_tls_insecure",
     "mqtt.tls.ca_certs": "mqtt_tls_ca_certs",
+    "retention.enabled": "retention_enabled",
+    "retention.snapshots_days": "snapshots_days",
+    "retention.clips_days": "clips_days",
+    "retention.delete_media": "delete_media",
+    "retention.orphan_scan_enabled": "orphan_scan_enabled",
+    "retention.delete_orphaned_media": "delete_orphaned_media",
+    "retention.system_events_days": "system_events_days",
+    "retention.system_events_min_rows": "system_events_min_rows",
+    "retention.schedule.enabled": "retention_schedule_enabled",
+    "retention.schedule.time": "retention_schedule_time",
+    "retention.schedule.timezone": "retention_schedule_timezone",
 }
 
 
@@ -113,19 +143,103 @@ def _secret_is_configured(secrets_config, section, field):
 def _settings_section_for_field(field):
     if field in FIELD_BY_NAME:
         path = FIELD_BY_NAME[field].path
-        return SETTINGS_SECTIONS.get(path[0], "advanced")
-    if field == "retention_species_overrides":
-        return "advanced"
-    return SETTINGS_SECTIONS.get(field.split(".", 1)[0], "advanced")
+        return SETTINGS_SECTIONS.get(path[0])
+    if field.startswith("retention_species_"):
+        return "storage-retention"
+    return SETTINGS_SECTIONS.get(field.split(".", 1)[0])
+
+
+def _known_species():
+    import webui
+
+    try:
+        return webui.get_all_species_info()
+    except Exception:
+        logger.warning(
+            "Species metadata is unavailable for Administration Settings",
+            exc_info=True,
+        )
+        return []
+
+
+def _retention_timezones():
+    try:
+        geographic_timezones = sorted(
+            timezone
+            for timezone in available_timezones()
+            if timezone.partition("/")[0] in GEOGRAPHIC_TIMEZONE_AREAS
+        )
+        return ["UTC", *geographic_timezones]
+    except Exception:
+        logger.warning(
+            "Timezone suggestions are unavailable for Administration Settings",
+            exc_info=True,
+        )
+        return []
+
+
+def _species_override_context(config, submitted_form=None):
+    known_by_name = normalized_species_catalog(_known_species())
+    rows = settings_species_override_rows(config, submitted_form)
+    configured_names = set()
+    for row in rows:
+        scientific_name = row["scientific_name"]
+        normalized_name = (
+            scientific_name.strip().casefold()
+            if isinstance(scientific_name, str)
+            else ""
+        )
+        configured_names.add(normalized_name)
+        metadata = known_by_name.get(normalized_name)
+        row["common_name"] = metadata.get("common_name") if metadata else None
+        row["metadata_cached"] = metadata is not None
+
+    choices = []
+    for normalized_name, item in known_by_name.items():
+        if normalized_name in configured_names:
+            continue
+        choices.append(
+            {
+                "scientific_name": item["scientific_name"],
+                "common_name": item.get("common_name"),
+            }
+        )
+    choices.sort(
+        key=lambda item: (
+            str(item.get("common_name") or "").casefold(),
+            item["scientific_name"].casefold(),
+            item["scientific_name"],
+        )
+    )
+
+    return rows, choices
 
 
 def _settings_context(config, submitted_form=None, errors=(), field_errors=None):
     secrets_path = get_secrets_path(get_config_path())
     extracted = merge_embedded_secrets(config, load_secrets(secrets_path))
     secret_config = extracted.secrets
+    configured_settings = settings_values(config)
     error_section = None
     if field_errors:
         error_section = _settings_section_for_field(next(iter(field_errors)))
+
+    species_override_rows, species_override_choices = _species_override_context(
+        config, submitted_form
+    )
+    # Rows are renumbered after validation; move errors with their original fields.
+    species_field_names = {}
+    for row in species_override_rows:
+        if "submitted_row_id" not in row:
+            continue
+        for field in ("scientific_name", "snapshots_days", "clips_days"):
+            species_field_names[f"retention_species_{field}_{row['submitted_row_id']}"] = (
+                f"retention_species_{field}_{row['row_id']}"
+            )
+    field_errors = {
+        species_field_names.get(field, field): message
+        for field, message in (field_errors or {}).items()
+    }
 
     return {
         "settings": settings_values(config, submitted_form),
@@ -149,6 +263,12 @@ def _settings_context(config, submitted_form=None, errors=(), field_errors=None)
             secret_config, "api", "token_hash"
         ),
         "restart_instance_id": INSTANCE_ID,
+        "retention_timezones": _retention_timezones(),
+        "species_override_rows": species_override_rows,
+        "species_override_choices": species_override_choices,
+        "species_override_next_row": len(species_override_rows),
+        "species_snapshot_default": configured_settings["snapshots_days"],
+        "species_clip_default": configured_settings["clips_days"],
     }
 
 
@@ -164,10 +284,12 @@ def _render_settings(config, *, submitted_form=None, errors=(), field_errors=Non
 
 def _settings_validation_errors(result):
     messages = [str(issue) for issue in result.errors]
-    field_errors = {
-        VALIDATION_FIELD_NAMES.get(issue.field, issue.field): issue.message
-        for issue in result.errors
-    }
+    field_errors = {}
+    for issue in result.errors:
+        field_name = VALIDATION_FIELD_NAMES.get(issue.field, issue.field)
+        if issue.field.startswith("retention.species_overrides"):
+            field_name = "retention_species_editor"
+        field_errors[field_name] = issue.message
     return messages, field_errors
 
 
@@ -317,7 +439,11 @@ def _save_settings_form():
     current_config = load_persisted_config()
 
     try:
-        candidate = build_settings_candidate(current_config, request.form)
+        candidate = build_settings_candidate(
+            current_config,
+            request.form,
+            known_species=_known_species(),
+        )
         candidate_content = yaml.safe_dump(candidate, sort_keys=False)
         result = _validate_config_content(candidate_content)
         if not result.is_valid:
@@ -345,7 +471,7 @@ def _save_settings_form():
                 "settings before restarting WAMF."
             )
         section = request.form.get("active_section", "general")
-        if section not in set(SETTINGS_SECTIONS.values()) | {"advanced"}:
+        if section not in set(SETTINGS_SECTIONS.values()):
             section = "general"
         return redirect(url_for("admin.admin_config") + f"#{section}")
     except SettingsFormError as exc:

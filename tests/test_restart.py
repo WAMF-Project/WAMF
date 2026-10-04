@@ -315,7 +315,10 @@ const vm = require('vm');
 const assert = require('assert');
 const scenario = process.argv[1];
 const elements = {};
-globalThis.document = {getElementById: id => elements[id] ||= {style: {}, addEventListener() {}}};
+globalThis.document = {getElementById: id => {
+  if (id === 'settings-save-toast') return null;
+  return elements[id] ||= {style: {}, addEventListener() {}};
+}};
 let now = 0, posts = 0, polls = 0, reloads = 0, assigned = '';
 globalThis.window = {location: {reload() {reloads++;}, assign(url) {assigned = url;}}};
 Date.now = () => now;

@@ -231,6 +231,35 @@ def _validate_retention_schedule(config, errors):
         errors.append(ValidationIssue(exc.field, exc.message))
 
 
+def _validate_retention_policy(config, errors):
+    retention = config.get("retention")
+    if retention is not None and not isinstance(retention, Mapping):
+        return
+
+    # Imported lazily because the retention service also consumes this shared
+    # configuration validator before starting a run.
+    from app.retention_service import RetentionPolicyError, build_retention_policy
+
+    try:
+        build_retention_policy(config)
+    except RetentionPolicyError as exc:
+        message = str(exc)
+        if message.startswith("retention.species_overrides"):
+            if " must " in message and message.startswith(
+                "retention.species_overrides["
+            ):
+                field, detail = message.rsplit(" must ", 1)
+                detail = f"must {detail}"
+            else:
+                field = "retention.species_overrides"
+                detail = message.removeprefix(field).strip()
+        else:
+            field, separator, detail = message.partition(" must ")
+            if separator:
+                detail = f"must {detail}"
+        errors.append(ValidationIssue(field, detail or message))
+
+
 def validate_config(config):
     """Validate loaded configuration without I/O, mutation, or connectivity checks."""
 
@@ -244,6 +273,7 @@ def validate_config(config):
     _validate_webui(config, errors, readiness_issues)
     _validate_frigate(config, errors, readiness_issues)
     _validate_classification(config, errors, readiness_issues)
+    _validate_retention_policy(config, errors)
     _validate_retention_schedule(config, errors)
 
     normalization_blocking_fields = {
