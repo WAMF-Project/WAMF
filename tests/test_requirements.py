@@ -31,7 +31,7 @@ def test_canonical_manifests_separate_pinned_runtime_and_dev_dependencies():
     assert not runtime & dev
     assert not runtime & {'pytest', 'pytest-cov', 'coverage', 'ruff', 'playwright'}
     assert 'playwright' not in dev
-    assert {'flask', 'werkzeug', 'numpy', 'opencv-python', 'ai-edge-litert',
+    assert {'flask', 'werkzeug', 'numpy', 'ai-edge-litert',
             'paho-mqtt', 'pillow', 'pyyaml', 'requests', 'apscheduler', 'tzdata'} <= runtime
     assert not (ROOT / 'requirements').exists()
     assert {p.name for p in ROOT.glob('requirements*.txt')} == {

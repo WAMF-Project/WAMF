@@ -20,7 +20,7 @@ import pytest
 os.environ.setdefault('WHOSATMYFEEDER_CONFIG', 'config/config.yml.example')
 
 for _mod in [
-    "numpy", "cv2",
+    "numpy",
     "ai_edge_litert",
     "ai_edge_litert.interpreter",
     "PIL", "PIL.Image", "PIL.ImageOps",
