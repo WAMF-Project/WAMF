@@ -21,8 +21,9 @@ from app.config_forms import (
     settings_species_override_rows,
     settings_values,
 )
-from app.config_migration import ConfigMigrationError, migrate_config
 from app.config_loader import load_persisted_config, load_runtime_config
+from app.config_migration import ConfigMigrationError, migrate_config
+from app.config_persistence import ConfigPersistenceError
 from app.config_secrets import (
     apply_secrets,
     get_secrets_path,
@@ -31,14 +32,12 @@ from app.config_secrets import (
     secret_updates,
 )
 from app.config_validation import validate_config
-from app.config_persistence import ConfigPersistenceError
-from app.system_events import log_system_event
 from app.process_control import INSTANCE_ID, schedule_restart
 from app.retention_presentation import (
     build_retention_presentation,
     unavailable_retention_presentation,
 )
-
+from app.system_events import log_system_event
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger(__name__)

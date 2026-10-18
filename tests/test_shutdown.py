@@ -1,11 +1,11 @@
 """Parent-owned shutdown, including real isolated process groups and workers."""
 import json
 import os
-from pathlib import Path
 import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest

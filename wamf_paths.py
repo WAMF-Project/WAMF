@@ -6,7 +6,6 @@ import yaml
 
 from app.config_editor import get_config_path
 
-
 REPO_ROOT = Path(__file__).resolve().parent
 DEFAULT_DATABASE_PATH = REPO_ROOT / "data" / "speciesid.db"
 DEFAULT_SNAPSHOTS_PATH = REPO_ROOT / "media" / "wamf" / "snapshots"

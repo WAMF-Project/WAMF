@@ -1,9 +1,8 @@
-from datetime import datetime, timezone
-from pathlib import Path
 import sqlite3
+from datetime import UTC, datetime
+from pathlib import Path
 
 from wamf_paths import get_database_path
-
 
 RETENTION_STATUS_MIGRATION = '005_retention_status_v2'
 
@@ -95,8 +94,8 @@ def _legacy_timestamp_sort_key(value):
     try:
         parsed = datetime.fromisoformat(value.strip().replace('Z', '+00:00'))
         if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc).timestamp()
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC).timestamp()
     except (ValueError, OverflowError, OSError):
         return None
 

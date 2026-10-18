@@ -4,26 +4,25 @@ Importing this module has no lifecycle side effects. The native supervisor is
 the sole owner of :func:`run_scheduler_child`.
 """
 
-from copy import deepcopy
-from datetime import datetime, timedelta
 import logging
 import os
 import select
 import signal
 import threading
 import time
+from copy import deepcopy
+from datetime import datetime, timedelta
 
 from apscheduler.executors.base import run_job
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.memory import MemoryJobStore
-from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.schedulers.base import SchedulerNotRunningError
+from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.calendarinterval import CalendarIntervalTrigger
 
 from app.process_control import configure_worker_signals
 from app.retention_schedule import parse_retention_schedule
 from app.retention_service import run_retention
-
 
 logger = logging.getLogger(__name__)
 SCHEDULED_JOB_ID = "wamf-retention"

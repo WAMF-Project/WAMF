@@ -1,11 +1,11 @@
 """Safe in-process retention phases and structured run results."""
 
+import logging
+import time
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-import logging
-import time
+from datetime import UTC, datetime, timedelta
 
 from app.config_loader import load_runtime_config
 from app.config_migration import migrate_config
@@ -23,7 +23,6 @@ from wamf_paths import (
     get_database_path,
     get_snapshots_path,
 )
-
 
 logger = logging.getLogger(__name__)
 DEFAULT_SNAPSHOTS_DAYS = 90
@@ -747,7 +746,7 @@ def _log_run_result(result, database_path):
 
 
 def _utc_now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _monotonic():

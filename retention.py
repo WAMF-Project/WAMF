@@ -7,7 +7,6 @@ from app.db import ensure_schema
 from app.retention_service import run_retention
 from wamf_paths import get_database_path
 
-
 logger = logging.getLogger(__name__)
 
 

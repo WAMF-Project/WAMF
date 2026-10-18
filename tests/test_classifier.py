@@ -1,16 +1,15 @@
 import json
-from contextlib import contextmanager
-from pathlib import Path
 import sqlite3
 import threading
+from contextlib import contextmanager
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-from PIL import Image
 import pytest
+from PIL import Image
 
 import speciesid
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = REPO_ROOT / 'model.tflite'
@@ -307,7 +306,7 @@ def test_live_archive_guard_starts_after_classification_and_ends_at_commit(tmp_p
         speciesid, "DBPATH", fresh_db
     ), patch.object(
         speciesid, "frigate_client", frigate
-    ), patch("speciesid.Image") as image, patch.object(
+    ), patch("speciesid.Image"), patch.object(
         speciesid, "classify", side_effect=classify
     ), patch.object(
         speciesid, "get_common_name", side_effect=get_common_name

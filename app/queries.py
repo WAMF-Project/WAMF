@@ -1,18 +1,19 @@
+import logging
 from collections import defaultdict
 from datetime import datetime
-import logging
 from pathlib import Path
 
 from app.db import (
+    DETECTION_SELECT,
     attach_names_db,
     connect_db,
     connect_names_db,
+)
+from app.db import (
     NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
-    DETECTION_SELECT,
 )
 from app.retention_state import get_retention_state
 from wamf_paths import get_clips_path, get_snapshots_path
-
 
 # Optional test/explicit override. None keeps config resolution dynamic.
 DBPATH = None

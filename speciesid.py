@@ -4,46 +4,46 @@ from app.bootstrap import DEFAULT_PORT, REPO_ROOT, preflight, prepare_native_sta
 if __name__ == "__main__":
     prepare_native_startup()
 
-import sqlite3
-from dataclasses import dataclass
-from pathlib import Path
-import logging
-import numpy as np
-from datetime import datetime
-import time
-import multiprocessing
-
-from ai_edge_litert.interpreter import Interpreter
-import paho.mqtt.client as mqtt
-from webui import app
-import sys
 import json
-from PIL import Image
+import logging
+import multiprocessing
+import sqlite3
+import sys
+import time
+from dataclasses import dataclass
+from datetime import datetime
 from io import BytesIO
-from app.queries import get_common_name, get_scientific_name
-from app.archive_media import (
-    archive_snapshot,
-    archive_clip
-)
-from app.system_events import log_system_event
-from version import VERSION
-from app.db import connect_db, ensure_schema
+from pathlib import Path
+
+import numpy as np
+import paho.mqtt.client as mqtt
+from ai_edge_litert.interpreter import Interpreter
+from PIL import Image
+
+from app.archive_media import archive_clip, archive_snapshot
 from app.config_editor import get_config_path
 from app.config_loader import load_runtime_config
-from app.process_control import WorkerSupervisor, configure_worker_signals
 from app.config_normalization import normalize_config
-from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
-from app.media_coordination import media_activity_guard
-from wamf_paths import ensure_storage_paths
-from integrations.bridge import post_observation_event
-from app.health import start_health_monitor, set_detection_worker_enabled
+from app.db import connect_db, ensure_schema
 from app.frigate_client import FrigateClient, FrigateError
+from app.health import set_detection_worker_enabled, start_health_monitor
+from app.media_coordination import media_activity_guard
+from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
+from app.process_control import WorkerSupervisor, configure_worker_signals
+from app.queries import get_common_name, get_scientific_name
 from app.retention_schedule import parse_retention_schedule
 from app.retention_scheduler import (
     SHUTDOWN_GRACE_SECONDS as RETENTION_SCHEDULER_SHUTDOWN_GRACE_SECONDS,
+)
+from app.retention_scheduler import (
     build_scheduler_config_snapshot,
     run_scheduler_child,
 )
+from app.system_events import log_system_event
+from integrations.bridge import post_observation_event
+from version import VERSION
+from wamf_paths import ensure_storage_paths
+from webui import app
 
 classifier = None
 classifier_input = None
@@ -984,11 +984,10 @@ def main():
             if scheduler_state is not None:
                 _monitor_scheduler_worker(workers, scheduler_state)
 
-            if mqtt_process is not None:
-                if not mqtt_process.is_alive():
-                    workers.reap(mqtt_process)
-                    logger.warning("MQTT subprocess exited unexpectedly; restarting")
-                    mqtt_process = workers.start(run_mqtt_client)
+            if mqtt_process is not None and not mqtt_process.is_alive():
+                workers.reap(mqtt_process)
+                logger.warning("MQTT subprocess exited unexpectedly; restarting")
+                mqtt_process = workers.start(run_mqtt_client)
 
         if workers.received_signal is not None:
             action = "Restart" if workers.restart_requested else "Shutdown"

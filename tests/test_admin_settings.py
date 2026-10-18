@@ -1,7 +1,7 @@
 """Focused coverage for the forms-based Administration Settings UI."""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 import pytest
 import yaml
@@ -771,13 +771,17 @@ def test_retention_controls_use_compact_explicit_labels_and_accurate_help(
     for field_name, help_text in (
         (
             "snapshots_days",
-            "Keep snapshots for this many days unless a species override applies. "
-            "Zero is allowed.",
+            (
+                "Keep snapshots for this many days unless a species override applies. "
+                "Zero is allowed."
+            ),
         ),
         (
             "clips_days",
-            "Keep clips for this many days unless a species override applies. "
-            "Zero is allowed.",
+            (
+                "Keep clips for this many days unless a species override applies. "
+                "Zero is allowed."
+            ),
         ),
         ("system_events_days", "Number of days to retain system log events."),
         (
@@ -1698,7 +1702,7 @@ def test_admin_status_moves_to_authenticated_sidebar_and_uses_real_states(
     assert 'class="admin-system-status"' in html
     assert "Attention needed" in html
     sidebar_status = re.search(
-        r'<section class="admin-system-status".*?</section>', html, re.S
+        r'<section class="admin-system-status".*?</section>', html, re.DOTALL
     ).group(0)
     assert 'href="/admin"' in sidebar_status
     assert 'aria-labelledby="admin-system-status-heading admin-system-status-text"' in sidebar_status
@@ -1760,8 +1764,10 @@ def test_settings_has_only_sticky_save_and_restart_actions(
         (False, "Settings saved. Restart WAMF to apply deployment changes."),
         (
             True,
-            "Settings saved, but setup is incomplete. Complete the required "
-            "settings before restarting WAMF.",
+            (
+                "Settings saved, but setup is incomplete. Complete the required "
+                "settings before restarting WAMF."
+            ),
         ),
     ],
 )

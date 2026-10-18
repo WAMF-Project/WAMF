@@ -1,8 +1,8 @@
-from datetime import datetime
 import logging
 import sqlite3
-from app.db import connect_db
+from datetime import datetime
 
+from app.db import connect_db
 
 # Optional test/explicit override. None keeps config resolution dynamic.
 DB_PATH = None

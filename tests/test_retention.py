@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta
 import sqlite3
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest

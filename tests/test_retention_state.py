@@ -1,15 +1,15 @@
-from contextlib import contextmanager
-from datetime import datetime, timezone
 import json
 import sqlite3
+from contextlib import contextmanager
+from datetime import UTC, datetime
 
 import pytest
 
 from app.db import RETENTION_STATUS_COLUMNS, ensure_schema
 from app.retention_service import RetentionPhaseResult, RetentionRunResult
 from app.retention_state import (
-    MAX_DIAGNOSTICS,
     MAX_DIAGNOSTIC_CHARS,
+    MAX_DIAGNOSTICS,
     MAX_DIAGNOSTICS_JSON_BYTES,
     RetentionStateRepository,
     deserialize_diagnostics,
@@ -487,9 +487,9 @@ def test_run_persists_actions_utc_timing_duration_and_all_skipped(tmp_path, monk
         orphan_scan_enabled=False,
     )
     wall = iter((
-        datetime(2026, 2, 3, 4, 5, 6, tzinfo=timezone.utc),
-        datetime(2026, 2, 3, 4, 5, 7, tzinfo=timezone.utc),
-        datetime(2026, 2, 3, 4, 5, 9, tzinfo=timezone.utc),
+        datetime(2026, 2, 3, 4, 5, 6, tzinfo=UTC),
+        datetime(2026, 2, 3, 4, 5, 7, tzinfo=UTC),
+        datetime(2026, 2, 3, 4, 5, 9, tzinfo=UTC),
     ))
     monotonic = iter((10.0, 20.0, 20.456))
     monkeypatch.setattr(retention_service, "_utc_now", lambda: next(wall))

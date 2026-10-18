@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta
 import importlib
 import logging
 import os
@@ -6,6 +5,7 @@ import sqlite3
 import subprocess
 import sys
 import threading
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
@@ -15,6 +15,7 @@ import yaml
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.blocking import BlockingScheduler
 
+from app import retention_scheduler
 from app.config_validation import validate_config
 from app.db import ensure_schema
 from app.retention_schedule import (
@@ -23,7 +24,6 @@ from app.retention_schedule import (
     RetentionScheduleError,
     parse_retention_schedule,
 )
-from app import retention_scheduler
 
 
 def schedule_config(*, enabled=True, time="03:00", timezone="UTC"):
@@ -352,6 +352,7 @@ with patch('apscheduler.schedulers.blocking.BlockingScheduler.start') as start:
 
     completed = subprocess.run(
         [sys.executable, "-c", script],
+        check=False,
         cwd=os.path.dirname(os.path.dirname(__file__)),
         env=env,
         capture_output=True,

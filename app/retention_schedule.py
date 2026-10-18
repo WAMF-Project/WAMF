@@ -1,11 +1,10 @@
 """Shared parsing for the single native retention schedule."""
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import time
-import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-
 
 DEFAULT_RETENTION_SCHEDULE_ENABLED = False
 DEFAULT_RETENTION_SCHEDULE_TIME = "03:00"

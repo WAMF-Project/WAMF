@@ -5,7 +5,7 @@ import re
 import pytest
 
 from app.retention_presentation import build_retention_presentation
-from app.retention_state import MAX_DIAGNOSTICS, MAX_DIAGNOSTIC_CHARS
+from app.retention_state import MAX_DIAGNOSTIC_CHARS, MAX_DIAGNOSTICS
 
 
 def schedule_config(enabled=True):
@@ -208,8 +208,8 @@ def test_diagnostics_reuse_bounding_and_redaction_and_ignore_raw_json():
 
 @pytest.fixture
 def admin_page(flask_client, monkeypatch):
-    import webui
     import routes.admin as admin_routes
+    import webui
 
     health = {
         "frigate_online": True, "mqtt_online": True,
@@ -220,7 +220,7 @@ def admin_page(flask_client, monkeypatch):
         "total_detections": 3, "archived_snapshots": 2,
         "archived_clips": 1, "archive_size_mb": 7,
     })
-    monkeypatch.setattr(webui, "get_recent_system_events", lambda: [])
+    monkeypatch.setattr(webui, "get_recent_system_events", list)
     monkeypatch.setattr(webui, "get_retention_status", lambda: native_state())
     monkeypatch.setattr(admin_routes, "load_runtime_config", schedule_config)
     with flask_client.session_transaction() as session:
@@ -386,7 +386,7 @@ def test_compact_sidebar_links_to_health_and_preserves_overall_state(admin_page,
         "archive_writable": True, "disk_used_percent": 10,
     })
     html = client.get("/admin").get_data(as_text=True)
-    sidebar = re.search(r'<section class="admin-system-status".*?</section>', html, re.S).group(0)
+    sidebar = re.search(r'<section class="admin-system-status".*?</section>', html, re.DOTALL).group(0)
     assert f'status-{overall}' in sidebar
     assert label in sidebar
     assert f'aria-hidden="true">{icon}</span>' in sidebar

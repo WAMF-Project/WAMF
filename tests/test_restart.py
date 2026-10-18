@@ -1,10 +1,10 @@
 """Admin restart uses the native parent, not an external service manager."""
 import os
-from pathlib import Path
 import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -41,10 +41,12 @@ def test_restart_joins_all_workers_before_exec_and_stop_overrides_restart(ordina
 def test_restart_reaps_scheduler_with_bounded_grace_before_reexec():
     scheduler = MagicMock(pid=103)
     scheduler.is_alive.side_effect = [True, False]
-    with patch('app.process_control.reexec_application') as reexec:
-        with WorkerSupervisor(MagicMock(return_value=scheduler)) as workers:
-            workers.start(lambda: None, shutdown_grace_seconds=32)
-            workers._request_shutdown(signal.SIGUSR1, None)
+    with (
+        patch('app.process_control.reexec_application') as reexec,
+        WorkerSupervisor(MagicMock(return_value=scheduler)) as workers,
+    ):
+        workers.start(lambda: None, shutdown_grace_seconds=32)
+        workers._request_shutdown(signal.SIGUSR1, None)
 
     scheduler.terminate.assert_called_once()
     scheduler.join.assert_called_once_with(timeout=32)

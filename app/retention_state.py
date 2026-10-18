@@ -7,7 +7,6 @@ import re
 
 from app.db import connect_db
 
-
 RECORD_VERSION = 1
 MAX_DIAGNOSTICS = 10
 MAX_DIAGNOSTIC_CHARS = 240

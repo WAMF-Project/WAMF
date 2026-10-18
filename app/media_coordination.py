@@ -1,13 +1,12 @@
 """Cross-thread/process coordination for archive writes and retention scans."""
 
-from contextlib import contextmanager
 import fcntl
 import os
-from pathlib import Path
 import threading
+from contextlib import contextmanager
+from pathlib import Path
 
 from wamf_paths import get_database_path
-
 
 LOCK_MODE = 0o600
 _locks_guard = threading.Lock()

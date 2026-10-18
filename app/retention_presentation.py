@@ -1,7 +1,7 @@
 """Read-only formatting for the Admin Retention card."""
 
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.retention_schedule import parse_retention_schedule
 from app.retention_state import deserialize_diagnostics, serialize_diagnostics
@@ -25,7 +25,7 @@ def unavailable_retention_presentation():
 def build_retention_presentation(state, config, *, status_available=True):
     """Format native fields without inferring execution or scheduler state."""
     view = unavailable_retention_presentation()
-    display_zone = timezone.utc
+    display_zone = UTC
     try:
         schedule = parse_retention_schedule(config)
         display_zone = schedule.timezone

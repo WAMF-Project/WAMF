@@ -3,11 +3,10 @@
 import logging
 import os
 import secrets
-import sys
 import signal
+import sys
 import threading
 import time
-
 
 logger = logging.getLogger(__name__)
 INSTANCE_ID = secrets.token_hex(16)
