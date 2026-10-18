@@ -147,8 +147,8 @@ def _validate_frigate(config, errors, readiness_issues):
         )
 
 
-def _validate_mqtt(mqtt, errors, readiness_issues):
-    for field in ("host", "topic_prefix"):
+def _validate_mqtt(mqtt, errors, readiness_issues, *, connection_only=False):
+    for field in (("host",) if connection_only else ("host", "topic_prefix")):
         value = mqtt.get(field)
         path = f"mqtt.{field}"
         if value is not None and not isinstance(value, str):
@@ -258,6 +258,21 @@ def _validate_retention_policy(config, errors):
             if separator:
                 detail = f"must {detail}"
         errors.append(ValidationIssue(field, detail or message))
+
+
+def validate_mqtt_connection_config(config):
+    """Validate only MQTT connection fields, without unrelated readiness checks."""
+    if not isinstance(config, Mapping):
+        return ConfigValidationResult(
+            errors=(ValidationIssue("configuration", "must be a YAML mapping"),)
+        )
+    mqtt_config = {"mqtt": config.get("mqtt", {})}
+    errors = _mapping_errors(mqtt_config)
+    readiness_issues = []
+    if not errors:
+        mqtt = normalize_config(mqtt_config).config["mqtt"]
+        _validate_mqtt(mqtt, errors, readiness_issues, connection_only=True)
+    return ConfigValidationResult(tuple(errors), tuple(readiness_issues))
 
 
 def validate_config(config):

@@ -2,6 +2,8 @@
 
 import logging
 import secrets
+from dataclasses import asdict
+from datetime import datetime, timezone
 from zoneinfo import available_timezones
 
 import yaml
@@ -31,7 +33,9 @@ from app.config_secrets import (
     merge_embedded_secrets,
     secret_updates,
 )
-from app.config_validation import validate_config
+from app.config_validation import validate_config, validate_mqtt_connection_config
+from app.mqtt_connection import MESSAGES, MqttProbeResult, probe_mqtt_connection
+from app.mqtt_settings import mqtt_settings_from_config
 from app.process_control import INSTANCE_ID, schedule_restart
 from app.retention_presentation import (
     build_retention_presentation,
@@ -591,6 +595,33 @@ def restart_status():
     # A new value proves the parent re-executed, rather than just the old UI
     # continuing to answer during the response grace period.
     return {"instance_id": INSTANCE_ID}, 200, {"Cache-Control": "no-store"}
+
+
+@admin_bp.after_request
+def mqtt_test_no_store(response):
+    # Includes authentication redirects and CSRF failures from before_request.
+    if request.endpoint == 'admin.test_mqtt_connection':
+        response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@admin_bp.route('/admin/config/mqtt/test', methods=['POST'])
+def test_mqtt_connection():
+    """Test saved settings only; never consume form/JSON connection overrides."""
+    code = 'configuration_error'
+    try:
+        config = load_runtime_config()
+        if validate_mqtt_connection_config(config).is_ready:
+            settings = mqtt_settings_from_config(config)
+            code = 'internal_error'
+            return asdict(probe_mqtt_connection(settings))
+    except Exception:
+        # Neither configuration nor probe exceptions may disclose secret values.
+        pass
+    return asdict(MqttProbeResult(
+        success=False, code=code, safe_message=MESSAGES[code], duration_ms=0,
+        completed_at=datetime.now(timezone.utc).isoformat(),
+    ))
 
 
 @admin_bp.route('/admin/config/restart', methods=['POST'])

@@ -195,6 +195,13 @@
           <div class="settings-field settings-grid-spaced"><label for="mqtt_tls_ca_certs">CA certificate path</label><input id="mqtt_tls_ca_certs" name="mqtt_tls_ca_certs" type="text" value="{{ settings.mqtt_tls_ca_certs }}" aria-describedby="mqtt_tls_ca_certs_help" /><small id="mqtt_tls_ca_certs_help">Optional path to a CA certificate used to verify the broker.</small>{% if field_errors.mqtt_tls_ca_certs %}<span class="settings-field-error">{{ field_errors.mqtt_tls_ca_certs }}</span>{% endif %}</div>
         </fieldset>
       </div>
+      <div class="settings-card">
+        <h3>Test saved connection</h3>
+        <p id="mqtt-test-help">Tests saved MQTT settings. Save changes before testing.</p>
+        <button class="settings-button settings-button-secondary" id="mqtt-test-button" type="button" aria-describedby="mqtt-test-help mqtt-test-scope">Test connection</button>
+        <p id="mqtt-test-result" role="status" aria-live="polite" aria-atomic="true"></p>
+        <small id="mqtt-test-scope">Subscription permissions and event delivery were not tested.</small>
+      </div>
     </section>
 
     <section class="settings-section" id="frigate" aria-labelledby="frigate-heading">
@@ -446,6 +453,61 @@
       box.textContent = message;
       box.style.display = 'block';
     }
+
+    const mqttTestButton = document.getElementById('mqtt-test-button');
+    const mqttTestResult = document.getElementById('mqtt-test-result');
+    let mqttTestPending = false;
+    let mqttConnectionRevision = 0;
+    const mqttStaleMessage = 'Settings changed. This result is stale. Save changes and test again.';
+
+    ['mqtt_host', 'mqtt_port', 'mqtt_authentication_enabled', 'mqtt_username',
+      'mqtt_password', 'mqtt_tls_enabled', 'mqtt_tls_insecure', 'mqtt_tls_ca_certs'
+    ].forEach(function (id) {
+      function invalidateMqttResult() {
+        mqttConnectionRevision += 1;
+        if (!mqttTestPending && mqttTestResult.textContent) {
+          mqttTestResult.textContent = mqttStaleMessage;
+        }
+      }
+      document.getElementById(id).addEventListener('input', invalidateMqttResult);
+      document.getElementById(id).addEventListener('change', invalidateMqttResult);
+    });
+
+    mqttTestButton.addEventListener('click', async function () {
+      if (mqttTestPending) return;
+      mqttTestPending = true;
+      mqttTestButton.disabled = true;
+      mqttTestButton.textContent = 'Testing…';
+      mqttTestResult.textContent = 'Testing saved MQTT settings…';
+      const testedRevision = mqttConnectionRevision;
+      try {
+        const response = await fetch('{{ url_for("admin.test_mqtt_connection") }}', {
+          method: 'POST',
+          headers: {'X-CSRFToken': {{ csrf_token|tojson }}},
+          cache: 'no-store'
+        });
+        if (response.redirected) { window.location.assign(response.url); return; }
+        if (response.status === 401 || response.status === 403) {
+          mqttTestResult.textContent = 'Admin login required. Refresh the page and sign in again.';
+        } else if (response.status === 400) {
+          mqttTestResult.textContent = 'Security token expired. Refresh the page and try again.';
+        } else if (!response.ok) {
+          mqttTestResult.textContent = 'Connection test could not be completed. Try again when ready.';
+        } else {
+          const result = await response.json();
+          mqttTestResult.textContent = (result.success ? 'Success: ' : 'Failed: ') + result.safe_message;
+        }
+      } catch (error) {
+        mqttTestResult.textContent = 'Connection test response was not received. The outcome is unknown. Try again when ready.';
+      } finally {
+        if (testedRevision !== mqttConnectionRevision) {
+          mqttTestResult.textContent += ' ' + mqttStaleMessage;
+        }
+        mqttTestPending = false;
+        mqttTestButton.disabled = false;
+        mqttTestButton.textContent = 'Test connection';
+      }
+    });
 
     let restartPending = false;
 
