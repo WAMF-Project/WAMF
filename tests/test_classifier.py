@@ -18,6 +18,26 @@ GOLDEN_SNAPSHOT_PATH = (
 )
 
 
+@pytest.fixture(autouse=True)
+def restore_classifier_state():
+    """Release each test's interpreter, including its native XNNPACK threads.
+
+    Native deployment initializes the classifier only in the MQTT child.
+    Keeping this test's interpreter in speciesid globals instead leaks its
+    native threads into later supervisor/manager tests in the pytest parent.
+    """
+    names = (
+        'classifier', 'classifier_input', 'classifier_output',
+        'classifier_display_names', 'classifier_category_names',
+    )
+    previous = {name: getattr(speciesid, name) for name in names}
+    try:
+        yield
+    finally:
+        for name, value in previous.items():
+            setattr(speciesid, name, value)
+
+
 class FakeInterpreter:
     def __init__(self, *, model_path, num_threads):
         self.model_path = model_path

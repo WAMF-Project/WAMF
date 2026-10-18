@@ -48,7 +48,7 @@ def reexec_application():
 class WorkerSupervisor:
     """Own worker lifetime, including startup failures and parent-only signals."""
 
-    def __init__(self, process_factory):
+    def __init__(self, process_factory, *, on_workers_stopped=None):
         self.process_factory = process_factory
         self.children = []
         self.stopping = False
@@ -58,6 +58,8 @@ class WorkerSupervisor:
         self.owner_pid = os.getpid()
         self.previous_handlers = {}
         self.shutdown_grace_seconds = {}
+        self.exit_callbacks = {}
+        self.on_workers_stopped = on_workers_stopped
 
     def _request_shutdown(self, signum, frame):
         # fork() initially inherits these handlers. A TERM arriving before the
@@ -93,13 +95,15 @@ class WorkerSupervisor:
             )
         return self
 
-    def start(self, target, *, args=(), shutdown_grace_seconds=None):
+    def start(self, target, *, args=(), shutdown_grace_seconds=None, on_exit=None):
         if self.stopping:
             return None
         process = self.process_factory(target=target, args=args)
         # Register before start: a signal during fork must not leave an
         # untracked child. The signal handler only sets a flag in the parent.
         self.children.append(process)
+        if on_exit is not None:
+            self.exit_callbacks[id(process)] = on_exit
         if shutdown_grace_seconds is not None:
             self.shutdown_grace_seconds[id(process)] = shutdown_grace_seconds
         process.start()
@@ -107,8 +111,20 @@ class WorkerSupervisor:
 
     def reap(self, process):
         process.join()
+        self._notify_exit(process)
         self.children.remove(process)
         self.shutdown_grace_seconds.pop(id(process), None)
+
+    def _notify_exit(self, process):
+        callback = self.exit_callbacks.pop(id(process), None)
+        if callback is not None:
+            callback()
+
+    def _close_resources(self):
+        callback = self.on_workers_stopped
+        self.on_workers_stopped = None
+        if callback is not None:
+            callback()
 
     def __exit__(self, exc_type, exc_value, traceback):
         global _supervisor_pid
@@ -116,6 +132,7 @@ class WorkerSupervisor:
         try:
             # Signal every live child before waiting for any one of them.
             for process in self.children:
+                self._notify_exit(process)
                 if process.pid is not None and process.is_alive():
                     process.terminate()
             for process in self.children:
@@ -135,10 +152,12 @@ class WorkerSupervisor:
                         process.kill()
                         process.join()
             self.children_joined = True
+            self._close_resources()
             if exc_type is None and self.restart_requested:
                 logger.info("All child processes joined; re-executing WAMF")
                 reexec_application()
         finally:
+            self._close_resources()
             _supervisor_pid = self.previous_supervisor_pid
             for signum, handler in self.previous_handlers.items():
                 signal.signal(signum, handler)

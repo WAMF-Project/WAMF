@@ -10,7 +10,7 @@ import multiprocessing
 import sqlite3
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -30,6 +30,7 @@ from app.health import set_detection_worker_enabled, start_health_monitor
 from app.media_coordination import media_activity_guard
 from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
 from app.mqtt_connection import configure_mqtt_client
+from app.mqtt_runtime import MqttRuntimeDiagnostics
 from app.process_control import WorkerSupervisor, configure_worker_signals
 from app.queries import get_common_name, get_scientific_name
 from app.retention_schedule import parse_retention_schedule
@@ -82,6 +83,29 @@ class SchedulerWorkerState:
     started_at: float | None = None
     restart_at: float | None = None
     restart_delay: float = SCHEDULER_RESTART_INITIAL_SECONDS
+
+
+@dataclass
+class MqttConsumerContext:
+    settings: MqttSettings = field(repr=False)
+    runtime: object = field(repr=False)
+    subscription_mid: int | None = None
+
+
+def _record_mqtt_runtime(userdata, action, reason=None):
+    if isinstance(userdata, MqttConsumerContext):
+        userdata.runtime.record(action, reason)
+
+
+def _start_mqtt_worker(workers, runtime):
+    writer = runtime.begin_worker()
+    process = workers.start(
+        run_mqtt_client, args=(writer,),
+        on_exit=lambda: runtime.stop_worker(writer),
+    )
+    if process is None:
+        runtime.stop_worker(writer)
+    return process
 
 
 def _start_scheduler_worker(workers, state, *, monotonic=time.monotonic):
@@ -209,9 +233,13 @@ def initialize_classifier(model_path):
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
+    if isinstance(userdata, MqttConsumerContext):
+        userdata.subscription_mid = None
     if reason_code != 0:
+        _record_mqtt_runtime(userdata, "connack_rejected", reason_code)
         logger.warning("MQTT connection refused: %s", reason_code)
         return
+    _record_mqtt_runtime(userdata, "connack_accepted", reason_code)
     logger.info("MQTT connected")
 
     log_system_event(
@@ -221,17 +249,35 @@ def on_connect(client, userdata, flags, reason_code, properties):
     )
 
     settings = _mqtt_runtime_settings(userdata)
-    client.subscribe(f"{settings.topic_prefix}/events")
+    result = client.subscribe(f"{settings.topic_prefix}/events")
+    if isinstance(userdata, MqttConsumerContext):
+        rc, mid = result
+        if rc == mqtt.MQTT_ERR_SUCCESS:
+            userdata.subscription_mid = mid
+        else:
+            _record_mqtt_runtime(userdata, "subscription_failed")
 
 
 def on_subscribe(client, userdata, mid, reason_codes, properties):
+    expected_ack = (
+        isinstance(userdata, MqttConsumerContext)
+        and userdata.subscription_mid is not None
+        and mid == userdata.subscription_mid
+    )
     if not reason_codes or any(code.is_failure for code in reason_codes):
+        if expected_ack:
+            _record_mqtt_runtime(userdata, "subscription_failed")
         logger.warning("MQTT event subscription refused")
         return
+    if expected_ack:
+        _record_mqtt_runtime(userdata, "subscribed")
     logger.info("MQTT event subscription ready")
 
 
 def on_disconnect(client, userdata, flags, reason_code, properties):
+    if isinstance(userdata, MqttConsumerContext):
+        userdata.subscription_mid = None
+    _record_mqtt_runtime(userdata, "disconnect", reason_code)
     if reason_code != 0:
         logger.warning("Unexpected MQTT disconnection, trying to reconnect")
         while True:
@@ -516,7 +562,10 @@ def _on_message_inner(client, userdata, message):
 
     settings = _mqtt_runtime_settings(userdata)
     expected_topic = f"{settings.topic_prefix}/events"
-    if message.retain or message.topic != expected_topic:
+    if message.topic != expected_topic:
+        return
+    _record_mqtt_runtime(userdata, "event_received")
+    if message.retain:
         return
 
     return _process_live_message(client, message)
@@ -850,12 +899,16 @@ def load_config():
 
 
 def _mqtt_runtime_settings(userdata=None):
+    if isinstance(userdata, MqttConsumerContext):
+        return userdata.settings
     if isinstance(userdata, MqttSettings):
         return userdata
     return mqtt_settings_from_config(normalize_config(config).config)
 
 
-def run_webui():
+def run_webui(mqtt_runtime_reader=None):
+    # Explicit cross-process read handle for M4. No route, global registration,
+    # or change to today's request-driven System Health/probe behaviour.
     configure_worker_signals()
     logger.info("Starting Flask app")
 
@@ -869,8 +922,11 @@ def run_webui():
     )
 
 
-def run_mqtt_client():
+def run_mqtt_client(runtime_writer=None):
     configure_worker_signals()
+
+    if runtime_writer is not None:
+        runtime_writer.record("started")
 
     settings = _mqtt_runtime_settings()
 
@@ -894,7 +950,10 @@ def run_mqtt_client():
         callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
         client_id="birdspeciesid" + current_time
     )
-    client.user_data_set(settings)
+    client.user_data_set(
+        MqttConsumerContext(settings, runtime_writer)
+        if runtime_writer is not None else settings
+    )
 
     client.on_message = on_message
     client.on_subscribe = on_subscribe
@@ -945,7 +1004,10 @@ def main():
             config_snapshot=build_scheduler_config_snapshot(config)
         )
 
-    with WorkerSupervisor(multiprocessing.Process) as workers:
+    mqtt_runtime = MqttRuntimeDiagnostics()
+    with WorkerSupervisor(
+        multiprocessing.Process, on_workers_stopped=mqtt_runtime.close,
+    ) as workers:
         mqtt_process = None
         if setup_issues:
             logger.warning(
@@ -955,11 +1017,11 @@ def main():
                 ', '.join(setup_issues),
                 config.get('webui', {}).get('port', DEFAULT_PORT),
             )
-            flask_process = workers.start(run_webui)
+            flask_process = workers.start(run_webui, args=(mqtt_runtime.reader,))
         else:
             logger.info("Starting processes for Flask and MQTT")
-            flask_process = workers.start(run_webui)
-            mqtt_process = workers.start(run_mqtt_client)
+            flask_process = workers.start(run_webui, args=(mqtt_runtime.reader,))
+            mqtt_process = _start_mqtt_worker(workers, mqtt_runtime)
 
         if scheduler_state is not None:
             logger.info("Starting native retention scheduler process")
@@ -981,7 +1043,7 @@ def main():
             if mqtt_process is not None and not mqtt_process.is_alive():
                 workers.reap(mqtt_process)
                 logger.warning("MQTT subprocess exited unexpectedly; restarting")
-                mqtt_process = workers.start(run_mqtt_client)
+                mqtt_process = _start_mqtt_worker(workers, mqtt_runtime)
 
         if workers.received_signal is not None:
             action = "Restart" if workers.restart_requested else "Shutdown"
