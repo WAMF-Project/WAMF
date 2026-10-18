@@ -7,8 +7,8 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y ffmpeg libsm6 libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements/ ./requirements/
-RUN pip install --no-cache-dir -r requirements/base.txt
+COPY requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY model.tflite .
 COPY birdnames.db .

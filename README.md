@@ -303,7 +303,7 @@ setup, existing-install migration, and validation details.
 
 ---
 
-# Development
+# Native installation and development
 
 ```bash
 
@@ -314,6 +314,21 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 ```
+
+`requirements.txt` is the fully pinned runtime manifest. For Python tests and
+development, also install the canonical developer manifest in the same venv:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+Docker, CI, and the native setup above use Python 3.11. Bird-Lab development
+uses the existing Python 3.12 `.venv312`; run its tests with
+`.venv312/bin/python -m pytest tests/ -v` without rebuilding that environment.
+Dependency pins reflect the validated runtime
+closure; update them only as part of a separately validated dependency change.
+Playwright/browser QA remains npm-based;
+see [Browser QA](docs/browser-testing.md).
 
 Run the native application:
 

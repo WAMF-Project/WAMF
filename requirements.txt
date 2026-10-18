@@ -1,1 +1,32 @@
--r requirements/base.txt
+# Runtime baseline: validated Kingfisher environment (CPython 3.12 on Bird-Lab).
+# Docker and CI remain on Python 3.11; do not resolve to newer versions.
+# Direct WAMF runtime dependencies (OpenCV retained pending separate review).
+ai-edge-litert==2.2.0
+APScheduler==3.11.3
+Flask==2.3.2
+numpy==1.26.4
+opencv-python==4.7.0.72
+paho-mqtt==2.1.0
+Pillow==10.4.0
+PyYAML==6.0.2
+requests==2.30.0
+tzdata==2026.4
+Werkzeug==2.3.8
+
+# Transitive runtime dependencies from installed package metadata (no extras).
+backports.strenum==1.2.8
+blinker==1.9.0
+certifi==2026.7.22
+charset-normalizer==3.5.1
+click==8.5.0
+flatbuffers==25.12.19
+idna==3.20
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+ml_dtypes==0.5.4
+protobuf==7.36.2
+tqdm==4.70.1
+typing-extensions==4.16.0
+tzlocal==5.4.4
+urllib3==2.8.0

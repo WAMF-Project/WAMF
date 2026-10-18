@@ -2,6 +2,7 @@ import json
 import sqlite3
 import threading
 from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -13,9 +14,18 @@ import speciesid
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = REPO_ROOT / 'model.tflite'
-GOLDEN_SNAPSHOT_PATH = (
-    REPO_ROOT / 'media/wamf/snapshots/1779981851.294031-5nvuxv.jpg'
-)
+
+
+@pytest.fixture
+def synthetic_snapshot():
+    """Portable, non-square RGB input; no camera or local media required."""
+    rows, columns = np.indices((120, 320))
+    pixels = np.stack(
+        (columns % 256, rows % 256, (rows + columns) % 256), axis=-1
+    ).astype(np.uint8)
+    snapshot = BytesIO()
+    Image.fromarray(pixels).save(snapshot, format='PNG')
+    return snapshot.getvalue()
 
 
 @pytest.fixture(autouse=True)
@@ -98,6 +108,8 @@ def test_litert_initialization_and_category_compatibility():
         display_name='Cyanistes caeruleus',
         category_name='/m/01kvvt',
     )]
+    with patch('app.queries.NAMEDBPATH', str(REPO_ROOT / 'birdnames.db')):
+        assert speciesid.get_common_name(categories[0].display_name) == 'Eurasian Blue Tit'
 
 
 def test_classifier_filters_sorts_and_limits_results():
@@ -129,10 +141,10 @@ def test_classifier_filters_sorts_and_limits_results():
     assert 10 not in [category.index for category in categories]
 
 
-def test_event_pipeline_directly_resizes_golden_snapshot(tmp_path):
+def test_event_pipeline_directly_resizes_snapshot(tmp_path, synthetic_snapshot):
     frigate_client = MagicMock()
     frigate_client.get_event_snapshot.return_value = (
-        GOLDEN_SNAPSHOT_PATH.read_bytes()
+        synthetic_snapshot
     )
     message = MagicMock(
         retain=False,
@@ -178,7 +190,7 @@ def test_event_pipeline_directly_resizes_golden_snapshot(tmp_path):
     )
 
     classified_image = classify.call_args.args[0]
-    source = Image.open(GOLDEN_SNAPSHOT_PATH).convert('RGB')
+    source = Image.open(BytesIO(synthetic_snapshot)).convert('RGB')
     expected = np.ascontiguousarray(
         np.array(source.resize((224, 224)), dtype=np.uint8)
     )
@@ -201,22 +213,20 @@ def test_event_pipeline_directly_resizes_golden_snapshot(tmp_path):
     assert not np.array_equal(classified_image, letterboxed)
 
 
-def test_golden_image_matches_existing_classification_and_name_database():
+def test_synthetic_image_runs_bundled_model(synthetic_snapshot):
     speciesid.initialize_classifier(MODEL_PATH)
     image = Image.open(
-        GOLDEN_SNAPSHOT_PATH
+        BytesIO(synthetic_snapshot)
     ).convert('RGB').resize((224, 224))
 
     categories = speciesid.classify(np.asarray(image, dtype=np.uint8))
 
     assert categories == [speciesid.Category(
-        index=665,
-        score=0.0859375,
-        display_name='Cyanistes caeruleus',
-        category_name='/m/01kvvt',
+        index=964,
+        score=0.92578125,
+        display_name='None',
+        category_name='__background__',
     )]
-    with patch('app.queries.NAMEDBPATH', str(REPO_ROOT / 'birdnames.db')):
-        assert speciesid.get_common_name(categories[0].display_name) == 'Eurasian Blue Tit'
 
 
 def _qualifying_message(event_id):
