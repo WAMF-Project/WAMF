@@ -2,9 +2,10 @@
 
 # Python test tools and their dependencies, pinned to the validated environment.
 # Browser QA is managed separately by package.json/package-lock.json.
-pytest==8.3.4
+pytest==9.1.1
 pytest-cov==6.0.0
 coverage==7.16.1
 iniconfig==2.3.0
 packaging==26.3
 pluggy==1.6.0
+Pygments==2.21.0

@@ -26,6 +26,16 @@ from app.retention_schedule import (
 )
 
 
+@pytest.fixture(autouse=True)
+def restore_signal_wakeup_fd():
+    # Child-process tests share pytest's process; do not leak their wakeup fd.
+    previous = retention_scheduler.signal.set_wakeup_fd(-1)
+    try:
+        yield
+    finally:
+        retention_scheduler.signal.set_wakeup_fd(previous)
+
+
 def schedule_config(*, enabled=True, time="03:00", timezone="UTC"):
     return {
         "retention": {
