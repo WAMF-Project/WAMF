@@ -66,7 +66,7 @@ while remaining compatible with the original Frigate-based bird detection workfl
 - GitHub Container Registry images
 - Automated CI pipeline
 - Vulnerability scanning
-- Python 3.11 environment
+- Python 3.12 primary runtime for Kingfisher
 - Modern Flask-based web UI
 
 ---
@@ -305,9 +305,13 @@ setup, existing-install migration, and validation details.
 
 # Native installation and development
 
+Python 3.12 is the primary and recommended native runtime for WAMF 0.5.0
+Kingfisher. Python 3.11 is retained temporarily as a compatibility fallback
+during development. Docker and CI currently still use Python 3.11.
+
 ```bash
 
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 
 source .venv/bin/activate
 
@@ -322,8 +326,7 @@ development, also install the canonical developer manifest in the same venv:
 python -m pip install -r requirements-dev.txt
 ```
 
-Docker, CI, and the native setup above use Python 3.11. Bird-Lab development
-uses the existing Python 3.12 `.venv312`; run its tests with
+Bird-Lab development uses the existing Python 3.12 `.venv312`; run its tests with
 `.venv312/bin/python -m pytest tests/ -v` without rebuilding that environment.
 Dependency pins reflect the validated runtime
 closure; update them only as part of a separately validated dependency change.

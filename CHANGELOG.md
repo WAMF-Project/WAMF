@@ -43,6 +43,11 @@ versioning for releases.
 - Improved configuration persistence with process-safe locking, atomic replacement, durable writes, and retained backups shared by bootstrap, Settings, password changes, and API token updates.
 - Standardized Frigate HTTP access and completed the transition to WAMF-owned archived media in the interface, removing the legacy `/frigate/...` media proxy routes and closing streamed clip responses reliably.
 - Made the retention scheduler a dedicated WAMF Core supervisor-owned process, with recovery after unexpected exits, capped restart backoff, and bounded shutdown/restart handling. Local scheduled cleanup can run while incomplete Frigate/MQTT setup disables detection. Added APScheduler and bundled timezone data for scheduling; one Core supervisor per database is the supported deployment model.
+- Consolidated runtime and development requirements into `requirements.txt` and `requirements-dev.txt`.
+- Removed unused OpenCV and obsolete Docker ffmpeg, libsm6, and libxext6 dependencies.
+- Updated Requests, Certifi, tzdata, LiteRT, Flask, Werkzeug, and Pillow, preserving existing PBKDF2 credential behavior and verifying classifier preprocessing and inference remained unchanged.
+- Updated pytest to address CVE-2025-71176.
+- Retained NumPy 1.26.4 for Kingfisher after reviewing NumPy 2.x compatibility, and confirmed protobuf was already current and compatible with LiteRT.
 
 ### Fixed
 
