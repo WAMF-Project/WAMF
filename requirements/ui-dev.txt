@@ -1,5 +1,5 @@
 Flask==2.3.2
-paho_mqtt==1.6.1
+paho_mqtt==2.1.0
 PyYAML>=6.0.2
 requests==2.30.0
 Pillow==10.4.0

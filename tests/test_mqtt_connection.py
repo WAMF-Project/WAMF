@@ -7,10 +7,15 @@ import ssl
 import subprocess
 import sys
 import time
+import warnings
 from dataclasses import asdict
 from unittest.mock import MagicMock
 
 import pytest
+
+from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.properties import Properties
+from paho.mqtt.reasoncodes import ReasonCode
 
 from app import mqtt_connection as connection
 from app.mqtt_settings import MqttSettings
@@ -20,7 +25,10 @@ from app.mqtt_settings import MqttSettings
 def client(monkeypatch):
     client = MagicMock()
     client.connect.return_value = 0
-    client.loop.side_effect = lambda **kwargs: client.on_connect(client, None, {}, 0) or 0
+    client.loop.side_effect = lambda **kwargs: client.on_connect(
+        client, None, connection.mqtt.ConnectFlags(False),
+        ReasonCode(PacketTypes.CONNACK, "Success"), Properties(PacketTypes.CONNACK)
+    ) or 0
     factory = MagicMock(return_value=client)
     monkeypatch.setattr(connection.mqtt, "Client", factory)
     client.factory = factory
@@ -63,6 +71,7 @@ def test_plain_settings_and_unique_clean_probe_ids(client):
     ids = [call.kwargs["client_id"] for call in client.factory.call_args_list]
     assert ids[0] != ids[1]
     for call in client.factory.call_args_list:
+        assert call.kwargs["callback_api_version"] is connection.mqtt.CallbackAPIVersion.VERSION2
         assert call.kwargs["clean_session"] is True
         assert call.kwargs["reconnect_on_failure"] is False
     client.username_pw_set.assert_not_called()
@@ -74,7 +83,10 @@ def test_plain_settings_and_unique_clean_probe_ids(client):
                                          (1, "connection_rejected"), (2, "connection_rejected"),
                                          (3, "connection_rejected")])
 def test_connack_rejected(client, rc, expected):
-    client.loop.side_effect = lambda **kwargs: client.on_connect(client, None, {}, rc) or 0
+    client.loop.side_effect = lambda **kwargs: client.on_connect(
+        client, None, connection.mqtt.ConnectFlags(False),
+        connection.mqtt.convert_connack_rc_to_reason_code(rc), Properties(PacketTypes.CONNACK)
+    ) or 0
     assert connection._probe_in_worker(MqttSettings(host="broker"), 1) == expected
     assert_no_event_operations(client)
 
@@ -115,7 +127,11 @@ def test_setup_failure_and_cleanup_failure_are_sanitized(client, caplog):
 def test_closed_before_acceptance(client, callback):
     def loop(**kwargs):
         if callback:
-            client.on_disconnect(client, None, 7)
+            client.on_disconnect(
+                client, None, connection.mqtt.DisconnectFlags(False),
+                ReasonCode(PacketTypes.DISCONNECT, "Unspecified error"),
+                Properties(PacketTypes.DISCONNECT),
+            )
         return connection.mqtt.MQTT_ERR_CONN_LOST
     client.loop.side_effect = loop
     assert connection._probe_in_worker(MqttSettings(host="broker"), 1) == "closed_before_acceptance"
@@ -216,3 +232,58 @@ def test_probe_does_not_read_or_write_configuration(tmp_path, monkeypatch):
     result = connection.probe_mqtt_connection(MqttSettings(host=""))
     assert result.code == "configuration_error"
     assert before == {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+
+@pytest.mark.parametrize("insecure", [False, True])
+def test_real_paho_tls_setup_preserves_verification_without_deprecation(insecure):
+    client = connection.mqtt.Client(connection.mqtt.CallbackAPIVersion.VERSION2)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        connection.configure_mqtt_client(client, MqttSettings(
+            host="broker", tls_enabled=True, tls_insecure=insecure,
+            authentication_enabled=True, username="PRIVATE-USER", password="PRIVATE-PASSWORD",
+        ))
+    assert client._ssl_context.verify_mode == ssl.CERT_REQUIRED
+    assert client._ssl_context.check_hostname is (not insecure)
+    assert client._username == b"PRIVATE-USER"
+    assert client._password == b"PRIVATE-PASSWORD"
+    assert not caught, [str(warning.message) for warning in caught]
+
+
+@pytest.mark.parametrize("rc,expected", [
+    (0, "success"), (2, "connection_rejected"), (3, "connection_rejected"),
+    (4, "auth_rejected"), (5, "auth_rejected"),
+])
+def test_probe_receives_real_paho_v2_connack_dispatch(monkeypatch, rc, expected):
+    # Exercise Paho's wire-code conversion and callback dispatch without a socket.
+    client = connection.mqtt.Client(
+        connection.mqtt.CallbackAPIVersion.VERSION2,
+        client_id="test-probe", reconnect_on_failure=False,
+    )
+    client._in_packet.update(remaining_length=2, packet=bytes([0, rc]))
+    monkeypatch.setattr(connection.mqtt, "Client", MagicMock(return_value=client))
+    monkeypatch.setattr(client, "connect", MagicMock(return_value=0))
+    monkeypatch.setattr(client, "loop", lambda **kwargs: client._handle_connack())
+    monkeypatch.setattr(client, "disconnect", MagicMock())
+    monkeypatch.setattr(client, "publish", MagicMock())
+    monkeypatch.setattr(client, "subscribe", MagicMock())
+    assert connection._probe_in_worker(MqttSettings(host="broker"), 1) == expected
+    client.publish.assert_not_called()
+    client.subscribe.assert_not_called()
+
+
+def test_disconnect_after_accepted_connack_preserves_success(client):
+    accepted = client.loop.side_effect
+
+    def loop(**kwargs):
+        accepted(**kwargs)
+        client.on_disconnect(
+            client, None, connection.mqtt.DisconnectFlags(False),
+            ReasonCode(PacketTypes.DISCONNECT, "Unspecified error"),
+            Properties(PacketTypes.DISCONNECT),
+        )
+        return connection.mqtt.MQTT_ERR_CONN_LOST
+
+    client.loop.side_effect = loop
+    assert connection._probe_in_worker(MqttSettings(host="broker"), 1) == "success"
+    assert_no_event_operations(client)

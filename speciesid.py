@@ -208,9 +208,9 @@ def initialize_classifier(model_path):
     return classifier
 
 
-def on_connect(client, userdata, flags, rc):
-    if rc != 0:
-        logger.warning("MQTT connection refused: %s", rc)
+def on_connect(client, userdata, flags, reason_code, properties):
+    if reason_code != 0:
+        logger.warning("MQTT connection refused: %s", reason_code)
         return
     logger.info("MQTT connected")
 
@@ -224,15 +224,15 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe(f"{settings.topic_prefix}/events")
 
 
-def on_subscribe(client, userdata, mid, granted_qos):
-    if not granted_qos or any(qos == 128 for qos in granted_qos):
+def on_subscribe(client, userdata, mid, reason_codes, properties):
+    if not reason_codes or any(code.is_failure for code in reason_codes):
         logger.warning("MQTT event subscription refused")
         return
     logger.info("MQTT event subscription ready")
 
 
-def on_disconnect(client, userdata, rc):
-    if rc != 0:
+def on_disconnect(client, userdata, flags, reason_code, properties):
+    if reason_code != 0:
         logger.warning("Unexpected MQTT disconnection, trying to reconnect")
         while True:
             try:
@@ -891,7 +891,8 @@ def run_mqtt_client():
     )
 
     client = mqtt.Client(
-        "birdspeciesid" + current_time
+        callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+        client_id="birdspeciesid" + current_time
     )
     client.user_data_set(settings)
 

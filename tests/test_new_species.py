@@ -10,6 +10,9 @@ from copy import deepcopy
 from unittest.mock import MagicMock, patch
 
 import pytest
+from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.properties import Properties
+from paho.mqtt.reasoncodes import ReasonCode
 
 # webui calls load_config() at module level; point it at the example config
 # so it doesn't fail when speciesid (which imports webui) is imported here.
@@ -483,6 +486,8 @@ def test_classifier_and_callbacks_ready_before_mqtt_connect(monkeypatch, tmp_pat
         speciesid.run_mqtt_client()
         client.connect.assert_called_once_with('localhost', 1883)
         client.loop_forever.assert_called_once()
+        assert factory.call_args.kwargs['callback_api_version'] is speciesid.mqtt.CallbackAPIVersion.VERSION2
+        assert factory.call_args.kwargs['client_id'].startswith('birdspeciesid')
         initialize.assert_called_once_with(speciesid.REPO_ROOT / 'model.tflite')
 
 
@@ -509,7 +514,8 @@ def test_runtime_ignores_legacy_aliases_beside_canonical_mqtt(monkeypatch):
         client = factory.return_value
         speciesid.run_mqtt_client()
         settings = client.user_data_set.call_args.args[0]
-        speciesid.on_connect(client, settings, {}, 0)
+        speciesid.on_connect(client, settings, speciesid.mqtt.ConnectFlags(False),
+                             ReasonCode(PacketTypes.CONNACK, "Success"), Properties(PacketTypes.CONNACK))
 
     client.connect.assert_called_once_with("canonical-broker", 2883)
     client.subscribe.assert_called_once_with("kingfisher/events")
@@ -594,7 +600,8 @@ def test_speciesid_mqtt_setup_contains_no_legacy_alias_resolution():
 def test_refused_mqtt_connection_is_not_reported_as_connected():
     client = MagicMock()
     with patch('speciesid.log_system_event') as event:
-        speciesid.on_connect(client, None, {}, 5)
+        speciesid.on_connect(client, None, speciesid.mqtt.ConnectFlags(False),
+                             ReasonCode(PacketTypes.CONNACK, "Not authorized"), Properties(PacketTypes.CONNACK))
     client.subscribe.assert_not_called()
     event.assert_not_called()
 
@@ -603,7 +610,8 @@ def test_successful_mqtt_connection_subscribes_to_configured_topic(monkeypatch):
     monkeypatch.setattr(speciesid, 'config', {'mqtt': {'topic_prefix': 'custom'}})
     client = MagicMock()
     with patch('speciesid.log_system_event'):
-        speciesid.on_connect(client, None, {}, 0)
+        speciesid.on_connect(client, None, speciesid.mqtt.ConnectFlags(False),
+                             ReasonCode(PacketTypes.CONNACK, "Success"), Properties(PacketTypes.CONNACK))
     client.subscribe.assert_called_once_with('custom/events')
 
 
@@ -626,9 +634,60 @@ def test_parent_initializes_config_and_schema_before_spawning_workers(monkeypatc
     assert factory.call_count == 2
 
 
-@pytest.mark.parametrize('granted_qos,ready', [([0], True), ([128], False)])
+@pytest.mark.parametrize('granted_qos,ready', [
+    ([0], True), ([1], True), ([2], True), ([0, 1, 2], True),
+    ([128], False), ([0, 128], False), ([135], False), ([], False),
+])
 def test_subscription_readiness_requires_successful_ack(granted_qos, ready):
     with patch.object(speciesid.logger, 'info') as info, patch.object(speciesid.logger, 'warning') as warning:
-        speciesid.on_subscribe(MagicMock(), None, 1, granted_qos)
+        speciesid.on_subscribe(
+            MagicMock(), None, 1,
+            [ReasonCode(PacketTypes.SUBACK, identifier=qos) for qos in granted_qos],
+            Properties(PacketTypes.SUBACK),
+        )
+    assert info.called is ready
+    assert warning.called is not ready
+
+
+@pytest.mark.parametrize('reason,expected_reconnects', [
+    ('Success', 0), ('Unspecified error', 3), ('Keep alive timeout', 3),
+])
+def test_v2_disconnect_preserves_reconnect_retries_and_timing(reason, expected_reconnects):
+    client = MagicMock()
+    client.reconnect.side_effect = [OSError('offline'), RuntimeError('offline'), None]
+    with patch.object(speciesid.time, 'sleep') as sleep:
+        speciesid.on_disconnect(
+            client, None, speciesid.mqtt.DisconnectFlags(False),
+            ReasonCode(PacketTypes.DISCONNECT, reason), Properties(PacketTypes.DISCONNECT),
+        )
+    assert client.reconnect.call_count == expected_reconnects
+    assert sleep.call_args_list == ([((60,), {})] * 2 if expected_reconnects else [])
+
+
+@pytest.mark.parametrize('wire_code,connected', [(0, True), (2, False), (3, False), (4, False), (5, False)])
+def test_production_receives_real_paho_connack_dispatch(monkeypatch, wire_code, connected):
+    monkeypatch.setattr(speciesid, 'config', {'mqtt': {'topic_prefix': 'custom'}})
+    client = speciesid.mqtt.Client(
+        speciesid.mqtt.CallbackAPIVersion.VERSION2, client_id='test-production',
+    )
+    client.on_connect = speciesid.on_connect
+    client._in_packet.update(remaining_length=2, packet=bytes([0, wire_code]))
+    with patch.object(client, 'subscribe') as subscribe, patch('speciesid.log_system_event') as event:
+        client._handle_connack()
+    if connected:
+        subscribe.assert_called_once_with('custom/events')
+        event.assert_called_once()
+    else:
+        subscribe.assert_not_called()
+        event.assert_not_called()
+
+
+@pytest.mark.parametrize('wire_codes,ready', [(b'\x00', True), (b'\x80', False)])
+def test_production_receives_real_paho_suback_dispatch(wire_codes, ready):
+    client = speciesid.mqtt.Client(speciesid.mqtt.CallbackAPIVersion.VERSION2)
+    client.on_subscribe = speciesid.on_subscribe
+    client._in_packet['packet'] = b'\x00\x01' + wire_codes
+    with patch.object(speciesid.logger, 'info') as info, patch.object(speciesid.logger, 'warning') as warning:
+        client._handle_suback()
     assert info.called is ready
     assert warning.called is not ready

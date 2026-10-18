@@ -82,19 +82,22 @@ def _probe_in_worker(settings, timeout_seconds):
     code = None
     deadline = time.monotonic() + timeout_seconds
 
-    def on_connect(client, userdata, flags, rc):
+    def on_connect(client, userdata, flags, reason_code, properties):
         nonlocal code
-        code = "success" if rc == 0 else (
-            "auth_rejected" if rc in (4, 5) else "connection_rejected"
+        code = "success" if reason_code == 0 else (
+            "auth_rejected" if reason_code in (
+                "Bad user name or password", "Not authorized"
+            ) else "connection_rejected"
         )
 
-    def on_disconnect(client, userdata, rc):
+    def on_disconnect(client, userdata, flags, reason_code, properties):
         nonlocal code
         if code is None:
             code = "closed_before_acceptance"
 
     try:
         client = mqtt.Client(
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
             client_id="wamf-probe-" + uuid.uuid4().hex,
             clean_session=True,
             reconnect_on_failure=False,
