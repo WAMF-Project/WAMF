@@ -30,7 +30,7 @@
       </div>
       <div>
         <dt>MQTT</dt>
-        <dd>{% if health.setup_required %}{{ status('Setup required', 'warning') }}{% elif health.mqtt_online %}{{ status('Online', 'success') }}{% else %}{{ status('Offline', 'danger') }}{% endif %}</dd>
+        <dd id="mqtt-runtime-tile">{{ status(mqtt.status, mqtt.tone) }}</dd>
       </div>
       <div class="admin-disk-usage">
         <dt>System Disk</dt>
@@ -38,6 +38,22 @@
         <meter min="0" max="100" low="75" high="90" optimum="0" value="{{ health.disk_used_percent }}" aria-label="System disk utilisation">{{ health.disk_used_percent }}% used</meter>
       </div>
     </dl>
+  </div>
+</section>
+
+<section class="settings-section" aria-labelledby="mqtt-runtime-heading">
+  <div class="settings-section-heading"><h2 id="mqtt-runtime-heading">MQTT connection status</h2></div>
+  <div class="settings-card admin-health-card">
+    <p class="settings-preservation-note">Shows WAMF’s current MQTT connection. Use Settings → Test connection to check the saved settings.</p>
+    <details class="admin-mqtt-details">
+      <summary>MQTT connection details</summary>
+      <dl class="admin-mqtt-detail-grid">
+        {% for label, value in mqtt.details %}
+        <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+        {% endfor %}
+      </dl>
+      <p class="admin-retention-timezone">{{ mqtt.timezone_note }}</p>
+    </details>
   </div>
 </section>
 
@@ -61,7 +77,7 @@
       </div>
       <div class="admin-health-item">
         <span class="admin-health-label">Archive Size</span>
-        <span class="admin-health-value">{{ stats.archive_size_mb }} MB</span>
+        <span class="admin-health-value">{{ stats.archive_size_mb }}{% if stats.archive_size_mb is number %} MB{% endif %}</span>
       </div>
     </div>
   </div>

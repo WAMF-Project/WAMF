@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, url_for, jsonify, session, flash
+from flask import Flask, request, redirect, url_for, jsonify, session, flash, g, has_request_context
 import logging
 from datetime import datetime
 from app import security
@@ -28,7 +28,7 @@ from app.queries import (  # noqa: F401
 )
 from app.queries import get_species_info, get_all_species_info, get_detection_count_for_scientific_name_and_date  # noqa: F401
 from app.queries import get_species_stats_for_date  # noqa: F401
-from app.health import get_system_health
+from app.health import get_system_health as calculate_current_health
 from version import VERSION
 from app.metadata_tasks import (  # noqa: F401
     queue_metadata_refresh,
@@ -70,6 +70,19 @@ CSRF_PROTECTED_ENDPOINTS = {
     'admin.refresh_all_species',
     'detections.delete_detection',
 }
+
+
+def get_system_health():
+    # A request-local result avoids route/context-processor duplicate work.
+    # Only the safe read callable is installed, never a snapshot/proxy in Flask.
+    if has_request_context() and hasattr(g, 'system_health'):
+        return g.system_health
+    health = calculate_current_health(
+        mqtt_runtime_status=app.extensions.get('mqtt_runtime_status'),
+    )
+    if has_request_context():
+        g.system_health = health
+    return health
 
 
 def is_admin_auth_enabled():

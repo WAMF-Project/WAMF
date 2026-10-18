@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 const { openAdmin, noHorizontalOverflow, visibleKeyboardFocus } = require('./helpers.cjs');
 
 const endpoint = '**/admin/config/mqtt/test';
+const successPresentation = 'Connection successful Connected to the MQTT broker using the saved settings.';
 const successMessage = 'Broker accepted an MQTT connection using the saved settings.';
 function outcome(code = 'success', safe_message = successMessage) {
   return { success: code === 'success', code, safe_message, duration_ms: 12, completed_at: '2026-10-18T12:00:00+00:00' };
@@ -11,7 +12,7 @@ async function respond(route, result = outcome()) {
 }
 async function testConnection(page) {
   await page.getByRole('button', { name: 'Test connection', exact: true }).click();
-  await expect(page.locator('#mqtt-test-result')).toContainText('Success:');
+  await expect(page.locator('#mqtt-test-result')).toContainText('Connection successful');
 }
 
 test.beforeEach(async ({ page }) => {
@@ -37,7 +38,7 @@ test('saved-only helper, keyboard activation, pending and duplicate suppression'
   });
   const button = page.locator('#mqtt-test-button');
   await expect(button).toBeVisible();
-  await expect(page.getByText('Tests saved MQTT settings. Save changes before testing.')).toBeVisible();
+  await expect(page.getByText('Uses the saved MQTT settings. Save changes before testing.')).toBeVisible();
   await button.focus();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Shift+Tab');
@@ -52,12 +53,12 @@ test('saved-only helper, keyboard activation, pending and duplicate suppression'
   await page.locator('#mqtt_host').focus();
   release();
   const result = page.locator('#mqtt-test-result');
-  await expect(result).toContainText(`Success: ${successMessage}`);
+  await expect(result).toContainText(successPresentation);
   await expect(result).toHaveAttribute('role', 'status');
   await expect(result).toHaveAttribute('aria-live', 'polite');
   await expect(button).toBeEnabled();
   await expect(page.locator('#mqtt_host')).toBeFocused();
-  await expect(page.getByText('Subscription permissions and event delivery were not tested.')).toBeVisible();
+  await expect(page.getByText('This checks the broker connection only, not event delivery.')).toBeVisible();
   expect(await page.content()).not.toContain('M2-SECRET-');
   await expect(page.locator('#mqtt_username')).toHaveValue('');
   await expect(page.locator('#mqtt_password')).toHaveValue('');
@@ -103,7 +104,7 @@ test('connection edits invalidate results; topic edits do not', async ({ page })
   }
   await testConnection(page);
   await page.locator('#mqtt_topic_prefix').fill('changed-topic');
-  await expect(page.locator('#mqtt-test-result')).toHaveText(`Success: ${successMessage}`);
+  await expect(page.locator('#mqtt-test-result')).toHaveText(successPresentation);
   await noHorizontalOverflow(page);
 });
 

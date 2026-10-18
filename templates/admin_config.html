@@ -196,11 +196,11 @@
         </fieldset>
       </div>
       <div class="settings-card">
-        <h3>Test saved connection</h3>
-        <p id="mqtt-test-help">Tests saved MQTT settings. Save changes before testing.</p>
+        <h3>Test connection</h3>
+        <p id="mqtt-test-help">Uses the saved MQTT settings. Save changes before testing.</p>
         <button class="settings-button settings-button-secondary" id="mqtt-test-button" type="button" aria-describedby="mqtt-test-help mqtt-test-scope">Test connection</button>
         <p id="mqtt-test-result" role="status" aria-live="polite" aria-atomic="true"></p>
-        <small id="mqtt-test-scope">Subscription permissions and event delivery were not tested.</small>
+        <small id="mqtt-test-scope">This checks the broker connection only, not event delivery.</small>
       </div>
     </section>
 
@@ -495,7 +495,11 @@
           mqttTestResult.textContent = 'Connection test could not be completed. Try again when ready.';
         } else {
           const result = await response.json();
-          mqttTestResult.textContent = (result.success ? 'Success: ' : 'Failed: ') + result.safe_message;
+          if (result.success) {
+            mqttTestResult.innerHTML = '<strong>Connection successful</strong><br> Connected to the MQTT broker using the saved settings.';
+          } else {
+            mqttTestResult.textContent = 'Failed: ' + result.safe_message;
+          }
         }
       } catch (error) {
         mqttTestResult.textContent = 'Connection test response was not received. The outcome is unknown. Try again when ready.';

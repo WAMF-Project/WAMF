@@ -3572,6 +3572,38 @@ a:hover {
 }
 
 /* Administration logs */
+.admin-mqtt-details {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.admin-mqtt-details summary {
+  cursor: pointer;
+  padding: 0.4rem 0;
+  font-weight: 650;
+}
+
+.admin-mqtt-details summary:focus-visible {
+  outline: 3px solid var(--wamf-focus);
+  outline-offset: 3px;
+}
+
+.admin-mqtt-detail-grid {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.75rem 0 0;
+}
+
+.admin-mqtt-detail-grid > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+}
+
+.admin-mqtt-detail-grid dt { color: var(--wamf-text-muted); }
+.admin-mqtt-detail-grid dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
+
 .logs-section .settings-section-heading {
   margin-bottom: 0.75rem;
 }

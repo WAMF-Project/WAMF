@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
+from dataclasses import replace
+from types import SimpleNamespace
 
 import yaml
 
@@ -15,7 +17,9 @@ def main():
         root = Path(directory)
         config = {
             'config_version': 2,
-            'mqtt': {'host': 'saved-broker', 'authentication': {'enabled': True}},
+            'mqtt': {'host': 'saved-broker', 'topic_prefix': 'frigate', 'authentication': {'enabled': True}},
+            'frigate': {'frigate_url': 'http://fixture-frigate', 'camera': ['garden']},
+            'classification': {'model': 'model.tflite', 'threshold': 0.7},
             'admin': {'auth_enabled': False},
             'storage': {'database_path': str(root / 'speciesid.db')},
             'media': {'snapshots_path': str(root / 'snapshots'), 'clips_path': str(root / 'clips')},
@@ -28,7 +32,10 @@ def main():
         }))
         os.environ['WHOSATMYFEEDER_CONFIG'] = str(path)
         import webui
-        from flask import session
+        from flask import session, request, g
+        from app import health
+        from app.config_loader import load_runtime_config
+        from app.mqtt_runtime import MqttRuntimeSnapshot
         from app.mqtt_connection import MESSAGES, MqttProbeResult
         from routes import admin
 
@@ -41,6 +48,7 @@ def main():
         @webui.app.before_request
         def browser_session():
             session['admin_authenticated'] = True
+            g.mqtt_fixture_state = request.headers.get('X-WAMF-Test-MQTT-State', 'connected')
 
         webui.app.view_functions['auth.login'] = lambda: '<h1>Log in</h1>'
         webui.get_retention_status = lambda: {
@@ -48,11 +56,37 @@ def main():
             'last_attempt_outcome': 'success',
             'last_success_completed_at': '2026-10-18T12:00:00+00:00',
         }
-        webui.get_system_health = lambda: {
-            'setup_required': True, 'overall_state': 'setup_required',
-            'configuration_issues': [], 'restart_required': False,
-            'database_healthy': True, 'archive_writable': True, 'disk_used_percent': 10,
-        }
+        snapshot = MqttRuntimeSnapshot(
+            worker_generation='fixture', is_current=True,
+            connection_state='connected', subscription_state='subscribed',
+            worker_started_at='2026-10-18T11:00:00Z', last_connected_at='2026-10-18T11:01:00Z',
+            last_event_message_at='2026-10-18T11:02:00Z', updated_at='2026-10-18T11:02:00Z',
+        )
+        def read_runtime():
+            mode = g.mqtt_fixture_state
+            changes = {
+                'starting': dict(connection_state='starting', subscription_state='unknown'),
+                'subscribing': dict(connection_state='subscribing', subscription_state='pending'),
+                'reconnecting': dict(connection_state='reconnecting', subscription_state='unknown',
+                                     last_disconnected_at='2026-10-18T11:03:00Z',
+                                     last_disconnect_reason='unexpected_disconnect'),
+                'disconnected': dict(connection_state='disconnected', subscription_state='unknown'),
+                'failed': dict(connection_state='subscribing', subscription_state='failed'),
+                'stale': dict(connection_state='stopped', subscription_state='unknown', is_current=False),
+                'quiet': dict(last_event_message_at=None),
+            }
+            if mode == 'unknown':
+                return MqttRuntimeSnapshot()
+            return replace(snapshot, **changes.get(mode, {}))
+        def health_config():
+            saved = load_runtime_config()
+            if g.mqtt_fixture_state == 'setup':
+                saved['mqtt']['host'] = None
+            return saved
+        health.load_config = health_config
+        health.FrigateClient = lambda url: SimpleNamespace(get_version=lambda: 'fixture')
+        health.shutil.disk_usage = lambda path: (100, 10, 90)
+        webui.app.extensions['mqtt_runtime_status'] = read_runtime
         webui.app.run(host='127.0.0.1', port=7768, use_reloader=False)
 
 

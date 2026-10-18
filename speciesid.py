@@ -12,6 +12,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import partial
 from io import BytesIO
 from pathlib import Path
 
@@ -30,7 +31,7 @@ from app.health import set_detection_worker_enabled, start_health_monitor
 from app.media_coordination import media_activity_guard
 from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
 from app.mqtt_connection import configure_mqtt_client
-from app.mqtt_runtime import MqttRuntimeDiagnostics
+from app.mqtt_runtime import MqttRuntimeDiagnostics, get_mqtt_runtime_status
 from app.process_control import WorkerSupervisor, configure_worker_signals
 from app.queries import get_common_name, get_scientific_name
 from app.retention_schedule import parse_retention_schedule
@@ -907,13 +908,16 @@ def _mqtt_runtime_settings(userdata=None):
 
 
 def run_webui(mqtt_runtime_reader=None):
-    # Explicit cross-process read handle for M4. No route, global registration,
-    # or change to today's request-driven System Health/probe behaviour.
     configure_worker_signals()
     logger.info("Starting Flask app")
 
     set_detection_worker_enabled(not preflight(config))
-    start_health_monitor()
+    if mqtt_runtime_reader is not None:
+        read_runtime = partial(get_mqtt_runtime_status, mqtt_runtime_reader)
+        app.extensions['mqtt_runtime_status'] = read_runtime
+        start_health_monitor(mqtt_runtime_status=read_runtime)
+    else:
+        start_health_monitor()
 
     app.run(
         debug=False,

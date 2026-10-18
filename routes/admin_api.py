@@ -10,6 +10,11 @@ admin_api_bp = Blueprint('admin_api', __name__)
 
 @admin_api_bp.route('/admin/api/health')
 def admin_health():
+    """Keep the established fields; mqtt is runtime readiness, not a probe.
+
+    True requires accepted CONNACK and SUBACK; False means a current consumer
+    is not operational; None means setup, unknown, or stale runtime status.
+    """
     import webui
 
     health = webui.get_system_health()

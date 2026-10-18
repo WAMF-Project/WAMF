@@ -406,7 +406,7 @@ def test_service_status_text_and_disk_resource_metric(admin_page, monkeypatch, p
     })
     html = client.get("/admin").get_data(as_text=True)
     services = html.split('<dl class="admin-service-grid">', 1)[1].split('</dl>', 1)[0]
-    for text in ("Offline", "Online", "Error", "Writable"):
+    for text in ("Offline", "Setup required", "Error", "Writable"):
         assert f'>{text}</span>' in services
     assert f'{percent}%</span>' in services
     assert f'{label}</span>' in services

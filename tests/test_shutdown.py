@@ -153,7 +153,7 @@ class Client:
         worker('mqtt')
 mqtt.Client = Client
 from app import health
-health.start_health_monitor = lambda: None
+health.start_health_monitor = lambda **kwargs: None
 runpy.run_path('speciesid.py', run_name='__main__')
 '''
 

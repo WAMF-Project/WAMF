@@ -183,11 +183,6 @@ def flask_client(tmp_dbs, patched_queries):
 
     webui.app.config["TESTING"] = True
     webui.app.config["SECRET_KEY"] = "test-secret"
-    # Route tests must not create independent broker connections while rendering
-    # the Admin health summary. Probe behaviour has dedicated fake-client tests.
-    from unittest.mock import patch
-    from app.mqtt_connection import MqttProbeResult, MESSAGES
-
-    unavailable = MqttProbeResult(False, "refused", MESSAGES["refused"], 0, "")
-    with patch("app.health.probe_mqtt_connection", return_value=unavailable), webui.app.test_client() as client:
+    # Health reads runtime diagnostics; rendering routes never probes a broker.
+    with webui.app.test_client() as client:
         yield client

@@ -161,8 +161,8 @@ def test_settings_html_contains_action_but_no_saved_credentials(saved_mqtt):
     config_path.write_text(yaml.safe_dump(config))
     html = client.get('/admin/config').get_data(as_text=True)
     assert 'id="mqtt-test-button" type="button"' in html
-    assert 'Tests saved MQTT settings. Save changes before testing.' in html
-    assert 'Subscription permissions and event delivery were not tested.' in html
+    assert 'Uses the saved MQTT settings. Save changes before testing.' in html
+    assert 'This checks the broker connection only, not event delivery.' in html
     assert 'PRIVATE' not in html
     assert 'id="mqtt-test-result" role="status" aria-live="polite"' in html
 

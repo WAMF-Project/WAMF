@@ -2,6 +2,7 @@
 
 import logging
 import secrets
+import sqlite3
 from dataclasses import asdict
 from datetime import datetime, timezone
 from zoneinfo import available_timezones
@@ -36,6 +37,7 @@ from app.config_secrets import (
 from app.config_validation import validate_config, validate_mqtt_connection_config
 from app.mqtt_connection import MESSAGES, MqttProbeResult, probe_mqtt_connection
 from app.mqtt_settings import mqtt_settings_from_config
+from app.mqtt_presentation import build_mqtt_presentation
 from app.process_control import INSTANCE_ID, schedule_restart
 from app.retention_presentation import (
     build_retention_presentation,
@@ -304,9 +306,16 @@ def _settings_validation_errors(result):
 def admin_dashboard():
     import webui
 
-    stats = webui.get_admin_stats()
+    try:
+        stats = webui.get_admin_stats()
+    except (OSError, ValueError, TypeError, AttributeError, sqlite3.Error):
+        stats = dict(total_detections='Unavailable', archived_snapshots='Unavailable',
+                     archived_clips='Unavailable', archive_size_mb='Unavailable')
     health = webui.get_system_health()
-    events = webui.get_recent_system_events()
+    try:
+        events = webui.get_recent_system_events()
+    except (OSError, ValueError, TypeError, AttributeError, sqlite3.Error):
+        events = []
     try:
         retention_status = webui.get_retention_status()
         status_available = True
@@ -320,6 +329,7 @@ def admin_dashboard():
     except Exception:
         logger.warning("Retention schedule configuration is unavailable for System Health")
         retention_config = None
+    mqtt = health.get('mqtt_runtime') or build_mqtt_presentation(None, retention_config)
     try:
         retention = build_retention_presentation(
             retention_status, retention_config, status_available=status_available
@@ -333,7 +343,8 @@ def admin_dashboard():
         stats=stats,
         health=health,
         events=events,
-        retention=retention
+        retention=retention,
+        mqtt=mqtt,
     )
 
 

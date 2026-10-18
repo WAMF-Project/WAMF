@@ -11,7 +11,7 @@ test('System Health services, compact navigation and responsive layout', async (
     const row = health.locator('dl > div').filter({ has: page.getByText(label, { exact: true }) });
     await expect(row.locator('dt')).toBeVisible();
     await expect(row.locator('dd')).toBeVisible();
-    await expect(row.locator('dd')).toContainText(/Online|Offline|Healthy|Error|Writable|Problem|Setup required|Normal|Elevated|High/);
+    await expect(row.locator('dd')).toContainText(/Online|Offline|Healthy|Error|Writable|Problem|Setup required|Normal|Elevated|High|Connected|Subscribing|Starting|Reconnecting|Disconnected|Subscription failed|Unknown|Stale/);
     // Readable rows fit within the service card, with no clipped text.
     expect(await row.evaluate(element => {
       const parent = element.closest('.admin-health-card').getBoundingClientRect();

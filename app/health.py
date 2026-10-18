@@ -10,8 +10,7 @@ from app.config_loader import load_runtime_config
 from app.config_normalization import normalize_config
 from app.db import connect_db
 from app.frigate_client import FrigateClient, FrigateError
-from app.mqtt_settings import mqtt_settings_from_config
-from app.mqtt_connection import probe_mqtt_connection
+from app.mqtt_presentation import build_mqtt_presentation
 from integrations.bridge import post_health_event
 from wamf_paths import get_clips_path, get_snapshots_path
 
@@ -59,9 +58,10 @@ def _health_details(health):
             return 'Configuration saved; restart WAMF to start detection'
         return 'Setup/configuration required: ' + ', '.join(health.get('configuration_issues', []))
     details = []
+    mqtt_status = health.get('mqtt_runtime', {}).get('status', 'offline').lower()
     checks = (
         ("frigate_online", "Frigate offline"),
-        ("mqtt_online", "MQTT offline"),
+        ("mqtt_online", f"MQTT {mqtt_status}"),
         ("database_healthy", "Database unhealthy"),
         ("archive_writable", "Archive storage unavailable"),
     )
@@ -117,20 +117,32 @@ def load_config():
     return load_runtime_config()
 
 
-def calculate_system_health(config=None):
+def calculate_system_health(config=None, *, mqtt_runtime_status=None):
     """Calculate current health without publishing state transitions."""
 
     health = {}
 
-    config = load_config() if config is None else config
-
-    issues = preflight(config)
+    try:
+        config = load_config() if config is None else config
+    except Exception:
+        config = None
+    try:
+        issues = preflight(config) if config is not None else ['Configuration unavailable']
+    except Exception:
+        issues = ['Configuration contains invalid values. Review Settings.']
     health['configuration_issues'] = issues
     health['restart_required'] = not issues and _detection_worker_enabled is False
     health['setup_required'] = bool(issues) or health['restart_required']
     # Not checked in setup mode: placeholders are not service outages.
     health['frigate_online'] = None
-    health['mqtt_online'] = None
+    try:
+        snapshot = mqtt_runtime_status() if mqtt_runtime_status is not None else None
+    except Exception:
+        snapshot = None
+    health['mqtt_runtime'] = build_mqtt_presentation(snapshot, config)
+    # Existing nullable API field: True now means the real consumer is both
+    # connected and subscribed. Unknown/stale/setup remain None.
+    health['mqtt_online'] = health['mqtt_runtime']['online']
     health['frigate_disk_percent'] = None
 
     if not health['setup_required']:
@@ -144,18 +156,6 @@ def calculate_system_health(config=None):
             logger.debug("Frigate health check failed: %s", exc)
             health["frigate_online"] = False
 
-        # MQTT connectivity
-        try:
-            mqtt_settings = mqtt_settings_from_config(normalize_config(config).config)
-
-            result = probe_mqtt_connection(mqtt_settings)
-            health["mqtt_online"] = result.success
-            if not result.success:
-                logger.debug("MQTT health check failed: %s", result.code)
-        except (OSError, ValueError, TypeError):
-            logger.debug("MQTT health check failed: configuration_error")
-            health["mqtt_online"] = False
-
     # Database connectivity
     try:
 
@@ -167,8 +167,8 @@ def calculate_system_health(config=None):
 
         health["database_healthy"] = True
 
-    except sqlite3.Error as exc:
-        logger.debug("Database health check failed: %s", exc)
+    except (sqlite3.Error, OSError, ValueError, TypeError, AttributeError):
+        logger.debug("Database health check failed")
 
         health["database_healthy"] = False
 
@@ -180,26 +180,30 @@ def calculate_system_health(config=None):
     health["disk_used_percent"] = used_percent
 
     # Archive directories
-    snapshot_dir = get_snapshots_path()
-    clip_dir = get_clips_path()
-
-    health["archive_writable"] = snapshot_dir.exists() and clip_dir.exists()
+    try:
+        snapshot_dir = get_snapshots_path()
+        clip_dir = get_clips_path()
+        health["archive_writable"] = snapshot_dir.exists() and clip_dir.exists()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        health["archive_writable"] = False
 
     health["overall_state"] = _overall_health_state(health)
 
     return health
 
 
-def get_system_health():
+def get_system_health(*, mqtt_runtime_status=None):
     """Return current health for request-driven routes and templates."""
-    return calculate_system_health()
+    if mqtt_runtime_status is None:
+        return calculate_system_health()
+    return calculate_system_health(mqtt_runtime_status=mqtt_runtime_status)
 
 
-def _health_check_interval(bridge_config):
-    value = (bridge_config or {}).get(
-        "health_check_interval_seconds",
-        DEFAULT_HEALTH_CHECK_INTERVAL_SECONDS,
-    )
+def _health_check_interval(config):
+    try:
+        value = normalize_config(config or {}).config['health']['check_interval_seconds']
+    except (ValueError, TypeError):
+        return DEFAULT_HEALTH_CHECK_INTERVAL_SECONDS
     try:
         interval = float(value)
     except (TypeError, ValueError):
@@ -211,7 +215,7 @@ def _health_check_interval(bridge_config):
     return interval
 
 
-def health_monitor_loop(stop_event=None):
+def health_monitor_loop(stop_event=None, *, mqtt_runtime_status=None):
     """Continuously calculate health and publish overall state transitions."""
     stop_event = stop_event or threading.Event()
 
@@ -219,17 +223,18 @@ def health_monitor_loop(stop_event=None):
         config = {}
         try:
             config = load_config() or {}
-            health = calculate_system_health(config)
+            health = (calculate_system_health(config) if mqtt_runtime_status is None else
+                      calculate_system_health(config, mqtt_runtime_status=mqtt_runtime_status))
             record_health_transition(health, config.get("bridge", {}))
-        except Exception as exc:
-            logger.warning("Health monitor iteration failed: %s", exc)
+        except Exception:
+            logger.warning("Health monitor iteration failed")
 
-        interval = _health_check_interval(config.get("bridge", {}))
+        interval = _health_check_interval(config)
         if stop_event.wait(interval):
             break
 
 
-def start_health_monitor():
+def start_health_monitor(*, mqtt_runtime_status=None):
     """Start the Flask process health monitor exactly once."""
     global _health_monitor_thread
 
@@ -241,6 +246,8 @@ def start_health_monitor():
             target=health_monitor_loop,
             name="wamf-health-monitor",
             daemon=True,
+            **({'kwargs': {'mqtt_runtime_status': mqtt_runtime_status}}
+               if mqtt_runtime_status is not None else {}),
         )
         _health_monitor_thread.start()
         return _health_monitor_thread

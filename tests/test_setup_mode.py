@@ -43,7 +43,7 @@ def test_startup_selects_only_required_workers(config, targets, monkeypatch, cap
 
 @pytest.mark.parametrize('config,expected', [({}, 'setup_required'), (configured(), 'degraded')])
 def test_health_distinguishes_setup_from_real_outages(config, expected):
-    with patch('app.health.FrigateClient') as frigate_client, patch('app.health.probe_mqtt_connection') as mqtt, patch('app.health.connect_db'), patch('app.health.shutil.disk_usage', return_value=(100, 10, 90)), patch('app.health.get_snapshots_path'), patch('app.health.get_clips_path'):
+    with patch('app.health.FrigateClient') as frigate_client, patch('app.mqtt_connection.probe_mqtt_connection') as mqtt, patch('app.health.connect_db'), patch('app.health.shutil.disk_usage', return_value=(100, 10, 90)), patch('app.health.get_snapshots_path'), patch('app.health.get_clips_path'):
         frigate_client.return_value.get_version.side_effect = FrigateError('offline')
         mqtt.return_value.success = False
         result = health.calculate_system_health(config)
@@ -58,14 +58,14 @@ def test_health_distinguishes_setup_from_real_outages(config, expected):
     else:
         frigate_client.assert_called_once_with('http://frigate')
         frigate_client.return_value.get_version.assert_called_once_with()
-        assert mqtt.call_args.args[0].host == 'mqtt'
+        mqtt.assert_not_called()
         assert result['frigate_online'] is False
-        assert result['mqtt_online'] is False
+        assert result['mqtt_online'] is None
 
 
 def test_saved_configuration_requires_restart_of_setup_process():
     health.set_detection_worker_enabled(False)
-    with patch('app.health.FrigateClient') as frigate_client, patch('app.health.probe_mqtt_connection') as mqtt, patch('app.health.connect_db'), patch('app.health.shutil.disk_usage', return_value=(100, 10, 90)), patch('app.health.get_snapshots_path'), patch('app.health.get_clips_path'):
+    with patch('app.health.FrigateClient') as frigate_client, patch('app.mqtt_connection.probe_mqtt_connection') as mqtt, patch('app.health.connect_db'), patch('app.health.shutil.disk_usage', return_value=(100, 10, 90)), patch('app.health.get_snapshots_path'), patch('app.health.get_clips_path'):
         result = health.calculate_system_health(configured())
     assert result['configuration_issues'] == []
     assert result['restart_required'] is True

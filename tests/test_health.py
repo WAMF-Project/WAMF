@@ -1,4 +1,3 @@
-from copy import deepcopy
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -42,42 +41,23 @@ def _health(state):
     return values
 
 
-class _RedactedSecret(str):
-    def __repr__(self):
-        return "<redacted>"
-
-
-def _run_mqtt_health_probe(config, code="success"):
-    from app.mqtt_connection import MESSAGES, MqttProbeResult
-
-    probe_result = MqttProbeResult(code == "success", code, MESSAGES[code], 1, "2026-01-01T00:00:00+00:00")
-    with patch("app.health.preflight", return_value=[]), patch(
-        "app.health.FrigateClient"
-    ), patch("app.health.probe_mqtt_connection", return_value=probe_result) as probe, patch(
-        "app.health.connect_db"
-    ), patch(
-        "app.health.shutil.disk_usage", return_value=(100, 10, 90)
-    ), patch(
-        "app.health.get_snapshots_path"
-    ), patch(
-        "app.health.get_clips_path"
-    ):
-        result = calculate_system_health(config)
-
-    assert result["mqtt_online"] is (code == "success")
-    return probe.call_args.args[0]
-
-
-@pytest.mark.parametrize("code", [
-    "success", "dns_error", "refused", "unreachable", "timeout",
-    "tls_certificate_error", "tls_error", "auth_rejected", "connection_rejected",
-    "closed_before_acceptance", "configuration_error", "internal_error",
+@pytest.mark.parametrize('connection,subscription,expected', [
+    ('connected', 'subscribed', True), ('subscribing', 'pending', False),
+    ('subscribing', 'failed', False), ('reconnecting', 'unknown', False),
 ])
-def test_mqtt_boolean_health_maps_only_accepted_connack(code):
-    _run_mqtt_health_probe({
-        "mqtt": {"host": "broker"},
-        "frigate": {"frigate_url": "http://frigate"},
-    }, code)
+def test_mqtt_boolean_health_requires_operational_runtime(connection, subscription, expected):
+    from app.mqtt_runtime import MqttRuntimeSnapshot
+    snapshot = MqttRuntimeSnapshot(worker_generation='test', is_current=True,
+                                   connection_state=connection, subscription_state=subscription)
+    config = {'mqtt': {'host': 'broker', 'topic_prefix': 'frigate'}, 'frigate': {'frigate_url': 'http://frigate'}}
+    with patch('app.health.preflight', return_value=[]), patch('app.health.FrigateClient'), patch(
+        'app.health.connect_db'
+    ), patch('app.health.shutil.disk_usage', return_value=(100, 10, 90)), patch(
+        'app.health.get_snapshots_path'
+    ), patch('app.health.get_clips_path'), patch('app.mqtt_connection.probe_mqtt_connection') as probe:
+        result = calculate_system_health(config, mqtt_runtime_status=lambda: snapshot)
+    assert result['mqtt_online'] is expected
+    probe.assert_not_called()
 
 
 def _run_frigate_health_probe(config, *, version="0.14.1", error=None):
@@ -89,7 +69,7 @@ def _run_frigate_health_probe(config, *, version="0.14.1", error=None):
 
     with patch("app.health.preflight", return_value=[]), patch(
         "app.health.FrigateClient", return_value=frigate_client
-    ) as client_class, patch("app.health.probe_mqtt_connection"), patch(
+    ) as client_class, patch("app.mqtt_connection.probe_mqtt_connection"), patch(
         "app.health.connect_db"
     ), patch(
         "app.health.shutil.disk_usage", return_value=(100, 10, 90)
@@ -126,85 +106,6 @@ def test_frigate_health_is_unhealthy_on_frigate_error():
 
     frigate_client.get_version.assert_called_once_with()
     assert result["frigate_online"] is False
-
-
-def test_mqtt_health_uses_canonical_plain_lan_settings_without_mutating_config():
-    config = {
-        "mqtt": {
-            "host": "canonical-mqtt.lan",
-            "port": 2883,
-            "authentication": {"enabled": False},
-            "tls": {"enabled": False},
-        },
-        "frigate": {
-            "frigate_url": "http://frigate",
-            "mqtt_server": "legacy-mqtt.lan",
-            "mqtt_port": 1884,
-        },
-    }
-    original = deepcopy(config)
-
-    settings = _run_mqtt_health_probe(config)
-
-    assert settings.host == "canonical-mqtt.lan"
-    assert settings.port == 2883
-    assert settings.authentication_enabled is False
-    assert settings.tls_enabled is False
-    assert config == original
-
-
-@pytest.mark.parametrize("insecure", [True, False])
-def test_mqtt_health_applies_authentication_and_tls(insecure):
-    password = _RedactedSecret("mqtt-health-password")
-    config = {
-        "mqtt": {
-            "host": "secure-mqtt.lan",
-            "authentication": {
-                "enabled": True,
-                "username": "health-user",
-                "password": password,
-            },
-            "tls": {
-                "enabled": True,
-                "ca_certs": "/certs/mqtt-ca.pem",
-                "insecure": insecure,
-            },
-        },
-        "frigate": {"frigate_url": "http://frigate"},
-    }
-
-    settings = _run_mqtt_health_probe(config)
-
-    assert settings.username == "health-user"
-    assert settings.password == password
-    assert settings.authentication_enabled is True
-    assert settings.tls_enabled is True
-    assert settings.ca_certs == "/certs/mqtt-ca.pem"
-    assert settings.tls_insecure is insecure
-
-
-def test_mqtt_health_does_not_interpret_legacy_settings():
-    password = _RedactedSecret("legacy-mqtt-health-password")
-    config = {
-        "frigate": {
-            "frigate_url": "http://frigate",
-            "mqtt_server": "legacy-mqtt.lan",
-            "mqtt_port": 3883,
-            "mqtt_auth": True,
-            "mqtt_username": "legacy-health-user",
-            "mqtt_password": password,
-            "mqtt_use_tls": True,
-            "mqtt_tls_ca_certs": "/certs/legacy-mqtt-ca.pem",
-            "mqtt_tls_insecure": False,
-        }
-    }
-
-    settings = _run_mqtt_health_probe(config)
-
-    assert settings.host is None
-    assert settings.port == 1883
-    assert settings.authentication_enabled is False
-    assert settings.tls_enabled is False
 
 
 def test_health_load_config_uses_config_env_var(monkeypatch, tmp_path):
@@ -289,7 +190,7 @@ def test_health_calculation_does_not_record_transition():
     with patch("app.health.load_config", return_value={"frigate": {}}), patch(
         "app.health.record_health_transition"
     ) as mock_record, patch("app.health.FrigateClient"), patch(
-        "app.health.probe_mqtt_connection"
+        "app.mqtt_connection.probe_mqtt_connection"
     ), patch(
         "app.health.connect_db"
     ), patch(
@@ -394,7 +295,7 @@ def test_monitor_continues_after_bridge_delivery_failure():
     ],
 )
 def test_health_check_interval_validation(bridge_config, expected):
-    assert health_module._health_check_interval(bridge_config) == expected
+    assert health_module._health_check_interval({"bridge": bridge_config}) == expected
 
 
 def test_health_monitor_starts_only_once():
