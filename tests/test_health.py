@@ -47,11 +47,13 @@ class _RedactedSecret(str):
         return "<redacted>"
 
 
-def _run_mqtt_health_probe(config):
-    client = MagicMock()
+def _run_mqtt_health_probe(config, code="success"):
+    from app.mqtt_connection import MESSAGES, MqttProbeResult
+
+    probe_result = MqttProbeResult(code == "success", code, MESSAGES[code], 1, "2026-01-01T00:00:00+00:00")
     with patch("app.health.preflight", return_value=[]), patch(
         "app.health.FrigateClient"
-    ), patch("app.health.mqtt.Client", return_value=client), patch(
+    ), patch("app.health.probe_mqtt_connection", return_value=probe_result) as probe, patch(
         "app.health.connect_db"
     ), patch(
         "app.health.shutil.disk_usage", return_value=(100, 10, 90)
@@ -62,8 +64,20 @@ def _run_mqtt_health_probe(config):
     ):
         result = calculate_system_health(config)
 
-    assert result["mqtt_online"] is True
-    return client
+    assert result["mqtt_online"] is (code == "success")
+    return probe.call_args.args[0]
+
+
+@pytest.mark.parametrize("code", [
+    "success", "dns_error", "refused", "unreachable", "timeout",
+    "tls_certificate_error", "tls_error", "auth_rejected", "connection_rejected",
+    "closed_before_acceptance", "configuration_error", "internal_error",
+])
+def test_mqtt_boolean_health_maps_only_accepted_connack(code):
+    _run_mqtt_health_probe({
+        "mqtt": {"host": "broker"},
+        "frigate": {"frigate_url": "http://frigate"},
+    }, code)
 
 
 def _run_frigate_health_probe(config, *, version="0.14.1", error=None):
@@ -75,7 +89,7 @@ def _run_frigate_health_probe(config, *, version="0.14.1", error=None):
 
     with patch("app.health.preflight", return_value=[]), patch(
         "app.health.FrigateClient", return_value=frigate_client
-    ) as client_class, patch("app.health.mqtt.Client"), patch(
+    ) as client_class, patch("app.health.probe_mqtt_connection"), patch(
         "app.health.connect_db"
     ), patch(
         "app.health.shutil.disk_usage", return_value=(100, 10, 90)
@@ -130,12 +144,12 @@ def test_mqtt_health_uses_canonical_plain_lan_settings_without_mutating_config()
     }
     original = deepcopy(config)
 
-    client = _run_mqtt_health_probe(config)
+    settings = _run_mqtt_health_probe(config)
 
-    client.connect.assert_called_once_with("canonical-mqtt.lan", 2883, 5)
-    client.username_pw_set.assert_not_called()
-    client.tls_set.assert_not_called()
-    client.tls_insecure_set.assert_not_called()
+    assert settings.host == "canonical-mqtt.lan"
+    assert settings.port == 2883
+    assert settings.authentication_enabled is False
+    assert settings.tls_enabled is False
     assert config == original
 
 
@@ -159,13 +173,14 @@ def test_mqtt_health_applies_authentication_and_tls(insecure):
         "frigate": {"frigate_url": "http://frigate"},
     }
 
-    client = _run_mqtt_health_probe(config)
+    settings = _run_mqtt_health_probe(config)
 
-    username, configured_password = client.username_pw_set.call_args.args
-    assert username == "health-user"
-    assert configured_password == password
-    client.tls_set.assert_called_once_with(ca_certs="/certs/mqtt-ca.pem")
-    client.tls_insecure_set.assert_called_once_with(insecure)
+    assert settings.username == "health-user"
+    assert settings.password == password
+    assert settings.authentication_enabled is True
+    assert settings.tls_enabled is True
+    assert settings.ca_certs == "/certs/mqtt-ca.pem"
+    assert settings.tls_insecure is insecure
 
 
 def test_mqtt_health_does_not_interpret_legacy_settings():
@@ -184,12 +199,12 @@ def test_mqtt_health_does_not_interpret_legacy_settings():
         }
     }
 
-    client = _run_mqtt_health_probe(config)
+    settings = _run_mqtt_health_probe(config)
 
-    client.connect.assert_called_once_with(None, 1883, 5)
-    client.username_pw_set.assert_not_called()
-    client.tls_set.assert_not_called()
-    client.tls_insecure_set.assert_not_called()
+    assert settings.host is None
+    assert settings.port == 1883
+    assert settings.authentication_enabled is False
+    assert settings.tls_enabled is False
 
 
 def test_health_load_config_uses_config_env_var(monkeypatch, tmp_path):
@@ -274,7 +289,7 @@ def test_health_calculation_does_not_record_transition():
     with patch("app.health.load_config", return_value={"frigate": {}}), patch(
         "app.health.record_health_transition"
     ) as mock_record, patch("app.health.FrigateClient"), patch(
-        "app.health.mqtt.Client"
+        "app.health.probe_mqtt_connection"
     ), patch(
         "app.health.connect_db"
     ), patch(

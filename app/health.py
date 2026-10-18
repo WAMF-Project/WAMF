@@ -4,8 +4,6 @@ import shutil
 import sqlite3
 import threading
 
-import paho.mqtt.client as mqtt
-
 from app.bootstrap import preflight
 from app.config_editor import get_config_path
 from app.config_loader import load_runtime_config
@@ -13,6 +11,7 @@ from app.config_normalization import normalize_config
 from app.db import connect_db
 from app.frigate_client import FrigateClient, FrigateError
 from app.mqtt_settings import mqtt_settings_from_config
+from app.mqtt_connection import probe_mqtt_connection
 from integrations.bridge import post_health_event
 from wamf_paths import get_clips_path, get_snapshots_path
 
@@ -149,27 +148,12 @@ def calculate_system_health(config=None):
         try:
             mqtt_settings = mqtt_settings_from_config(normalize_config(config).config)
 
-            client = mqtt.Client()
-
-            if mqtt_settings.authentication_enabled:
-                client.username_pw_set(
-                    mqtt_settings.username,
-                    mqtt_settings.password,
-                )
-
-            if mqtt_settings.tls_enabled:
-                client.tls_set(ca_certs=mqtt_settings.ca_certs)
-                client.tls_insecure_set(mqtt_settings.tls_insecure)
-
-            client.connect(mqtt_settings.host, mqtt_settings.port, 5)
-
-            client.disconnect()
-
-            health["mqtt_online"] = True
-
-        except OSError as exc:
-            logger.debug("MQTT health check failed: %s", exc)
-
+            result = probe_mqtt_connection(mqtt_settings)
+            health["mqtt_online"] = result.success
+            if not result.success:
+                logger.debug("MQTT health check failed: %s", result.code)
+        except (OSError, ValueError, TypeError):
+            logger.debug("MQTT health check failed: configuration_error")
             health["mqtt_online"] = False
 
     # Database connectivity

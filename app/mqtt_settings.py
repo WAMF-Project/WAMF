@@ -13,7 +13,7 @@ class MqttSettings:
     port: int = 1883
     topic_prefix: str = "frigate"
     authentication_enabled: bool = False
-    username: str | None = None
+    username: str | None = field(default=None, repr=False)
     password: str | None = field(default=None, repr=False)
     tls_enabled: bool = False
     tls_insecure: bool = False

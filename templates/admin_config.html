@@ -189,8 +189,8 @@
           <div class="settings-toggle-item settings-grid-spaced">
             <input type="hidden" name="mqtt_tls_insecure" value="0" />
             <input class="settings-switch-input" id="mqtt_tls_insecure" type="checkbox" name="mqtt_tls_insecure" value="1" aria-describedby="mqtt_tls_insecure_help" {% if settings.mqtt_tls_insecure %}checked{% endif %} />
-            <label class="settings-switch-label" for="mqtt_tls_insecure"><span class="settings-switch-control" aria-hidden="true"></span><strong>Allow unverified certificate</strong></label>
-            <small id="mqtt_tls_insecure_help">Disable certificate verification. Use only on trusted private networks.</small>
+            <label class="settings-switch-label" for="mqtt_tls_insecure"><span class="settings-switch-control" aria-hidden="true"></span><strong>Allow hostname mismatch</strong></label>
+            <small id="mqtt_tls_insecure_help">Disable TLS hostname verification. Certificate-chain verification remains enabled.</small>
           </div>
           <div class="settings-field settings-grid-spaced"><label for="mqtt_tls_ca_certs">CA certificate path</label><input id="mqtt_tls_ca_certs" name="mqtt_tls_ca_certs" type="text" value="{{ settings.mqtt_tls_ca_certs }}" aria-describedby="mqtt_tls_ca_certs_help" /><small id="mqtt_tls_ca_certs_help">Optional path to a CA certificate used to verify the broker.</small>{% if field_errors.mqtt_tls_ca_certs %}<span class="settings-field-error">{{ field_errors.mqtt_tls_ca_certs }}</span>{% endif %}</div>
         </fieldset>

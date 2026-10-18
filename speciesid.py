@@ -29,6 +29,7 @@ from app.frigate_client import FrigateClient, FrigateError
 from app.health import set_detection_worker_enabled, start_health_monitor
 from app.media_coordination import media_activity_guard
 from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
+from app.mqtt_connection import configure_mqtt_client
 from app.process_control import WorkerSupervisor, configure_worker_signals
 from app.queries import get_common_name, get_scientific_name
 from app.retention_schedule import parse_retention_schedule
@@ -899,15 +900,7 @@ def run_mqtt_client():
     client.on_disconnect = on_disconnect
     client.on_connect = on_connect
 
-    if settings.authentication_enabled:
-        client.username_pw_set(
-            settings.username,
-            settings.password
-        )
-
-    if settings.tls_enabled:
-        client.tls_set(ca_certs=settings.ca_certs)
-        client.tls_insecure_set(settings.tls_insecure)
+    configure_mqtt_client(client, settings)
 
     client.connect(
         settings.host,
