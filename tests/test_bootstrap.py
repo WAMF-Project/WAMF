@@ -76,6 +76,7 @@ def test_invalid_credentials_bootstrap_once(config_path, capsys, secret, passwor
     admin = config['admin']
     assert len(admin['session_secret']) == 64
     assert check_password_hash(admin['password_hash'], password)
+    assert admin['password_hash'].startswith('pbkdf2:sha256:600000$')
     assert password not in config_path.read_text()
     assert config['api'] == {'token_hash': 'keep'}
     persisted_config = yaml.safe_load(config_path.read_text())
@@ -94,8 +95,9 @@ def test_invalid_credentials_bootstrap_once(config_path, capsys, secret, passwor
     assert capsys.readouterr().out == ''
 
 
-def test_valid_credentials_are_extracted_then_preserved_byte_for_byte(config_path, capsys):
-    password_hash = generate_password_hash('existing-password')
+@pytest.mark.parametrize('method', ['pbkdf2:sha256:600000', 'scrypt:32768:8:1'])
+def test_valid_credentials_are_extracted_then_preserved_byte_for_byte(config_path, capsys, method):
+    password_hash = generate_password_hash('existing-password', method=method)
     write_admin(config_path, session_secret='existing-secret', password_hash=password_hash)
     runtime = bootstrap.bootstrap_config()
     persisted = yaml.safe_load(config_path.read_text())

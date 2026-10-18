@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime
 
 import yaml
+import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -1016,6 +1017,41 @@ def test_admin_login_allows_requested_admin_url(flask_client, monkeypatch):
     assert response.status_code == 200
 
 
+@pytest.mark.parametrize("secure", [False, True])
+def test_admin_session_cookie_persists_and_logout_revokes_access(flask_client, monkeypatch, secure):
+    from http.cookies import SimpleCookie
+    from werkzeug.security import generate_password_hash
+    import webui
+
+    _set_admin_api_auth(webui, monkeypatch)
+    _stub_admin_api_dependencies(webui, monkeypatch)
+    webui.config["admin"]["password_hash"] = generate_password_hash(
+        "secret", method="pbkdf2:sha256:600000"
+    )
+    monkeypatch.setitem(webui.app.config, "SESSION_COOKIE_SECURE", secure)
+    with flask_client.session_transaction() as sess:
+        sess.clear()
+
+    base_url = "https://localhost" if secure else "http://localhost"
+    response = flask_client.post("/login", data={"password": "secret"}, base_url=base_url)
+    assert response.status_code == 302
+    cookie = SimpleCookie(response.headers["Set-Cookie"])["session"]
+    assert cookie["httponly"]
+    assert cookie["samesite"] == "Lax"
+    assert cookie["path"] == "/"
+    assert bool(cookie["secure"]) is secure
+    assert "Cookie" in response.vary
+
+    with webui.app.test_client() as returning_client:
+        returning_client.set_cookie("session", cookie.value)
+        assert returning_client.get("/admin/api/health", base_url=base_url).status_code == 200
+        returning_client.set_cookie("session", cookie.value + "tampered")
+        assert returning_client.get("/admin/api/health", base_url=base_url).status_code == 401
+
+    assert flask_client.get("/logout", base_url=base_url).status_code == 302
+    assert flask_client.get("/admin/api/health", base_url=base_url).status_code == 401
+
+
 def test_admin_api_accepts_valid_session(flask_client, monkeypatch):
     import webui
 
@@ -1158,6 +1194,7 @@ admin:
     updated = yaml.safe_load((tmp_path / "secrets.yml").read_text())
     assert updated["api"]["token_hash"] != first_token
     assert check_password_hash(updated["api"]["token_hash"], first_token)
+    assert updated["api"]["token_hash"].startswith("pbkdf2:sha256:600000$")
     assert first_token not in (tmp_path / "secrets.yml").read_text()
     assert first_token not in config_path.read_text()
 
@@ -1644,6 +1681,7 @@ admin:
 
     updated = yaml.safe_load((tmp_path / "secrets.yml").read_text())
     assert check_password_hash(updated["admin"]["password_hash"], "new-secret")
+    assert updated["admin"]["password_hash"].startswith("pbkdf2:sha256:600000$")
     assert "new-secret" not in (tmp_path / "secrets.yml").read_text()
     assert "new-secret" not in config_path.read_text()
     persisted_config = yaml.safe_load(config_path.read_text())

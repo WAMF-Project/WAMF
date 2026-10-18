@@ -10,16 +10,6 @@ import pytest
 import yaml
 
 
-def _ensure_werkzeug_version_attr():
-    """Flask 2.3's test client expects this; Werkzeug 3 removed it."""
-    import importlib.metadata
-    import werkzeug
-
-    if not hasattr(werkzeug, "__version__"):
-        werkzeug.__version__ = importlib.metadata.version("werkzeug")
-
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -174,7 +164,6 @@ def flask_client(tmp_dbs, patched_queries):
     """
     import os
     os.environ['WHOSATMYFEEDER_CONFIG'] = tmp_dbs["config"]
-    _ensure_werkzeug_version_attr()
 
     import webui
     webui.load_config()

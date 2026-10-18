@@ -3,14 +3,14 @@
 # Direct WAMF runtime dependencies.
 ai-edge-litert==2.3.0
 APScheduler==3.11.3
-Flask==2.3.2
+Flask==3.1.3
 numpy==1.26.4
 paho-mqtt==2.1.0
 Pillow==10.4.0
 PyYAML==6.0.2
 requests==2.34.2
 tzdata==2026.5
-Werkzeug==2.3.8
+Werkzeug==3.1.9
 
 # Transitive runtime dependencies from installed package metadata (no extras).
 backports.strenum==1.2.8

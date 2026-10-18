@@ -742,7 +742,7 @@ def change_password():
             error = 'New passwords do not match.'
         else:
             webui.update_admin_password_hash(
-                generate_password_hash(new_password),
+                generate_password_hash(new_password, method='pbkdf2:sha256:600000'),
                 reload_callback=webui.load_config
             )
             flash('Admin password updated.')
@@ -763,7 +763,7 @@ def admin_api_token():
     if request.method == 'POST':
         generated_token = secrets.token_urlsafe(32)
         webui.update_api_token_hash(
-            generate_password_hash(generated_token),
+            generate_password_hash(generated_token, method='pbkdf2:sha256:600000'),
             reload_callback=webui.load_config
         )
         flash('API token generated. Store it now; it cannot be recovered later.')

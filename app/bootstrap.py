@@ -126,7 +126,10 @@ def _bootstrap_locked(path, transaction):
                     ''.join(secrets.choice(alphabet) for _ in range(6))
                     for _ in range(4)
                 )
-                secret_admin['password_hash'] = generate_password_hash(password)
+                # Preserve Kingfisher's hash format across Werkzeug upgrades.
+                secret_admin['password_hash'] = generate_password_hash(
+                    password, method='pbkdf2:sha256:600000'
+                )
 
         secrets_candidate = validate_secrets(secrets_candidate)
         # Credentials are always made durable before config sanitization.
