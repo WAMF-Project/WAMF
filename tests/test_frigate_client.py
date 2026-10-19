@@ -260,3 +260,104 @@ def test_probe_request_errors_are_safe_and_cleanup(error, code, during_read, cap
     get.assert_called_once()
     if during_read:
         reply.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize("base_url", ["https://frigate", "https://frigate/", "https://frigate/prefix/"])
+def test_camera_discovery_normalizes_only_camera_fields(base_url):
+    config = {"mqtt": {"password": "PRIVATE"}, "go2rtc": {"streams": "PRIVATE"},
+        "cameras": {
+            "Garden": {"friendly_name": " Garden birds ", "enabled": True,
+                       "detect": {"enabled": False}, "ffmpeg": "PRIVATE"},
+            "garden": {"enabled": False},
+            "Side": {"friendly_name": "", "enabled": "yes", "detect": []},
+        }}
+    reply = response()
+    reply.iter_content.return_value = [json.dumps(config).encode()]
+    with patch("app.frigate_client.requests.get", return_value=reply) as get:
+        result = FrigateClient(base_url).get_camera_inventory()
+    assert result == [
+        {"id": "Garden", "display_name": "Garden birds", "enabled": True, "detection_enabled": False},
+        {"id": "garden", "display_name": "garden", "enabled": False, "detection_enabled": None},
+        {"id": "Side", "display_name": "Side", "enabled": None, "detection_enabled": None},
+    ]
+    assert "PRIVATE" not in repr(result)
+    get.assert_called_once_with(base_url.rstrip("/") + "/api/config", timeout=(2, 2),
+                                stream=True, allow_redirects=False, verify=True)
+    reply.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize("friendly", [None, "", "   ", [], 7, "bad\nname", "x" * 257])
+def test_discovery_optional_friendly_name_is_defensive(friendly):
+    reply = response()
+    reply.iter_content.return_value = [json.dumps({"cameras": {"Exact_ID": {"friendly_name": friendly}}}).encode()]
+    with patch("app.frigate_client.requests.get", return_value=reply):
+        assert FrigateClient("http://frigate").get_camera_inventory() == [
+            {"id": "Exact_ID", "display_name": "Exact_ID", "enabled": None, "detection_enabled": None},
+        ]
+    reply.close.assert_called_once_with()
+
+
+def test_discovery_empty_inventory_is_successful():
+    reply = response()
+    reply.iter_content.return_value = [b'{"cameras": {}}']
+    with patch("app.frigate_client.requests.get", return_value=reply):
+        assert FrigateClient("http://frigate").get_camera_inventory() == []
+    reply.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize("body", [b"PRIVATE invalid JSON", b"null", b"[]", b"{}", b'{"cameras": null}',
+    b'{"cameras": []}', b'{"cameras": {"bad": null}}', b'{"cameras": {"bad": []}}',
+    b'{"cameras": {"": {}}}', b'\xff'])
+def test_discovery_invalid_response_is_safe(body, caplog):
+    from app.frigate_client import FrigateDiscoveryError
+    reply = response()
+    reply.iter_content.return_value = [body]
+    with patch("app.frigate_client.requests.get", return_value=reply), pytest.raises(FrigateDiscoveryError) as error:
+        FrigateClient("http://PRIVATE:PRIVATE@frigate").get_camera_inventory()
+    assert error.value.code == "unexpected_response"
+    assert "PRIVATE" not in str(error.value) + caplog.text
+    reply.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize("status,code", [(401, "auth_rejected"), (403, "auth_rejected"),
+    (302, "redirect"), (404, "http_error"), (500, "http_error"), (204, "http_error")])
+def test_discovery_http_failure_closes_response(status, code):
+    from app.frigate_client import FrigateDiscoveryError
+    reply = response(status_code=status)
+    with patch("app.frigate_client.requests.get", return_value=reply) as get, pytest.raises(FrigateDiscoveryError) as error:
+        FrigateClient("http://frigate").get_camera_inventory()
+    assert error.value.code == code
+    get.assert_called_once()
+    reply.iter_content.assert_not_called()
+    reply.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize("error,code", [(requests.Timeout, "timeout"),
+    (requests.ConnectionError, "connection_error"), (requests.exceptions.SSLError, "tls_error")])
+@pytest.mark.parametrize("during_read", [False, True])
+def test_discovery_transport_failures(error, code, during_read, caplog):
+    from app.frigate_client import FrigateDiscoveryError
+    reply = response()
+    reply.iter_content.side_effect = error("PRIVATE")
+    with patch("app.frigate_client.requests.get", return_value=reply,
+               side_effect=None if during_read else error("PRIVATE")) as get, pytest.raises(FrigateDiscoveryError) as caught:
+        FrigateClient("http://PRIVATE:PRIVATE@frigate").get_camera_inventory()
+    assert caught.value.code == code
+    assert "PRIVATE" not in str(caught.value) + caplog.text
+    get.assert_called_once()
+    if during_read:
+        reply.close.assert_called_once_with()
+
+
+def test_discovery_response_limit():
+    from app.frigate_client import FrigateDiscoveryError
+    reply = response()
+    def chunks():
+        for _ in range(513):
+            yield b"x" * 8192
+        pytest.fail("response limit must stop reading")
+    reply.iter_content.return_value = chunks()
+    with patch("app.frigate_client.requests.get", return_value=reply), pytest.raises(FrigateDiscoveryError) as error:
+        FrigateClient("http://frigate").get_camera_inventory()
+    assert error.value.code == "unexpected_response"
+    reply.close.assert_called_once_with()

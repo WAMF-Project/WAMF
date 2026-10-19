@@ -92,3 +92,57 @@ def test_probe_does_not_read_or_write_configuration(tmp_path, monkeypatch):
     assert before == {path.name: path.read_bytes() for path in tmp_path.iterdir()}
 
 
+
+
+@pytest.mark.parametrize("code", list(connection.DISCOVERY_MESSAGES))
+@pytest.mark.parametrize("cameras", [[], [{"id": "Garden", "display_name": "Birds", "enabled": False, "detection_enabled": None}]])
+def test_discovery_parent_safe_contract(monkeypatch, code, cameras):
+    process = MagicMock(returncode=0)
+    process.poll.return_value = 0
+    process.communicate.return_value = (json.dumps({"code": code, "cameras": cameras, "secret": "PRIVATE"}), None)
+    factory = MagicMock(return_value=process)
+    monkeypatch.setattr(connection.subprocess, "Popen", factory)
+    result = connection.discover_frigate_cameras("http://PRIVATE:PRIVATE@frigate")
+    assert result.success is (code == "success")
+    assert result.code == code
+    assert result.cameras == (cameras if code == "success" else None)
+    assert "PRIVATE" not in repr(result) + repr(factory.call_args)
+    assert result.completed_at.endswith("+00:00")
+    assert result.duration_ms >= 0
+    payload = json.loads(process.communicate.call_args_list[0].args[0])
+    assert payload == {"base_url": "http://PRIVATE:PRIVATE@frigate", "discover": True}
+
+
+@pytest.mark.parametrize("output", ["PRIVATE", '{}', '{"code":"success"}',
+    '{"code":"success","cameras":[{"secret":"PRIVATE"}]}'])
+def test_discovery_invalid_worker_output_is_not_exposed(monkeypatch, output):
+    process = MagicMock(returncode=0)
+    process.poll.return_value = 0
+    process.communicate.return_value = (output, None)
+    monkeypatch.setattr(connection.subprocess, "Popen", MagicMock(return_value=process))
+    result = connection.discover_frigate_cameras("http://frigate")
+    assert result.code == "internal_error"
+    assert result.cameras is None
+    assert "PRIVATE" not in repr(result)
+
+
+def test_discovery_real_deadline_cleanup(monkeypatch):
+    real_popen = subprocess.Popen
+    children = []
+    def launch(*args, **kwargs):
+        child = real_popen([sys.executable, "-c", "import time; time.sleep(60)"], **kwargs)
+        children.append(child)
+        return child
+    monkeypatch.setattr(connection.subprocess, "Popen", launch)
+    started = time.monotonic()
+    result = connection.discover_frigate_cameras("http://frigate", timeout_seconds=0.1)
+    assert result.code == "timeout"
+    assert result.cameras is None
+    assert time.monotonic() - started < 3
+    assert all(child.returncode is not None and child.stdin.closed and child.stdout.closed for child in children)
+
+
+def test_discovery_real_worker_invalid_url_without_network():
+    result = connection.discover_frigate_cameras("")
+    assert result.code == "configuration_error"
+    assert result.cameras is None

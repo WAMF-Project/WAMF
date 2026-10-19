@@ -49,6 +49,11 @@ def main():
             False, 'connection_error', FRIGATE_MESSAGES['connection_error'], 0,
             '2026-10-19T12:00:00+00:00',
         )
+        from app.frigate_connection import DISCOVERY_MESSAGES, FrigateDiscoveryResult
+        admin.discover_frigate_cameras = lambda base_url: FrigateDiscoveryResult(
+            False, 'connection_error', DISCOVERY_MESSAGES['connection_error'], 0,
+            '2026-10-19T12:00:00+00:00', None,
+        )
         webui.app.secret_key = 'isolated-browser-session'
 
         @webui.app.before_request

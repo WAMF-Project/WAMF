@@ -208,9 +208,20 @@
       <div class="settings-section-heading"><h2 id="frigate-heading">Frigate</h2><p>Configure WAMF’s connection to Frigate and monitored cameras.</p></div>
       <div class="settings-card"><div class="settings-grid">
         <div class="settings-field settings-field-wide"><label for="frigate_url">Frigate URL</label><input id="frigate_url" name="frigate_url" type="url" value="{{ settings.frigate_url }}" placeholder="http://frigate:5000" required aria-describedby="frigate_url_help" /><small id="frigate_url_help">Frigate server URL used by WAMF for API requests and media retrieval.</small>{% if field_errors.frigate_url %}<span class="settings-field-error">{{ field_errors.frigate_url }}</span>{% endif %}</div>
-        <div class="settings-field"><label for="frigate_cameras">Monitored cameras</label><textarea id="frigate_cameras" name="frigate_cameras" rows="4" required aria-describedby="frigate_cameras_help">{{ settings.frigate_cameras }}</textarea><small id="frigate_cameras_help">Enter one Frigate camera name per line.</small>{% if field_errors.frigate_cameras %}<span class="settings-field-error">{{ field_errors.frigate_cameras }}</span>{% endif %}</div>
+        <div class="settings-field"><label for="frigate_cameras">Monitored cameras</label><textarea id="frigate_cameras" name="frigate_cameras" rows="4" aria-describedby="frigate_cameras_help">{{ settings.frigate_cameras }}</textarea><small id="frigate_cameras_help">Enter one Frigate camera name per line.</small>{% if field_errors.frigate_cameras %}<span class="settings-field-error">{{ field_errors.frigate_cameras }}</span>{% endif %}</div>
         <div class="settings-field"><label for="frigate_object">Tracked object</label><input id="frigate_object" name="frigate_object" type="text" value="{{ settings.frigate_object }}" required aria-describedby="frigate_object_help" /><small id="frigate_object_help">Frigate object label WAMF processes from monitored cameras.</small></div>
       </div></div>
+      <div class="settings-card">
+        <h3>Discover cameras</h3>
+        <p id="frigate-discovery-help">Discover cameras from the saved Frigate connection, then choose which cameras WAMF should monitor.</p>
+        <button class="settings-button settings-button-secondary" id="frigate-discover-button" type="button" aria-describedby="frigate-discovery-help frigate-discovery-save">Discover cameras</button>
+        <p id="frigate-discovery-result" role="status" aria-live="polite" aria-atomic="true"></p>
+        <small id="frigate-discovery-save">Discovery does not save changes. Use Save Settings to apply your selection, or edit the camera IDs above manually.</small>
+        <fieldset id="frigate-camera-options" class="settings-camera-options" hidden>
+          <legend>Camera selection</legend>
+          <div id="frigate-camera-list"></div>
+        </fieldset>
+      </div>
       <div class="settings-card">
         <h3>Test connection</h3>
         <p id="frigate-test-help">Uses the saved Frigate settings. Save changes before testing.</p>
@@ -574,6 +585,119 @@
         frigateTestPending = false;
         frigateTestButton.disabled = false;
         frigateTestButton.textContent = 'Test connection';
+      }
+    });
+
+    const cameraInput = document.getElementById('frigate_cameras');
+    const cameraOptions = document.getElementById('frigate-camera-options');
+    const cameraList = document.getElementById('frigate-camera-list');
+    const discoverButton = document.getElementById('frigate-discover-button');
+    const discoveryResult = document.getElementById('frigate-discovery-result');
+    const discoveryStaleMessage = 'Frigate URL changed. Discovery is stale. Save changes and discover again.';
+    let discoveryPending = false;
+    let cameraInventory = null;
+
+    function selectedCameraIds() {
+      return cameraInput.value.split(/\r?\n/).map(id => id.trim()).filter(Boolean);
+    }
+    const configuredCameraIds = selectedCameraIds();
+
+    function renderCameraOptions() {
+      const focusedId = cameraList.contains(document.activeElement) ? document.activeElement.value : null;
+      const selected = new Set(selectedCameraIds());
+      const discovered = new Map((cameraInventory || []).map(camera => [camera.id, camera]));
+      const ids = new Set([...discovered.keys(), ...configuredCameraIds, ...selected]);
+      cameraList.replaceChildren();
+      cameraOptions.hidden = ids.size === 0;
+      ids.forEach(function (id) {
+        const camera = discovered.get(id);
+        const row = document.createElement('label');
+        row.className = 'settings-camera-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = id;
+        checkbox.checked = selected.has(id);
+        // The textarea is the sole submitted value, including an explicit empty list.
+        checkbox.addEventListener('change', function () {
+          let ids = selectedCameraIds();
+          if (checkbox.checked && !ids.includes(id)) ids.push(id);
+          if (!checkbox.checked) ids = ids.filter(value => value !== id);
+          cameraInput.value = ids.join('\n');
+          cameraInput.dispatchEvent(new Event('change', {bubbles: true}));
+        });
+        const description = document.createElement('span');
+        const identifier = document.createElement('strong');
+        identifier.textContent = id;
+        description.append(identifier);
+        if (camera && camera.display_name !== id) {
+          const friendly = document.createElement('small');
+          friendly.textContent = camera.display_name;
+          description.append(friendly);
+        }
+        function annotation(text, tone) {
+          const badge = document.createElement('span');
+          badge.className = 'admin-semantic-status status-' + tone;
+          badge.textContent = text;
+          description.append(badge);
+        }
+        if (camera && camera.enabled === false) annotation('Disabled', 'warning');
+        if (camera && camera.detection_enabled === false) annotation('Detection disabled', 'warning');
+        if (!camera && cameraInventory !== null) annotation('Not found in latest discovery', 'neutral');
+        row.append(checkbox, description);
+        cameraList.append(row);
+        if (id === focusedId) checkbox.focus({preventScroll: true});
+      });
+    }
+    cameraInput.addEventListener('input', renderCameraOptions);
+    renderCameraOptions();
+
+    function invalidateDiscovery() {
+      cameraInventory = null;
+      renderCameraOptions();
+      if (discoveryResult.textContent) discoveryResult.textContent = discoveryStaleMessage;
+    }
+    document.getElementById('frigate_url').addEventListener('input', invalidateDiscovery);
+    document.getElementById('frigate_url').addEventListener('change', invalidateDiscovery);
+
+    discoverButton.addEventListener('click', async function () {
+      if (discoveryPending) return;
+      discoveryPending = true;
+      discoverButton.disabled = true;
+      discoverButton.textContent = 'Discovering…';
+      discoveryResult.textContent = 'Discovering cameras using saved settings…';
+      const testedRevision = frigateConnectionRevision;
+      try {
+        const response = await fetch('{{ url_for("admin.discover_frigate_camera_options") }}', {
+          method: 'POST', headers: {'X-CSRFToken': {{ csrf_token|tojson }}}, cache: 'no-store'
+        });
+        if (response.redirected) { window.location.assign(response.url); return; }
+        if (testedRevision !== frigateConnectionRevision) return;
+        if (response.status === 401 || response.status === 403) {
+          discoveryResult.textContent = 'Admin login required. Refresh the page and sign in again.';
+        } else if (response.status === 400) {
+          discoveryResult.textContent = 'Security token expired. Refresh the page and try again.';
+        } else if (!response.ok) {
+          discoveryResult.textContent = 'Camera discovery could not be completed. Try again when ready.';
+        } else {
+          const result = await response.json();
+          if (testedRevision !== frigateConnectionRevision) return;
+          if (result.success && Array.isArray(result.cameras)) {
+            cameraInventory = result.cameras;
+            renderCameraOptions();
+            discoveryResult.textContent = cameraInventory.length
+              ? 'Cameras discovered. Choose cameras, then Save Settings to apply changes.'
+              : 'No cameras returned by Frigate. Your selection is unchanged.';
+          } else {
+            discoveryResult.textContent = 'Failed: ' + result.safe_message;
+          }
+        }
+      } catch (error) {
+        discoveryResult.textContent = 'Discovery response was not received. Try again when ready.';
+      } finally {
+        if (testedRevision !== frigateConnectionRevision) discoveryResult.textContent = discoveryStaleMessage;
+        discoveryPending = false;
+        discoverButton.disabled = false;
+        discoverButton.textContent = 'Discover cameras';
       }
     });
 

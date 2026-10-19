@@ -39,6 +39,7 @@ from app.config_validation import (
 )
 from app.frigate_connection import (
     MESSAGES as FRIGATE_MESSAGES, FrigateProbeResult, probe_frigate_connection,
+    DISCOVERY_MESSAGES, FrigateDiscoveryResult, discover_frigate_cameras,
 )
 from app.mqtt_connection import MESSAGES, MqttProbeResult, probe_mqtt_connection
 from app.mqtt_settings import mqtt_settings_from_config
@@ -616,9 +617,29 @@ def restart_status():
 @admin_bp.after_request
 def mqtt_test_no_store(response):
     # Includes authentication redirects and CSRF failures from before_request.
-    if request.endpoint in {'admin.test_mqtt_connection', 'admin.test_frigate_connection'}:
+    if request.endpoint in {
+        'admin.test_mqtt_connection', 'admin.test_frigate_connection',
+        'admin.discover_frigate_camera_options',
+    }:
         response.headers['Cache-Control'] = 'no-store'
     return response
+
+
+@admin_bp.route('/admin/config/frigate/cameras/discover', methods=['POST'])
+def discover_frigate_camera_options():
+    """Discover through the saved connection without consuming form overrides."""
+    code = 'configuration_error'
+    try:
+        config = load_runtime_config()
+        if validate_frigate_connection_config(config).is_ready:
+            code = 'internal_error'
+            return asdict(discover_frigate_cameras(config['frigate']['frigate_url']))
+    except Exception:
+        pass  # Never expose config, URLs, or remote exception data.
+    return asdict(FrigateDiscoveryResult(
+        success=False, code=code, safe_message=DISCOVERY_MESSAGES[code], duration_ms=0,
+        completed_at=datetime.now(UTC).isoformat(), cameras=None,
+    ))
 
 
 @admin_bp.route('/admin/config/frigate/test', methods=['POST'])

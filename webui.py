@@ -61,6 +61,7 @@ LOGIN_ATTEMPTS = security.LOGIN_ATTEMPTS
 CSRF_PROTECTED_ENDPOINTS = {
     'admin.test_mqtt_connection',
     'admin.test_frigate_connection',
+    'admin.discover_frigate_camera_options',
     'admin.save_config',
     'admin.restart_wamf',
     'admin.save_and_restart_wamf',

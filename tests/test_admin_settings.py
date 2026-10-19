@@ -1872,3 +1872,49 @@ def test_canonical_perch_and_health_values_use_bridge_perch_controls(
     assert persisted["perch"]["events_url"] == "https://new-perch.example/events"
     assert persisted["health"]["check_interval_seconds"] == 30.0
     assert "bridge" not in persisted
+
+
+@pytest.mark.parametrize("submitted,expected", [
+    ({}, ["garden", "perch"]),
+    ({"frigate_cameras": ""}, []),
+    ({"frigate_cameras": "Garden\ngarden\nGarden"}, ["Garden", "garden", "Garden"]),
+    ({"frigate_cameras": "New_ID\nmissing_saved"}, ["New_ID", "missing_saved"]),
+])
+def test_camera_selection_save_preserves_existing_partial_post_policy(
+    flask_client, tmp_path, monkeypatch, submitted, expected
+):
+    config_path, _ = configure_paths(tmp_path, monkeypatch)
+    disable_runtime_reload(monkeypatch)
+    response = flask_client.post('/admin/config/save', data=submitted)
+    assert response.status_code == 302
+    saved = yaml.safe_load(config_path.read_text())
+    assert saved['frigate']['camera'] == expected
+
+
+@pytest.mark.parametrize("success", [False, True])
+def test_discovery_then_explicit_camera_save_uses_ids_only(
+    flask_client, tmp_path, monkeypatch, success
+):
+    from app.frigate_connection import DISCOVERY_MESSAGES, FrigateDiscoveryResult
+    from routes import admin
+    config = ready_config()
+    config['frigate']['camera'] = ['missing_saved']
+    config_path, secrets_path = configure_paths(tmp_path, monkeypatch, config=config)
+    disable_runtime_reload(monkeypatch)
+    cameras = [{"id": "Exact_ID", "display_name": "Friendly birds", "enabled": False,
+                "detection_enabled": None}] if success else None
+    code = 'success' if success else 'connection_error'
+    monkeypatch.setattr(admin, 'discover_frigate_cameras', lambda url: FrigateDiscoveryResult(
+        success, code, DISCOVERY_MESSAGES[code], 0, '2026-10-19T12:00:00+00:00', cameras,
+    ))
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+    result = flask_client.post('/admin/config/frigate/cameras/discover')
+    assert result.status_code == 200
+    assert before == {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+    assert yaml.safe_load(config_path.read_text())['frigate']['camera'] == ['missing_saved']
+    response = flask_client.post('/admin/config/save', data={
+        'frigate_cameras': 'missing_saved\nExact_ID',
+    })
+    assert response.status_code == 302
+    assert yaml.safe_load(config_path.read_text())['frigate']['camera'] == ['missing_saved', 'Exact_ID']
+    assert 'Friendly birds' not in config_path.read_text() + secrets_path.read_text()

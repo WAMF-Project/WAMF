@@ -34,11 +34,38 @@ class FrigateProbeResult:
     completed_at: str
 
 
+@dataclass(frozen=True)
+class FrigateDiscoveryResult(FrigateProbeResult):
+    # None is a failed discovery; [] is a successfully retrieved empty inventory.
+    cameras: list[dict] | None
+
+
+DISCOVERY_MESSAGES = {
+    **MESSAGES,
+    "success": "Cameras discovered. Choose cameras, then Save Settings to apply changes.",
+    "unexpected_response": "Frigate did not return a usable camera inventory.",
+    "internal_error": "Camera discovery could not be completed.",
+}
+
+
 def probe_frigate_connection(base_url, *, timeout_seconds=PROBE_TIMEOUT_SECONDS):
+    code, _, duration, completed = _run_worker(base_url, timeout_seconds)
+    return FrigateProbeResult(code == "success", code, MESSAGES[code], duration, completed)
+
+
+def discover_frigate_cameras(base_url, *, timeout_seconds=PROBE_TIMEOUT_SECONDS):
+    code, cameras, duration, completed = _run_worker(base_url, timeout_seconds, discover=True)
+    return FrigateDiscoveryResult(
+        code == "success", code, DISCOVERY_MESSAGES[code], duration, completed, cameras,
+    )
+
+
+def _run_worker(base_url, timeout_seconds, *, discover=False):
     """Keep sensitive input on stdin; kill and reap every unfinished child."""
     started = time.monotonic()
     code = "internal_error"
     process = None
+    cameras = None
     try:
         if (
             not isinstance(timeout_seconds, (int, float))
@@ -48,7 +75,7 @@ def probe_frigate_connection(base_url, *, timeout_seconds=PROBE_TIMEOUT_SECONDS)
         ):
             code = "configuration_error"
         else:
-            payload = json.dumps({"base_url": base_url})
+            payload = json.dumps({"base_url": base_url, "discover": discover})
             process = subprocess.Popen(
                 [sys.executable, str(Path(__file__).with_name("frigate_probe_worker.py")), str(os.getpid())],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -57,8 +84,25 @@ def probe_frigate_connection(base_url, *, timeout_seconds=PROBE_TIMEOUT_SECONDS)
             remaining = timeout_seconds - (time.monotonic() - started)
             output, _ = process.communicate(payload, timeout=max(remaining, 0))
             candidate = output.strip()
-            if process.returncode == 0 and candidate in MESSAGES:
-                code = candidate
+            if process.returncode == 0:
+                if not discover and candidate in MESSAGES:
+                    code = candidate
+                elif discover:
+                    result = json.loads(candidate)
+                    if isinstance(result, dict) and result.get("code") in DISCOVERY_MESSAGES:
+                        if result["code"] != "success":
+                            code = result["code"]
+                        elif isinstance(result.get("cameras"), list) and all(
+                            isinstance(camera, dict)
+                            and set(camera) == {"id", "display_name", "enabled", "detection_enabled"}
+                            and isinstance(camera["id"], str) and bool(camera["id"])
+                            and isinstance(camera["display_name"], str)
+                            and (camera["enabled"] is None or isinstance(camera["enabled"], bool))
+                            and (camera["detection_enabled"] is None or isinstance(camera["detection_enabled"], bool))
+                            for camera in result["cameras"]
+                        ):
+                            code = "success"
+                            cameras = result["cameras"]
     except subprocess.TimeoutExpired:
         code = "timeout"
     except Exception:
@@ -68,8 +112,7 @@ def probe_frigate_connection(base_url, *, timeout_seconds=PROBE_TIMEOUT_SECONDS)
             if process.poll() is None:
                 process.kill()
             process.communicate()
-    return FrigateProbeResult(
-        success=code == "success", code=code, safe_message=MESSAGES[code],
-        duration_ms=round((time.monotonic() - started) * 1000),
-        completed_at=datetime.now(UTC).isoformat(),
+    return (
+        code, cameras, round((time.monotonic() - started) * 1000),
+        datetime.now(UTC).isoformat(),
     )

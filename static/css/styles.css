@@ -3955,6 +3955,42 @@ a:hover {
   line-height: 1.4;
 }
 
+.settings-camera-options {
+  min-width: 0;
+  margin: 1rem 0 0;
+  padding: 0.75rem;
+  border: 1px solid var(--wamf-border);
+  border-radius: 8px;
+}
+
+.settings-camera-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.5rem 0;
+  cursor: pointer;
+}
+
+.settings-camera-option > input {
+  flex: 0 0 auto;
+  margin-top: 0.25rem;
+}
+
+.settings-camera-option > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-camera-option strong,
+.settings-camera-option small {
+  display: block;
+}
+
+.settings-camera-option .admin-semantic-status {
+  margin: 0.25rem 0.5rem 0 0;
+  white-space: normal;
+}
+
 .settings-field-error {
   display: block;
   margin-top: 0.4rem;

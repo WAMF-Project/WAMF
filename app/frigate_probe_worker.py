@@ -12,7 +12,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config_validation import validate_frigate_connection_config
-from app.frigate_client import FrigateClient
+from app.frigate_client import FrigateClient, FrigateDiscoveryError
 
 
 def main():
@@ -32,7 +32,13 @@ def main():
         payload = json.load(sys.stdin)
         base_url = payload["base_url"]
         if not validate_frigate_connection_config({"frigate": {"frigate_url": base_url}}).is_ready:
-            return "configuration_error"
+            return json.dumps({"code": "configuration_error"}) if payload.get("discover") else "configuration_error"
+        if payload.get("discover"):
+            try:
+                cameras = FrigateClient(base_url).get_camera_inventory()
+                return json.dumps({"code": "success", "cameras": cameras})
+            except FrigateDiscoveryError as exc:
+                return json.dumps({"code": exc.code})
         return FrigateClient(base_url).check_api_connection()
     except Exception:
         return "internal_error"

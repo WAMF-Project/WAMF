@@ -18,6 +18,14 @@ class FrigateError(Exception):
         self.status_code = status_code
 
 
+class FrigateDiscoveryError(FrigateError):
+    """A safe, classified discovery failure with no remote response data."""
+
+    def __init__(self, code):
+        super().__init__("Frigate camera discovery failed")
+        self.code = code
+
+
 class FrigateClient:
     """Client for the subset of the Frigate HTTP API currently used by WAMF."""
 
@@ -150,6 +158,66 @@ class FrigateClient:
             return "timeout"
         except requests.exceptions.RequestException:
             return "connection_error"
+        finally:
+            if response is not None:
+                response.close()
+
+    def get_camera_inventory(self) -> list[dict]:
+        """Fetch one config response and retain only camera presentation fields."""
+        response = None
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/config", timeout=(2, 2), stream=True,
+                allow_redirects=False, verify=True,
+            )
+            status = response.status_code
+            if status in (401, 403):
+                raise FrigateDiscoveryError("auth_rejected")
+            if 300 <= status < 400:
+                raise FrigateDiscoveryError("redirect")
+            if status != 200:
+                raise FrigateDiscoveryError("http_error")
+            body = bytearray()
+            for chunk in response.iter_content(chunk_size=8192):
+                body.extend(chunk)
+                if len(body) > 4 * 1024 * 1024:
+                    raise FrigateDiscoveryError("unexpected_response")
+            try:
+                config = json.loads(body)
+            except (ValueError, UnicodeError) as exc:
+                raise FrigateDiscoveryError("unexpected_response") from exc
+            if not isinstance(config, dict) or not isinstance(config.get("cameras"), dict):
+                raise FrigateDiscoveryError("unexpected_response")
+            inventory = []
+            for camera_id, camera in config["cameras"].items():
+                if (
+                    not isinstance(camera_id, str) or not camera_id
+                    or any(ord(char) < 32 for char in camera_id)
+                    or not isinstance(camera, dict)
+                ):
+                    raise FrigateDiscoveryError("unexpected_response")
+                friendly = camera.get("friendly_name")
+                if (
+                    not isinstance(friendly, str) or not friendly.strip()
+                    or len(friendly) > 256 or not friendly.isprintable()
+                ):
+                    friendly = camera_id
+                detection = camera.get("detect")
+                detection = detection.get("enabled") if isinstance(detection, dict) else None
+                enabled = camera.get("enabled")
+                inventory.append({
+                    "id": camera_id,
+                    "display_name": friendly.strip() if friendly != camera_id else camera_id,
+                    "enabled": enabled if isinstance(enabled, bool) else None,
+                    "detection_enabled": detection if isinstance(detection, bool) else None,
+                })
+            return inventory
+        except requests.exceptions.SSLError as exc:
+            raise FrigateDiscoveryError("tls_error") from exc
+        except requests.exceptions.Timeout as exc:
+            raise FrigateDiscoveryError("timeout") from exc
+        except requests.exceptions.RequestException as exc:
+            raise FrigateDiscoveryError("connection_error") from exc
         finally:
             if response is not None:
                 response.close()
