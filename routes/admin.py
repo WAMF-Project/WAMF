@@ -41,6 +41,7 @@ from app.frigate_connection import (
     MESSAGES as FRIGATE_MESSAGES, FrigateProbeResult, probe_frigate_connection,
     DISCOVERY_MESSAGES, FrigateDiscoveryResult, discover_frigate_cameras,
 )
+from app.frigate_presentation import build_camera_presentation
 from app.mqtt_connection import MESSAGES, MqttProbeResult, probe_mqtt_connection
 from app.mqtt_settings import mqtt_settings_from_config
 from app.mqtt_presentation import build_mqtt_presentation
@@ -351,6 +352,7 @@ def admin_dashboard():
         events=events,
         retention=retention,
         mqtt=mqtt,
+        cameras=build_camera_presentation(health.get('frigate_cameras', {}), retention_config),
     )
 
 

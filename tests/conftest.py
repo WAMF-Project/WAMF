@@ -10,6 +10,16 @@ import pytest
 import yaml
 
 
+@pytest.fixture(autouse=True)
+def isolated_frigate_health(monkeypatch):
+    """Health rendering must never contact a real Frigate installation."""
+    from app.frigate_health import FrigateHealthCache
+    monkeypatch.setattr('app.health.frigate_health_cache', FrigateHealthCache(lambda url: {
+        'inventory': None, 'stats': None, 'config_code': 'connection_error',
+        'stats_code': 'connection_error', 'online': False,
+    }))
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

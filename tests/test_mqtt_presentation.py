@@ -109,7 +109,8 @@ def test_config_unavailable_and_invalid_timezone_are_isolated():
 @pytest.fixture
 def health_dependencies(monkeypatch):
     monkeypatch.setattr(health, 'preflight', lambda config: [])
-    monkeypatch.setattr(health, 'FrigateClient', MagicMock())
+    monkeypatch.setattr(health, 'frigate_health_cache', MagicMock())
+    health.frigate_health_cache.get.return_value = {'online': True, 'degraded': False}
     monkeypatch.setattr(health, 'connect_db', MagicMock())
     monkeypatch.setattr(health.shutil, 'disk_usage', lambda path: (100, 10, 90))
     for name in ('get_snapshots_path', 'get_clips_path'):
@@ -148,7 +149,7 @@ def test_admin_render_reads_once_and_does_not_probe(flask_client, monkeypatch, h
     assert b'PRIVATE' not in response.data
     assert 'PRIVATE' not in caplog.text
     reader.assert_called_once()
-    health.FrigateClient.assert_called_once()
+    health.frigate_health_cache.get.assert_called_once()
     probe.assert_not_called()
     # Cache is request-local, not a stale cross-request health cache.
     flask_client.get('/admin')

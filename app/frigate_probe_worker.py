@@ -32,7 +32,11 @@ def main():
         payload = json.load(sys.stdin)
         base_url = payload["base_url"]
         if not validate_frigate_connection_config({"frigate": {"frigate_url": base_url}}).is_ready:
-            return json.dumps({"code": "configuration_error"}) if payload.get("discover") else "configuration_error"
+            return json.dumps({"code": "configuration_error"}) if payload.get("discover") or payload.get('observe') else "configuration_error"
+        if payload.get('observe'):
+            from app.frigate_health import collect_http_observation
+
+            return json.dumps({'code': 'success', 'observation': collect_http_observation(FrigateClient(base_url))})
         if payload.get("discover"):
             try:
                 cameras = FrigateClient(base_url).get_camera_inventory()

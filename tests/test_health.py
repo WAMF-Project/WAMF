@@ -4,7 +4,6 @@ import pytest
 import yaml
 
 import app.health as health_module
-from app.frigate_client import FrigateError
 from app.health import (
     calculate_system_health,
     get_system_health,
@@ -50,7 +49,7 @@ def test_mqtt_boolean_health_requires_operational_runtime(connection, subscripti
     snapshot = MqttRuntimeSnapshot(worker_generation='test', is_current=True,
                                    connection_state=connection, subscription_state=subscription)
     config = {'mqtt': {'host': 'broker', 'topic_prefix': 'frigate'}, 'frigate': {'frigate_url': 'http://frigate'}}
-    with patch('app.health.preflight', return_value=[]), patch('app.health.FrigateClient'), patch(
+    with patch('app.health.preflight', return_value=[]), patch('app.health.frigate_health_cache'), patch(
         'app.health.connect_db'
     ), patch('app.health.shutil.disk_usage', return_value=(100, 10, 90)), patch(
         'app.health.get_snapshots_path'
@@ -60,52 +59,20 @@ def test_mqtt_boolean_health_requires_operational_runtime(connection, subscripti
     probe.assert_not_called()
 
 
-def _run_frigate_health_probe(config, *, version="0.14.1", error=None):
-    frigate_client = MagicMock()
-    if error is None:
-        frigate_client.get_version.return_value = version
-    else:
-        frigate_client.get_version.side_effect = error
-
-    with patch("app.health.preflight", return_value=[]), patch(
-        "app.health.FrigateClient", return_value=frigate_client
-    ) as client_class, patch("app.mqtt_connection.probe_mqtt_connection"), patch(
-        "app.health.connect_db"
-    ), patch(
-        "app.health.shutil.disk_usage", return_value=(100, 10, 90)
-    ), patch(
-        "app.health.get_snapshots_path"
-    ) as snapshots, patch(
-        "app.health.get_clips_path"
-    ) as clips:
-        snapshots.return_value.exists.return_value = True
-        clips.return_value.exists.return_value = True
+@pytest.mark.parametrize('online', [True, False, None])
+def test_frigate_health_uses_shared_observation(online):
+    config = {'frigate': {'frigate_url': 'http://configured-frigate:5000'}}
+    cameras = {'online': online, 'degraded': False, 'rows': [], 'coverage_complete': False}
+    with patch('app.health.preflight', return_value=[]), patch(
+        'app.health.frigate_health_cache'
+    ) as cache, patch('app.health.connect_db'), patch(
+        'app.health.shutil.disk_usage', return_value=(100, 10, 90)
+    ), patch('app.health.get_snapshots_path'), patch('app.health.get_clips_path'):
+        cache.get.return_value = cameras
         result = calculate_system_health(config)
-
-    return result, client_class, frigate_client
-
-
-def test_frigate_health_uses_configured_url_and_success_is_healthy():
-    config = {"frigate": {"frigate_url": "http://configured-frigate:5000"}}
-
-    result, client_class, frigate_client = _run_frigate_health_probe(
-        config,
-        version="",
-    )
-
-    client_class.assert_called_once_with("http://configured-frigate:5000")
-    frigate_client.get_version.assert_called_once_with()
-    assert result["frigate_online"] is True
-
-
-def test_frigate_health_is_unhealthy_on_frigate_error():
-    result, _, frigate_client = _run_frigate_health_probe(
-        {"frigate": {"frigate_url": "http://frigate"}},
-        error=FrigateError("Frigate version request failed"),
-    )
-
-    frigate_client.get_version.assert_called_once_with()
-    assert result["frigate_online"] is False
+    cache.get.assert_called_once_with(config, refresh=True, interval=60)
+    assert result['frigate_online'] is online
+    assert result['frigate_cameras'] is cameras
 
 
 def test_health_load_config_uses_config_env_var(monkeypatch, tmp_path):
@@ -186,10 +153,45 @@ def test_overall_health_state_uses_existing_check_results():
     assert health_module._overall_health_state(_health("unhealthy")) == "unhealthy"
 
 
+@pytest.mark.parametrize('status,degraded', [
+    ('missing', True), ('disabled', True), ('detection_disabled', True),
+    ('unavailable', True), ('healthy', False), ('unknown', False), ('stale', False),
+])
+def test_camera_aggregation_and_precedence(status, degraded):
+    health = _health('healthy')
+    health['frigate_cameras'] = {'degraded': degraded, 'rows': [{'status': status}]}
+    assert health_module._overall_health_state(health) == ('degraded' if degraded else 'healthy')
+    health['setup_required'] = True
+    assert health_module._overall_health_state(health) == 'setup_required'
+    health['database_healthy'] = False
+    assert health_module._overall_health_state(health) == 'unhealthy'
+
+
+def test_health_details_one_camera_summary_or_service_problem():
+    health = _health('healthy')
+    health['frigate_cameras'] = {'warnings': [{'status': 'missing'}] * 3,
+                               'summary': '3 missing', 'degraded': True}
+    assert health_module._health_details(health) == 'Monitored cameras: 3 missing'
+    health['frigate_online'] = False
+    assert health_module._health_details(health) == 'Frigate offline'
+    health['frigate_online'] = True
+    health['frigate_cameras']['access_warning'] = True
+    assert health_module._health_details(health) == 'Frigate camera health access unavailable'
+    health['frigate_cameras']['warnings'] = []
+    assert health_module._overall_health_state(health) == 'degraded'
+
+
+def test_unknown_service_observation_is_not_reported_offline():
+    health = _health('healthy')
+    health['frigate_online'] = None
+    assert health_module._overall_health_state(health) == 'healthy'
+    assert 'offline' not in health_module._health_details(health)
+
+
 def test_health_calculation_does_not_record_transition():
     with patch("app.health.load_config", return_value={"frigate": {}}), patch(
         "app.health.record_health_transition"
-    ) as mock_record, patch("app.health.FrigateClient"), patch(
+    ) as mock_record, patch("app.health.frigate_health_cache"), patch(
         "app.mqtt_connection.probe_mqtt_connection"
     ), patch(
         "app.health.connect_db"

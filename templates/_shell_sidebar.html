@@ -83,7 +83,7 @@
       <a class="admin-system-overall status-{{ admin_overall_state }}" href="{{ url_for('admin.admin_dashboard') }}" aria-labelledby="admin-system-status-heading admin-system-status-text">
         <span class="admin-status-icon" aria-hidden="true">{% if admin_overall_state == 'healthy' %}✓{% elif admin_overall_state in ('setup_required', 'degraded') %}!{% else %}×{% endif %}</span>
         <span id="admin-system-status-text">
-        {% if admin_overall_state == 'healthy' %}All systems OK
+        {% if admin_overall_state == 'healthy' %}{% if health.get('frigate_cameras', {}).get('coverage_complete', true) %}All systems OK{% else %}Services OK · Cameras not fully checked{% endif %}
         {% elif admin_overall_state == 'setup_required' %}Setup required
         {% elif admin_overall_state == 'degraded' %}Attention needed
         {% else %}Service issue{% endif %}

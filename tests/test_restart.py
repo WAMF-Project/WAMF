@@ -179,7 +179,7 @@ class Client:
 mqtt.Client = Client
 from app import health
 health.start_health_monitor = lambda **kwargs: None
-health.FrigateClient = lambda *args, **kwargs: MagicMock()
+health.frigate_health_cache.get = lambda *args, **kwargs: {'online': True, 'degraded': False}
 health.probe_mqtt_connection = lambda *args, **kwargs: MagicMock(success=True)
 from flask import Flask
 

@@ -95,7 +95,59 @@ def main():
                 saved['mqtt']['host'] = None
             return saved
         health.load_config = health_config
-        health.FrigateClient = lambda url: SimpleNamespace(get_version=lambda: 'fixture')
+        from app.frigate_health import FrigateHealthCache
+
+        def camera_health(config, *, refresh=False, interval=60):
+            # Exercise production normalization/classification/presentation with
+            # controlled HTTP observations and clocks; never use real services.
+            from copy import deepcopy
+            mode = request.headers.get('X-WAMF-Test-Frigate-State', 'healthy')
+            clock = [0]
+            sample = {'camera_fps': 5, 'process_fps': 5, 'detection_fps': 0,
+                      'detection_enabled': True}
+            inventory = [{'id': 'garden', 'display_name': 'Garden birds',
+                          'enabled': True, 'detection_enabled': True}]
+            monitored = ['garden']
+            if mode == 'missing':
+                inventory = []
+            if mode in ('disabled', 'detection_disabled'):
+                inventory[0]['enabled' if mode == 'disabled' else 'detection_enabled'] = False
+                sample['detection_enabled'] = False
+            if mode == 'mixed':
+                monitored += ['missing_camera', 'disabled_camera', 'detection_disabled_camera']
+                inventory += [
+                    {'id': 'disabled_camera', 'display_name': 'Side garden', 'enabled': False, 'detection_enabled': False},
+                    {'id': 'detection_disabled_camera', 'display_name': 'Feeder', 'enabled': True, 'detection_enabled': False},
+                ]
+            if mode == 'long':
+                long_id = 'Garden_' + 'very_long_camera_identifier_' * 5
+                monitored = [long_id]
+                inventory[0].update(id=long_id, display_name='A friendly camera name ' * 8)
+            cfg = deepcopy(config)
+            cfg['frigate']['camera'] = monitored
+            def observation(url):
+                unavailable = mode in ('outage', 'access')
+                code = 'connection_error' if mode == 'outage' else 'auth_rejected' if mode == 'access' else 'success'
+                return {
+                    'inventory': None if unavailable else inventory,
+                    'stats': None if unavailable else {'cameras': {} if mode == 'unknown' else {monitored[0]: deepcopy(sample)},
+                        'service': {'last_updated': 10000 + clock[0], 'uptime': 1000 + clock[0]}},
+                    'config_code': code, 'stats_code': code, 'online': mode != 'outage',
+                }
+            cache = FrigateHealthCache(observation, monotonic=lambda: clock[0], wall_time=lambda: 10000 + clock[0])
+            result = cache.get(cfg, refresh=True)
+            if mode == 'unavailable':
+                sample['camera_fps'] = 0
+                clock[0] = 120
+                cache.get(cfg, refresh=True)
+                clock[0] = 180
+                result = cache.get(cfg, refresh=True)
+            if mode == 'stale':
+                clock[0] = 121
+                result = cache.get(cfg)
+            return result
+
+        health.frigate_health_cache = SimpleNamespace(get=camera_health)
         health.shutil.disk_usage = lambda path: (100, 10, 90)
         webui.app.extensions['mqtt_runtime_status'] = read_runtime
         webui.app.run(host='127.0.0.1', port=7768, use_reloader=False)

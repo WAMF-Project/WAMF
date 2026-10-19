@@ -35,7 +35,7 @@ test('System Health services, compact navigation and responsive layout', async (
   const sidebar = page.getByRole('complementary', { name: 'Application navigation' });
   await expect(sidebar).toBeVisible();
   const summary = sidebar.getByRole('region', { name: 'System Health' });
-  await expect(summary.getByRole('link')).toContainText(/All systems OK|Setup required|Attention needed|Service issue/);
+  await expect(summary.getByRole('link')).toContainText(/All systems OK|Cameras not fully checked|Setup required|Attention needed|Service issue/);
   for (const label of ['Frigate', 'MQTT', 'Database', 'Archive Storage', 'System Disk']) {
     await expect(sidebar.getByText(label, { exact: true })).toHaveCount(0);
   }

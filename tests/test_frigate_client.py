@@ -7,6 +7,78 @@ import requests
 from app.frigate_client import FrigateClient, FrigateError
 
 
+@pytest.mark.parametrize('value', [None, -1, float('nan'), float('inf'), True, '5', {}, []])
+def test_stats_unknown_numbers_never_default_to_zero(value):
+    from app.frigate_client import normalize_camera_stats
+    result = normalize_camera_stats({'cameras': {'Garden': {
+        'camera_fps': value, 'process_fps': value, 'detection_fps': value,
+        'pid': value, 'detection_enabled': 'false', 'connection_quality': 'unusable',
+    }}, 'service': {'last_updated': value, 'uptime': value, 'version': 'PRIVATE'}})
+    assert all(result['cameras']['Garden'][field] is None for field in (
+        'camera_fps', 'process_fps', 'detection_fps', 'detection_enabled'))
+    assert 'PRIVATE' not in repr(result)
+    assert 'connection_quality' not in result['cameras']['Garden']
+
+
+def test_stats_request_is_bounded_normalized_and_closed():
+    reply = response()
+    reply.iter_content.return_value = [json.dumps({'cameras': {'Garden': {
+        'camera_fps': 5, 'process_fps': 5, 'detection_fps': 0,
+        'pid': 123, 'ffmpeg_pid': None, 'detection_enabled': True, 'cmdline': 'PRIVATE',
+    }}, 'service': {'last_updated': 10000, 'uptime': 1000}, 'cpu_usages': 'PRIVATE'}).encode()]
+    with patch('app.frigate_client.requests.get', return_value=reply) as get:
+        result = FrigateClient('https://frigate/prefix/').get_camera_stats()
+    get.assert_called_once_with('https://frigate/prefix/api/stats', timeout=(2, 2),
+                               stream=True, allow_redirects=False, verify=True)
+    reply.close.assert_called_once_with()
+    assert result['cameras']['Garden']['detection_fps'] == 0
+    assert result['cameras']['Garden']['pid'] == 123
+    assert 'PRIVATE' not in repr(result)
+
+
+@pytest.mark.parametrize('status,code', [(401, 'auth_rejected'), (403, 'auth_rejected'),
+    (302, 'redirect'), (500, 'http_error')])
+def test_stats_http_failures_safe_and_closed(status, code):
+    reply = response(status_code=status)
+    with patch('app.frigate_client.requests.get', return_value=reply), pytest.raises(FrigateError) as error:
+        FrigateClient('http://PRIVATE:PRIVATE@host').get_camera_stats()
+    assert error.value.code == code
+    assert 'PRIVATE' not in str(error.value)
+    reply.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize('body', [b'<html>PRIVATE</html>', b'[]', b'{}', b'{"cameras":[]}',
+    b'{"cameras":{"Garden":5}}', b'x' * (4 * 1024 * 1024 + 1)])
+def test_stats_malformed_or_oversized_response(body):
+    reply = response()
+    reply.iter_content.return_value = [body]
+    with patch('app.frigate_client.requests.get', return_value=reply):
+        if body == b'{"cameras":{"Garden":5}}':
+            assert FrigateClient('http://frigate').get_camera_stats()['cameras']['Garden']['camera_fps'] is None
+        else:
+            with pytest.raises(FrigateError) as error:
+                FrigateClient('http://PRIVATE:PRIVATE@host').get_camera_stats()
+            assert error.value.code == 'unexpected_response'
+            assert 'PRIVATE' not in str(error.value)
+    reply.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize('error,code', [(requests.Timeout, 'timeout'),
+    (requests.ConnectionError, 'connection_error'), (requests.exceptions.SSLError, 'tls_error')])
+@pytest.mark.parametrize('during_read', [False, True])
+def test_stats_transport_error_is_safe(error, code, during_read, caplog):
+    reply = response()
+    reply.iter_content.side_effect = error('PRIVATE')
+    with patch('app.frigate_client.requests.get', return_value=reply,
+               side_effect=None if during_read else error('PRIVATE')):
+        with pytest.raises(FrigateError) as caught:
+            FrigateClient('http://PRIVATE:PRIVATE@host').get_camera_stats()
+    assert caught.value.code == code
+    assert 'PRIVATE' not in str(caught.value) + caplog.text
+    if during_read:
+        reply.close.assert_called_once_with()
+
+
 def response(*, status_code=200, content=b"image", text="0.14.1"):
     result = Mock(spec=requests.Response)
     result.status_code = status_code

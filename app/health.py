@@ -9,7 +9,7 @@ from app.config_editor import get_config_path
 from app.config_loader import load_runtime_config
 from app.config_normalization import normalize_config
 from app.db import connect_db
-from app.frigate_client import FrigateClient, FrigateError
+from app.frigate_health import frigate_health_cache
 from app.mqtt_presentation import build_mqtt_presentation
 from integrations.bridge import post_health_event
 from wamf_paths import get_clips_path, get_snapshots_path
@@ -43,9 +43,10 @@ def _overall_health_state(health):
         return "setup_required"
 
     if (
-        not health["frigate_online"]
+        health["frigate_online"] is False
         or not health["mqtt_online"]
         or health["disk_used_percent"] >= 75
+        or health.get('frigate_cameras', {}).get('degraded', False)
     ):
         return "degraded"
 
@@ -66,8 +67,15 @@ def _health_details(health):
         ("archive_writable", "Archive storage unavailable"),
     )
     for key, message in checks:
-        if not health.get(key, False):
+        if (health.get(key) is False if key == 'frigate_online' else not health.get(key, False)):
             details.append(message)
+
+    cameras = health.get('frigate_cameras', {})
+    if health.get('frigate_online'):
+        if cameras.get('access_warning'):
+            details.append('Frigate camera health access unavailable')
+        elif cameras.get('warnings'):
+            details.append('Monitored cameras: ' + cameras['summary'])
 
     disk_percent = health.get("disk_used_percent")
     if disk_percent is not None and disk_percent >= 75:
@@ -117,7 +125,7 @@ def load_config():
     return load_runtime_config()
 
 
-def calculate_system_health(config=None, *, mqtt_runtime_status=None):
+def calculate_system_health(config=None, *, mqtt_runtime_status=None, refresh_frigate=True):
     """Calculate current health without publishing state transitions."""
 
     health = {}
@@ -144,17 +152,15 @@ def calculate_system_health(config=None, *, mqtt_runtime_status=None):
     # connected and subscribed. Unknown/stale/setup remain None.
     health['mqtt_online'] = health['mqtt_runtime']['online']
     health['frigate_disk_percent'] = None
+    health['frigate_cameras'] = {'rows': [], 'warnings': [], 'summary': '',
+                                'coverage_complete': False, 'degraded': False}
 
     if not health['setup_required']:
-        frigate_url = config["frigate"]["frigate_url"]
-
-        # Frigate connectivity
-        try:
-            FrigateClient(frigate_url).get_version()
-            health["frigate_online"] = True
-        except FrigateError as exc:
-            logger.debug("Frigate health check failed: %s", exc)
-            health["frigate_online"] = False
+        cameras = frigate_health_cache.get(
+            config, refresh=refresh_frigate, interval=_health_check_interval(config),
+        )
+        health['frigate_cameras'] = cameras
+        health['frigate_online'] = cameras['online']
 
     # Database connectivity
     try:
@@ -192,11 +198,11 @@ def calculate_system_health(config=None, *, mqtt_runtime_status=None):
     return health
 
 
-def get_system_health(*, mqtt_runtime_status=None):
+def get_system_health(*, mqtt_runtime_status=None, refresh_frigate=True):
     """Return current health for request-driven routes and templates."""
-    if mqtt_runtime_status is None:
+    if mqtt_runtime_status is None and refresh_frigate:
         return calculate_system_health()
-    return calculate_system_health(mqtt_runtime_status=mqtt_runtime_status)
+    return calculate_system_health(mqtt_runtime_status=mqtt_runtime_status, refresh_frigate=refresh_frigate)
 
 
 def _health_check_interval(config):

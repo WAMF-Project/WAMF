@@ -60,7 +60,7 @@ def discover_frigate_cameras(base_url, *, timeout_seconds=PROBE_TIMEOUT_SECONDS)
     )
 
 
-def _run_worker(base_url, timeout_seconds, *, discover=False):
+def _run_worker(base_url, timeout_seconds, *, discover=False, observe=False):
     """Keep sensitive input on stdin; kill and reap every unfinished child."""
     started = time.monotonic()
     code = "internal_error"
@@ -75,7 +75,8 @@ def _run_worker(base_url, timeout_seconds, *, discover=False):
         ):
             code = "configuration_error"
         else:
-            payload = json.dumps({"base_url": base_url, "discover": discover})
+            payload = json.dumps({"base_url": base_url, "discover": discover,
+                                  **({'observe': True} if observe else {})})
             process = subprocess.Popen(
                 [sys.executable, str(Path(__file__).with_name("frigate_probe_worker.py")), str(os.getpid())],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -85,7 +86,17 @@ def _run_worker(base_url, timeout_seconds, *, discover=False):
             output, _ = process.communicate(payload, timeout=max(remaining, 0))
             candidate = output.strip()
             if process.returncode == 0:
-                if not discover and candidate in MESSAGES:
+                if observe:
+                    result = json.loads(candidate)
+                    if isinstance(result, dict) and result.get('code') in MESSAGES:
+                        if result['code'] != 'success':
+                            code = result['code']
+                        elif isinstance(result.get('observation'), dict):
+                            from app.frigate_health import normalize_observation
+
+                            cameras = normalize_observation(result['observation'])
+                            code = 'success'
+                elif not discover and candidate in MESSAGES:
                     code = candidate
                 elif discover:
                     result = json.loads(candidate)

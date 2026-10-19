@@ -146,3 +146,45 @@ def test_discovery_real_worker_invalid_url_without_network():
     result = connection.discover_frigate_cameras("")
     assert result.code == "configuration_error"
     assert result.cameras is None
+
+
+def test_health_worker_rejects_invalid_connection_without_network():
+    from app.frigate_health import fetch_observation
+    result = fetch_observation('')
+    assert result['config_code'] == result['stats_code'] == 'configuration_error'
+    assert result['online'] is False
+
+
+@pytest.mark.parametrize('invalid', [False, True])
+def test_health_parent_validates_and_discards_extra_child_data(monkeypatch, invalid):
+    from app.frigate_health import fetch_observation
+    observation = {
+        'config_code': 'success', 'stats_code': 'success', 'online': True,
+        'inventory': [{'id': 'Garden', 'display_name': 'Garden', 'enabled': True, 'detection_enabled': True}],
+        'stats': {'cameras': {}, 'service': {'last_updated': 10000, 'uptime': 1000}, 'secret': 'PRIVATE'},
+        'secret': 'PRIVATE',
+    }
+    if invalid:
+        observation['inventory'][0]['secret'] = 'PRIVATE'
+    process = MagicMock(returncode=0)
+    process.poll.return_value = 0
+    process.communicate.return_value = (json.dumps({'code': 'success', 'observation': observation}), None)
+    factory = MagicMock(return_value=process)
+    monkeypatch.setattr(connection.subprocess, 'Popen', factory)
+    result = fetch_observation('http://PRIVATE:PRIVATE@frigate')
+    assert result['config_code'] == ('internal_error' if invalid else 'success')
+    assert 'PRIVATE' not in repr(result) + repr(factory.call_args)
+    assert json.loads(process.communicate.call_args_list[0].args[0])['observe'] is True
+
+
+def test_health_observation_hard_deadline_kills_and_reaps(monkeypatch):
+    real_popen = subprocess.Popen
+    children = []
+    def launch(*args, **kwargs):
+        child = real_popen([sys.executable, '-c', 'import time; time.sleep(60)'], **kwargs)
+        children.append(child)
+        return child
+    monkeypatch.setattr(connection.subprocess, 'Popen', launch)
+    code, data, _, _ = connection._run_worker('http://frigate', .1, observe=True)
+    assert code == 'timeout' and data is None
+    assert all(child.returncode is not None and child.stdin.closed and child.stdout.closed for child in children)

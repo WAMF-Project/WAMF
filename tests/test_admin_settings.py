@@ -79,6 +79,39 @@ def disable_runtime_reload(monkeypatch):
     )
 
 
+def test_settings_cached_only_health_and_explicit_view_reuses_request_result(
+    flask_client, tmp_path, monkeypatch,
+):
+    from unittest.mock import Mock
+    import webui
+    from app import health
+    from app.frigate_health import FrigateHealthCache
+
+    config = ready_config()
+    config['mqtt']['authentication']['enabled'] = False
+    config_path, secrets_path = configure_paths(tmp_path, monkeypatch, config=config)
+    disable_runtime_reload(monkeypatch)
+    before = (config_path.read_bytes(), secrets_path.read_bytes())
+    fetch = Mock(return_value={
+        'inventory': [], 'stats': {'cameras': {}, 'service': {'last_updated': 10000, 'uptime': 1000}},
+        'config_code': 'success', 'stats_code': 'success', 'online': True,
+    })
+    cache = FrigateHealthCache(fetch, monotonic=lambda: 0, wall_time=lambda: 10000)
+    monkeypatch.setattr(health, 'frigate_health_cache', cache)
+    monkeypatch.setattr(health, '_detection_worker_enabled', None)
+    publish = Mock()
+    monkeypatch.setattr(health, 'post_health_event', publish)
+    assert flask_client.get('/admin/config').status_code == 200
+    fetch.assert_not_called()
+    # Route and context processor both ask for health in this request.
+    assert flask_client.get('/admin').status_code == 200
+    fetch.assert_called_once_with('http://frigate:5000')
+    assert flask_client.get('/admin/config').status_code == 200
+    assert fetch.call_count == 1
+    publish.assert_not_called()
+    assert (config_path.read_bytes(), secrets_path.read_bytes()) == before
+
+
 def test_settings_page_renders_canonical_values_and_sections(
     flask_client, tmp_path, monkeypatch
 ):

@@ -81,6 +81,9 @@ def get_system_health():
         return g.system_health
     health = calculate_current_health(
         mqtt_runtime_status=app.extensions.get('mqtt_runtime_status'),
+        refresh_frigate=has_request_context() and request.endpoint in {
+            'admin.admin_dashboard', 'admin_api.admin_health',
+        },
     )
     if has_request_context():
         g.system_health = health

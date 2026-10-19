@@ -18,7 +18,7 @@
     <dl class="admin-service-grid">
       <div>
         <dt>Frigate</dt>
-        <dd>{% if health.setup_required %}{{ status('Setup required', 'warning') }}{% elif health.frigate_online %}{{ status('Online', 'success') }}{% else %}{{ status('Offline', 'danger') }}{% endif %}</dd>
+        <dd>{% if health.setup_required %}{{ status('Setup required', 'warning') }}{% elif health.frigate_online %}{{ status('Online', 'success') }}{% elif health.frigate_online is none %}{{ status('Unknown', 'neutral') }}{% else %}{{ status('Offline', 'danger') }}{% endif %}</dd>
       </div>
       <div>
         <dt>Database</dt>
@@ -38,6 +38,30 @@
         <meter min="0" max="100" low="75" high="90" optimum="0" value="{{ health.disk_used_percent }}" aria-label="System disk utilisation">{{ health.disk_used_percent }}% used</meter>
       </div>
     </dl>
+    {% if cameras.get('rows') %}
+    <div class="admin-camera-health" role="region" aria-labelledby="camera-health-heading">
+      <h3 id="camera-health-heading">Monitored cameras</h3>
+      <p class="admin-camera-summary">{{ cameras.summary }}</p>
+      {% if cameras.service_message %}<p class="settings-preservation-note">{{ cameras.service_message }}</p>{% endif %}
+      {% if not cameras.coverage_complete and not cameras.service_message %}<p class="settings-preservation-note">Camera health could not be fully checked.</p>{% endif %}
+      {% macro camera_row(camera) -%}
+      <div class="admin-camera-row">
+        <div><strong>{{ camera.id }}</strong>{% if camera.display_name != camera.id %}<span>{{ camera.display_name }}</span>{% endif %}</div>
+        <div>{{ status(camera.label, camera.tone) }}{% if camera.reason_code not in ('service', 'access') %}<span>{{ camera.safe_reason }}</span>{% endif %}</div>
+      </div>
+      {% if camera.observation_summary %}<p class="admin-camera-observed">{{ camera.observation_summary }}</p>{% endif %}
+      {%- endmacro %}
+      {% for camera in cameras.warnings %}{{ camera_row(camera) }}{% endfor %}
+      {% if cameras.additional_rows %}
+      <details class="admin-camera-details">
+        <summary>All monitored cameras</summary>
+        {% for camera in cameras.additional_rows %}
+          {{ camera_row(camera) }}
+        {% endfor %}
+      </details>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 </section>
 

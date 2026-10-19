@@ -213,6 +213,17 @@ test('empty successful discovery retains configured and manually entered values'
   await expect(cameraCheckbox(page, 'manual_ID')).toBeChecked();
 });
 
+test('discovery flags warn only for currently selected monitored IDs', async ({ page }) => {
+  await page.route(discoveryEndpoint, route => discoveryReply(route));
+  await discover(page);
+  const row = page.locator('.settings-camera-option').filter({ hasText: 'Garden_ID' });
+  await expect(row.locator('.admin-semantic-status')).toHaveClass(/status-neutral/);
+  await cameraCheckbox(page, 'Garden_ID').check();
+  await expect(row.locator('.admin-semantic-status')).toHaveClass(/status-warning/);
+  await cameraCheckbox(page, 'Garden_ID').uncheck();
+  await expect(row.locator('.admin-semantic-status')).toHaveClass(/status-neutral/);
+});
+
 test('failed refresh preserves prior inventory and selections; manual editing remains usable', async ({ page }) => {
   await page.route(discoveryEndpoint, route => discoveryReply(route));
   await discover(page);
@@ -221,6 +232,10 @@ test('failed refresh preserves prior inventory and selections; manual editing re
   await page.route(discoveryEndpoint, route => discoveryReply(route, null, 'auth_rejected'));
   await page.locator('#frigate-discover-button').click();
   await expect(page.locator('#frigate-discovery-result')).toContainText('Failed:');
+  await expect(page.locator('#frigate-discovery-result')).toContainText('historical');
+  const previous = page.locator('.settings-camera-option').filter({ hasText: 'Garden_ID' });
+  await expect(previous).toContainText('previous discovery');
+  await expect(previous.locator('.admin-semantic-status')).toHaveClass(/status-neutral/);
   await expect(page.locator('#frigate_cameras')).toHaveValue(before);
   await expect(cameraCheckbox(page, 'Garden_ID')).toBeChecked();
   await page.locator('#frigate_cameras').fill(before + '\nOfflineManual');

@@ -3572,18 +3572,21 @@ a:hover {
 }
 
 /* Administration logs */
-.admin-mqtt-details {
+.admin-mqtt-details,
+.admin-camera-details {
   margin-top: 0.75rem;
   font-size: 0.8rem;
 }
 
-.admin-mqtt-details summary {
+.admin-mqtt-details summary,
+.admin-camera-details summary {
   cursor: pointer;
   padding: 0.4rem 0;
   font-weight: 650;
 }
 
-.admin-mqtt-details summary:focus-visible {
+.admin-mqtt-details summary:focus-visible,
+.admin-camera-details summary:focus-visible {
   outline: 3px solid var(--wamf-focus);
   outline-offset: 3px;
 }
@@ -3954,6 +3957,15 @@ a:hover {
   font-size: 0.78rem;
   line-height: 1.4;
 }
+
+.admin-camera-health { margin-top: 1.25rem; border-top: 1px solid var(--wamf-border); padding-top: 1rem; }
+.admin-camera-health h3 { margin: 0; }
+.admin-camera-summary, .admin-camera-observed { overflow-wrap: anywhere; }
+.admin-camera-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; padding: .65rem 0; }
+.admin-camera-row > div { min-width: 0; overflow-wrap: anywhere; }
+.admin-camera-row > div > span:not(.admin-semantic-status) { display: block; color: var(--wamf-text-muted); font-size: .85rem; margin-top: .25rem; }
+.admin-camera-observed { color: var(--wamf-text-muted); font-size: .8rem; margin-top: 0; }
+@media (max-width: 480px) { .admin-camera-row { grid-template-columns: minmax(0, 1fr); gap: .35rem; } }
 
 .settings-camera-options {
   min-width: 0;

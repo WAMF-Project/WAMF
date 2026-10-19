@@ -1,6 +1,7 @@
 """Small HTTP boundary for the Frigate operations used by WAMF."""
 
 import json
+import math
 
 import requests
 
@@ -24,6 +25,43 @@ class FrigateDiscoveryError(FrigateError):
     def __init__(self, code):
         super().__init__("Frigate camera discovery failed")
         self.code = code
+
+
+def nonnegative_number(value):
+    """Unknown telemetry is never silently converted to zero."""
+    try:
+        return value if (type(value) in (int, float) and math.isfinite(value)
+                         and value >= 0) else None
+    except OverflowError:
+        return None
+
+
+def normalize_camera_stats(payload):
+    """Discard everything except the small camera-health evidence contract."""
+    if not isinstance(payload, dict) or not isinstance(payload.get('cameras'), dict):
+        raise FrigateDiscoveryError('unexpected_response')
+    cameras = {}
+    for camera_id, camera in payload['cameras'].items():
+        if not isinstance(camera_id, str) or not camera_id or not camera_id.isprintable():
+            raise FrigateDiscoveryError('unexpected_response')
+        camera = camera if isinstance(camera, dict) else {}
+        cameras[camera_id] = {
+            field: nonnegative_number(camera.get(field))
+            for field in ('camera_fps', 'process_fps', 'detection_fps')
+        }
+        cameras[camera_id]['detection_enabled'] = (
+            camera.get('detection_enabled') if type(camera.get('detection_enabled')) is bool else None
+        )
+        for field in ('pid', 'capture_pid', 'ffmpeg_pid'):
+            value = camera.get(field)
+            cameras[camera_id][field] = value if type(value) is int and value > 0 else None
+    service = payload.get('service')
+    service = service if isinstance(service, dict) else {}
+    # Version is not needed for classification or presentation. Do not retain
+    # arbitrary remote strings, command lines, or other service metadata.
+    return {'cameras': cameras, 'service': {
+        field: nonnegative_number(service.get(field)) for field in ('last_updated', 'uptime')
+    }}
 
 
 class FrigateClient:
@@ -184,7 +222,7 @@ class FrigateClient:
                     raise FrigateDiscoveryError("unexpected_response")
             try:
                 config = json.loads(body)
-            except (ValueError, UnicodeError) as exc:
+            except (ValueError, UnicodeError, RecursionError) as exc:
                 raise FrigateDiscoveryError("unexpected_response") from exc
             if not isinstance(config, dict) or not isinstance(config.get("cameras"), dict):
                 raise FrigateDiscoveryError("unexpected_response")
@@ -218,6 +256,40 @@ class FrigateClient:
             raise FrigateDiscoveryError("timeout") from exc
         except requests.exceptions.RequestException as exc:
             raise FrigateDiscoveryError("connection_error") from exc
+        finally:
+            if response is not None:
+                response.close()
+
+    def get_camera_stats(self) -> dict:
+        """One bounded HTTP read; the observation worker owns the hard deadline."""
+        response = None
+        try:
+            response = requests.get(
+                f'{self.base_url}/api/stats', timeout=(2, 2), stream=True,
+                allow_redirects=False, verify=True,
+            )
+            status = response.status_code
+            if status in (401, 403):
+                raise FrigateDiscoveryError('auth_rejected')
+            if 300 <= status < 400:
+                raise FrigateDiscoveryError('redirect')
+            if status != 200:
+                raise FrigateDiscoveryError('http_error')
+            body = bytearray()
+            for chunk in response.iter_content(chunk_size=8192):
+                body.extend(chunk)
+                if len(body) > 4 * 1024 * 1024:
+                    raise FrigateDiscoveryError('unexpected_response')
+            try:
+                return normalize_camera_stats(json.loads(body))
+            except (ValueError, UnicodeError, RecursionError):
+                raise FrigateDiscoveryError('unexpected_response') from None
+        except requests.exceptions.SSLError:
+            raise FrigateDiscoveryError('tls_error') from None
+        except requests.exceptions.Timeout:
+            raise FrigateDiscoveryError('timeout') from None
+        except requests.exceptions.RequestException:
+            raise FrigateDiscoveryError('connection_error') from None
         finally:
             if response is not None:
                 response.close()

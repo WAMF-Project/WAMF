@@ -596,6 +596,7 @@
     const discoveryStaleMessage = 'Frigate URL changed. Discovery is stale. Save changes and discover again.';
     let discoveryPending = false;
     let cameraInventory = null;
+    let discoveryHistorical = false;
 
     function selectedCameraIds() {
       return cameraInput.value.split(/\r?\n/).map(id => id.trim()).filter(Boolean);
@@ -624,6 +625,7 @@
           if (!checkbox.checked) ids = ids.filter(value => value !== id);
           cameraInput.value = ids.join('\n');
           cameraInput.dispatchEvent(new Event('change', {bubbles: true}));
+          renderCameraOptions();
         });
         const description = document.createElement('span');
         const identifier = document.createElement('strong');
@@ -640,9 +642,11 @@
           badge.textContent = text;
           description.append(badge);
         }
-        if (camera && camera.enabled === false) annotation('Disabled', 'warning');
-        if (camera && camera.detection_enabled === false) annotation('Detection disabled', 'warning');
-        if (!camera && cameraInventory !== null) annotation('Not found in latest discovery', 'neutral');
+        const warningTone = selected.has(id) && !discoveryHistorical ? 'warning' : 'neutral';
+        const historical = discoveryHistorical ? ' (previous discovery)' : '';
+        if (camera && camera.enabled === false) annotation('Disabled' + historical, warningTone);
+        if (camera && camera.detection_enabled === false) annotation('Detection disabled' + historical, warningTone);
+        if (!camera && cameraInventory !== null) annotation('Not found in latest discovery' + historical, warningTone);
         row.append(checkbox, description);
         cameraList.append(row);
         if (id === focusedId) checkbox.focus({preventScroll: true});
@@ -666,6 +670,7 @@
       discoverButton.textContent = 'Discovering…';
       discoveryResult.textContent = 'Discovering cameras using saved settings…';
       const testedRevision = frigateConnectionRevision;
+      let discoverySucceeded = false;
       try {
         const response = await fetch('{{ url_for("admin.discover_frigate_camera_options") }}', {
           method: 'POST', headers: {'X-CSRFToken': {{ csrf_token|tojson }}}, cache: 'no-store'
@@ -682,6 +687,8 @@
           const result = await response.json();
           if (testedRevision !== frigateConnectionRevision) return;
           if (result.success && Array.isArray(result.cameras)) {
+            discoverySucceeded = true;
+            discoveryHistorical = false;
             cameraInventory = result.cameras;
             renderCameraOptions();
             discoveryResult.textContent = cameraInventory.length
@@ -694,6 +701,11 @@
       } catch (error) {
         discoveryResult.textContent = 'Discovery response was not received. Try again when ready.';
       } finally {
+        if (cameraInventory !== null && !discoverySucceeded) {
+          discoveryHistorical = true;
+          renderCameraOptions();
+          discoveryResult.textContent += ' Previous discovery is historical; discover again to refresh warnings.';
+        }
         if (testedRevision !== frigateConnectionRevision) discoveryResult.textContent = discoveryStaleMessage;
         discoveryPending = false;
         discoverButton.disabled = false;
