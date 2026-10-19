@@ -60,6 +60,7 @@ NAMEDBPATH = DEFAULT_NAMES_DB_PATH
 LOGIN_ATTEMPTS = security.LOGIN_ATTEMPTS
 CSRF_PROTECTED_ENDPOINTS = {
     'admin.test_mqtt_connection',
+    'admin.test_frigate_connection',
     'admin.save_config',
     'admin.restart_wamf',
     'admin.save_and_restart_wamf',

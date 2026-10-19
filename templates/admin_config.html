@@ -211,6 +211,13 @@
         <div class="settings-field"><label for="frigate_cameras">Monitored cameras</label><textarea id="frigate_cameras" name="frigate_cameras" rows="4" required aria-describedby="frigate_cameras_help">{{ settings.frigate_cameras }}</textarea><small id="frigate_cameras_help">Enter one Frigate camera name per line.</small>{% if field_errors.frigate_cameras %}<span class="settings-field-error">{{ field_errors.frigate_cameras }}</span>{% endif %}</div>
         <div class="settings-field"><label for="frigate_object">Tracked object</label><input id="frigate_object" name="frigate_object" type="text" value="{{ settings.frigate_object }}" required aria-describedby="frigate_object_help" /><small id="frigate_object_help">Frigate object label WAMF processes from monitored cameras.</small></div>
       </div></div>
+      <div class="settings-card">
+        <h3>Test connection</h3>
+        <p id="frigate-test-help">Uses the saved Frigate settings. Save changes before testing.</p>
+        <button class="settings-button settings-button-secondary" id="frigate-test-button" type="button" aria-describedby="frigate-test-help frigate-test-scope">Test connection</button>
+        <p id="frigate-test-result" role="status" aria-live="polite" aria-atomic="true"></p>
+        <small id="frigate-test-scope">This checks the Frigate API connection only, not camera availability.</small>
+      </div>
     </section>
 
     <section class="settings-section" id="classification" aria-labelledby="classification-heading">
@@ -510,6 +517,63 @@
         mqttTestPending = false;
         mqttTestButton.disabled = false;
         mqttTestButton.textContent = 'Test connection';
+      }
+    });
+
+    const frigateTestButton = document.getElementById('frigate-test-button');
+    const frigateTestResult = document.getElementById('frigate-test-result');
+    let frigateTestPending = false;
+    let frigateConnectionRevision = 0;
+    const frigateStaleMessage = 'Settings changed. This result is stale. Save changes and test again.';
+
+    ['frigate_url'].forEach(function (id) {
+      function invalidateFrigateResult() {
+        frigateConnectionRevision += 1;
+        if (!frigateTestPending && frigateTestResult.textContent) {
+          frigateTestResult.textContent = frigateStaleMessage;
+        }
+      }
+      document.getElementById(id).addEventListener('input', invalidateFrigateResult);
+      document.getElementById(id).addEventListener('change', invalidateFrigateResult);
+    });
+
+    frigateTestButton.addEventListener('click', async function () {
+      if (frigateTestPending) return;
+      frigateTestPending = true;
+      frigateTestButton.disabled = true;
+      frigateTestButton.textContent = 'Testing…';
+      frigateTestResult.textContent = 'Testing saved Frigate settings…';
+      const testedRevision = frigateConnectionRevision;
+      try {
+        const response = await fetch('{{ url_for("admin.test_frigate_connection") }}', {
+          method: 'POST',
+          headers: {'X-CSRFToken': {{ csrf_token|tojson }}},
+          cache: 'no-store'
+        });
+        if (response.redirected) { window.location.assign(response.url); return; }
+        if (response.status === 401 || response.status === 403) {
+          frigateTestResult.textContent = 'Admin login required. Refresh the page and sign in again.';
+        } else if (response.status === 400) {
+          frigateTestResult.textContent = 'Security token expired. Refresh the page and try again.';
+        } else if (!response.ok) {
+          frigateTestResult.textContent = 'Connection test could not be completed. Try again when ready.';
+        } else {
+          const result = await response.json();
+          if (result.success) {
+            frigateTestResult.innerHTML = '<strong>Connection successful</strong><br> Frigate API responded using the saved settings.';
+          } else {
+            frigateTestResult.textContent = 'Failed: ' + result.safe_message;
+          }
+        }
+      } catch (error) {
+        frigateTestResult.textContent = 'Connection test response was not received. The outcome is unknown. Try again when ready.';
+      } finally {
+        if (testedRevision !== frigateConnectionRevision) {
+          frigateTestResult.textContent = frigateStaleMessage;
+        }
+        frigateTestPending = false;
+        frigateTestButton.disabled = false;
+        frigateTestButton.textContent = 'Test connection';
       }
     });
 

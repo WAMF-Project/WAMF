@@ -4,7 +4,7 @@ import logging
 import secrets
 import sqlite3
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from zoneinfo import available_timezones
 
 import yaml
@@ -34,7 +34,12 @@ from app.config_secrets import (
     merge_embedded_secrets,
     secret_updates,
 )
-from app.config_validation import validate_config, validate_mqtt_connection_config
+from app.config_validation import (
+    validate_config, validate_mqtt_connection_config, validate_frigate_connection_config,
+)
+from app.frigate_connection import (
+    MESSAGES as FRIGATE_MESSAGES, FrigateProbeResult, probe_frigate_connection,
+)
 from app.mqtt_connection import MESSAGES, MqttProbeResult, probe_mqtt_connection
 from app.mqtt_settings import mqtt_settings_from_config
 from app.mqtt_presentation import build_mqtt_presentation
@@ -611,9 +616,26 @@ def restart_status():
 @admin_bp.after_request
 def mqtt_test_no_store(response):
     # Includes authentication redirects and CSRF failures from before_request.
-    if request.endpoint == 'admin.test_mqtt_connection':
+    if request.endpoint in {'admin.test_mqtt_connection', 'admin.test_frigate_connection'}:
         response.headers['Cache-Control'] = 'no-store'
     return response
+
+
+@admin_bp.route('/admin/config/frigate/test', methods=['POST'])
+def test_frigate_connection():
+    """Test saved settings only; ignore all submitted connection overrides."""
+    code = 'configuration_error'
+    try:
+        config = load_runtime_config()
+        if validate_frigate_connection_config(config).is_ready:
+            code = 'internal_error'
+            return asdict(probe_frigate_connection(config['frigate']['frigate_url']))
+    except Exception:
+        pass  # URLs, configuration and probe exceptions can contain secrets.
+    return asdict(FrigateProbeResult(
+        success=False, code=code, safe_message=FRIGATE_MESSAGES[code], duration_ms=0,
+        completed_at=datetime.now(UTC).isoformat(),
+    ))
 
 
 @admin_bp.route('/admin/config/mqtt/test', methods=['POST'])

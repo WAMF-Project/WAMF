@@ -239,3 +239,24 @@ def test_validation_rejects_canonical_normalized_species_duplicates():
 
     assert issue_fields(result.errors) == ["retention.species_overrides"]
     assert "duplicate scientific name" in result.errors[0].message
+
+
+@pytest.mark.parametrize("url,ready", [
+    ("http://frigate:5000", True), ("https://user:PRIVATE@host/prefix", True),
+    (None, False), ("", False), ([], False), ("ftp://host", False),
+    ("http://", False), ("your-frigate-server", False), ("http://[broken", False),
+])
+def test_frigate_connection_validation_only(url, ready):
+    from app.config_validation import validate_frigate_connection_config
+    config = {"frigate": {"frigate_url": url, "camera": []},
+              "mqtt": [], "classification": None, "camera": None}
+    result = validate_frigate_connection_config(config)
+    assert result.is_ready is ready
+    assert all(issue.field == "frigate.frigate_url" for issue in result.errors + result.readiness_issues)
+    assert "PRIVATE" not in str(result)
+
+
+@pytest.mark.parametrize("config", [None, [], {}, {"frigate": None}, {"frigate": []}])
+def test_frigate_connection_validation_malformed_section(config):
+    from app.config_validation import validate_frigate_connection_config
+    assert not validate_frigate_connection_config(config).is_ready

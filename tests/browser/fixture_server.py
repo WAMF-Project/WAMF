@@ -43,6 +43,12 @@ def main():
         admin.probe_mqtt_connection = lambda settings: MqttProbeResult(
             False, 'refused', MESSAGES['refused'], 0, '2026-10-18T12:00:00+00:00',
         )
+        # Frigate diagnostics must also remain isolated if interception is missing.
+        from app.frigate_connection import FrigateProbeResult, MESSAGES as FRIGATE_MESSAGES
+        admin.probe_frigate_connection = lambda base_url: FrigateProbeResult(
+            False, 'connection_error', FRIGATE_MESSAGES['connection_error'], 0,
+            '2026-10-19T12:00:00+00:00',
+        )
         webui.app.secret_key = 'isolated-browser-session'
 
         @webui.app.before_request

@@ -193,3 +193,70 @@ def test_request_failure_is_translated_and_chained():
 
     assert raised.value.status_code is None
     assert raised.value.__cause__ is connection_error
+
+
+@pytest.mark.parametrize("base_url", ["https://frigate", "https://frigate/", "https://frigate/prefix/"])
+@pytest.mark.parametrize("body", [b"Frigate is running. Alive and healthy!", b" \r\nFrigate is running. Alive and healthy!\t "])
+def test_connection_probe_validates_one_request_and_closes(base_url, body):
+    reply = response()
+    reply.iter_content.return_value = [body[:10], body[10:]]
+    client = FrigateClient(base_url)
+    with patch("app.frigate_client.requests.get", return_value=reply) as get:
+        assert client.check_api_connection() == "success"
+    get.assert_called_once_with(
+        base_url.rstrip("/") + "/api/", timeout=(2, 2), stream=True,
+        allow_redirects=False, verify=True,
+    )
+    reply.close.assert_called_once_with()
+    assert client.base_url == base_url.rstrip("/")
+
+
+@pytest.mark.parametrize("status,code", [(401, "auth_rejected"), (403, "auth_rejected"),
+    (301, "redirect"), (302, "redirect"), (307, "redirect"), (404, "http_error"),
+    (503, "http_error"), (204, "http_error")])
+def test_probe_http_failures_do_not_read_body(status, code):
+    reply = response(status_code=status)
+    with patch("app.frigate_client.requests.get", return_value=reply) as get:
+        assert FrigateClient("http://frigate").check_api_connection() == code
+    get.assert_called_once()
+    reply.iter_content.assert_not_called()
+    reply.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize("body", [b"", b"0.18.0", b"<html>PRIVATE login</html>", b"PRIVATE", b"x" * 1025])
+def test_probe_rejects_unrecognized_body(body):
+    reply = response()
+    reply.iter_content.return_value = [body]
+    with patch("app.frigate_client.requests.get", return_value=reply):
+        assert FrigateClient("http://frigate").check_api_connection() == "unexpected_response"
+    reply.close.assert_called_once_with()
+
+
+def test_probe_stops_reading_large_response():
+    reply = response()
+    def chunks():
+        yield b"x" * 1024
+        yield b"x"
+        pytest.fail("must stop at the response limit")
+    reply.iter_content.return_value = chunks()
+    with patch("app.frigate_client.requests.get", return_value=reply):
+        assert FrigateClient("http://frigate").check_api_connection() == "unexpected_response"
+    reply.iter_content.assert_called_once_with(chunk_size=256)
+    reply.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize("error,code", [(requests.ConnectionError, "connection_error"),
+    (requests.exceptions.SSLError, "tls_error"), (requests.Timeout, "timeout")])
+@pytest.mark.parametrize("during_read", [False, True])
+def test_probe_request_errors_are_safe_and_cleanup(error, code, during_read, caplog):
+    reply = response()
+    if during_read:
+        reply.iter_content.side_effect = error("PRIVATE-URL-PASSWORD")
+    with patch("app.frigate_client.requests.get", return_value=reply,
+               side_effect=None if during_read else error("PRIVATE-URL-PASSWORD")) as get:
+        result = FrigateClient("http://PRIVATE:PRIVATE@host").check_api_connection()
+    assert result == code
+    assert "PRIVATE" not in result + caplog.text
+    get.assert_called_once()
+    if during_read:
+        reply.close.assert_called_once_with()

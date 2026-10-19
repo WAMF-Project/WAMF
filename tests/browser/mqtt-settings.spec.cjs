@@ -11,7 +11,7 @@ async function respond(route, result = outcome()) {
   await route.fulfill({ json: result, headers: { 'Cache-Control': 'no-store' } });
 }
 async function testConnection(page) {
-  await page.getByRole('button', { name: 'Test connection', exact: true }).click();
+  await page.locator('#mqtt').getByRole('button', { name: 'Test connection', exact: true }).click();
   await expect(page.locator('#mqtt-test-result')).toContainText('Connection successful');
 }
 
@@ -71,7 +71,7 @@ for (const [code, message] of [
 ]) {
   test(`inline sanitized ${code} result`, async ({ page }) => {
     await page.route(endpoint, route => respond(route, outcome(code, message)));
-    await page.getByRole('button', { name: 'Test connection', exact: true }).click();
+    await page.locator('#mqtt').getByRole('button', { name: 'Test connection', exact: true }).click();
     await expect(page.locator('#mqtt-test-result')).toHaveText(`Failed: ${message}`);
     await expect(page.locator('#mqtt-test-button')).toBeEnabled();
     expect(await page.content()).not.toContain('M2-SECRET-');

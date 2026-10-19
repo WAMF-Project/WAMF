@@ -103,7 +103,7 @@ def _validate_webui(config, errors, readiness_issues):
         )
 
 
-def _validate_frigate(config, errors, readiness_issues):
+def _validate_frigate(config, errors, readiness_issues, *, connection_only=False):
     frigate = config.get("frigate")
     if frigate is not None and not isinstance(frigate, Mapping):
         return
@@ -129,6 +129,9 @@ def _validate_frigate(config, errors, readiness_issues):
                     "must be a valid HTTP/HTTPS URL",
                 )
             )
+
+    if connection_only:
+        return
 
     cameras = frigate.get("camera")
     if cameras is None or cameras == []:
@@ -258,6 +261,20 @@ def _validate_retention_policy(config, errors):
             if separator:
                 detail = f"must {detail}"
         errors.append(ValidationIssue(field, detail or message))
+
+
+def validate_frigate_connection_config(config):
+    """Validate only saved Frigate connection fields without unrelated setup."""
+    if not isinstance(config, Mapping):
+        return ConfigValidationResult(
+            errors=(ValidationIssue("configuration", "must be a YAML mapping"),)
+        )
+    connection_config = {"frigate": config.get("frigate", {})}
+    errors = _mapping_errors(connection_config)
+    readiness_issues = []
+    if not errors:
+        _validate_frigate(connection_config, errors, readiness_issues, connection_only=True)
+    return ConfigValidationResult(tuple(errors), tuple(readiness_issues))
 
 
 def validate_mqtt_connection_config(config):

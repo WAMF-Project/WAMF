@@ -117,6 +117,43 @@ class FrigateClient:
 
         return response
 
+    def check_api_connection(self) -> str:
+        """Return a safe diagnostic code from one bounded-size API request.
+
+        The caller owns the wall-clock deadline (including DNS and reads).
+        Never expose the potentially credential-bearing URL or response body.
+        """
+        response = None
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/", timeout=(2, 2), stream=True,
+                allow_redirects=False, verify=True,
+            )
+            status = response.status_code
+            if status in (401, 403):
+                return "auth_rejected"
+            if 300 <= status < 400:
+                return "redirect"
+            if status != 200:
+                return "http_error"
+            body = bytearray()
+            for chunk in response.iter_content(chunk_size=256):
+                body.extend(chunk)
+                if len(body) > 1024:
+                    return "unexpected_response"
+            return "success" if bytes(body).strip() == (
+                b"Frigate is running. Alive and healthy!"
+            ) else "unexpected_response"
+        except requests.exceptions.SSLError:
+            return "tls_error"
+        except requests.exceptions.Timeout:
+            return "timeout"
+        except requests.exceptions.RequestException:
+            return "connection_error"
+        finally:
+            if response is not None:
+                response.close()
+
     def get_version(self) -> str:
         """Return the Frigate version response body."""
         try:
