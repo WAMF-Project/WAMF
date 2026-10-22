@@ -39,6 +39,7 @@ def restore_classifier_state():
     names = (
         'classifier', 'classifier_input', 'classifier_output',
         'classifier_display_names', 'classifier_category_names',
+        'classifier_background_index',
     )
     previous = {name: getattr(speciesid, name) for name in names}
     try:
@@ -227,6 +228,77 @@ def test_synthetic_image_runs_bundled_model(synthetic_snapshot):
         display_name='None',
         category_name='__background__',
     )]
+
+
+def test_failed_preparation_preserves_all_live_globals(monkeypatch):
+    names = ('classifier', 'classifier_input', 'classifier_output',
+             'classifier_display_names', 'classifier_category_names', 'classifier_background_index')
+    previous = {name: getattr(speciesid, name) for name in names}
+    class InvalidInterpreter(FakeInterpreter):
+        def get_input_details(self):
+            return [{**super().get_input_details()[0], 'dtype': np.float32}]
+    monkeypatch.setattr(speciesid, 'Interpreter', InvalidInterpreter)
+    with pytest.raises(ValueError, match='uint8'):
+        speciesid.initialize_classifier(MODEL_PATH)
+    assert all(getattr(speciesid, name) is value for name, value in previous.items())
+
+
+def test_managed_worker_loads_validated_bundled_model_before_mqtt(monkeypatch):
+    monkeypatch.setattr(speciesid, 'config', {
+        'classification': {'model_id': 'bird', 'model_version': 'bundled-1'},
+        'mqtt': {'host': 'fixture-broker'},
+    })
+    monkeypatch.setattr(speciesid, 'log_system_event', MagicMock())
+    with patch('speciesid.mqtt.Client') as factory:
+        def connected(*args):
+            assert speciesid.classifier is not None
+            assert speciesid.classifier_background_index == 964
+            assert len(speciesid.classifier_display_names) == 965
+        factory.return_value.connect.side_effect = connected
+        speciesid.run_mqtt_client()
+        factory.return_value.connect.assert_called_once_with('fixture-broker', 1883)
+
+
+def test_managed_validation_failure_preserves_working_classifier(monkeypatch):
+    from app.model_catalogue import load_catalogue
+    from app.model_validation import ModelValidationResult
+
+    speciesid.initialize_classifier(MODEL_PATH)
+    names = ('classifier', 'classifier_input', 'classifier_output',
+             'classifier_display_names', 'classifier_category_names', 'classifier_background_index')
+    previous = {name: getattr(speciesid, name) for name in names}
+    monkeypatch.setattr(speciesid, 'validate_model_artifact', lambda *args, **kwargs:
+                        ModelValidationResult(False, 'checksum_mismatch', 'Checksum mismatch'))
+    with pytest.raises(ValueError, match='checksum_mismatch'):
+        speciesid.initialize_classifier(MODEL_PATH, artifact=load_catalogue().default_artifact)
+    assert all(getattr(speciesid, name) is value for name, value in previous.items())
+
+
+@pytest.mark.parametrize('index,score,background,expected', [
+    (None, 0, 964, False), (964, 0.95, 964, False),
+    (42, 0.95, 42, False), (665, 0.6, 964, False), (665, 0.95, 964, True),
+])
+def test_empty_background_and_threshold_results(index, score, background, expected, synthetic_snapshot, monkeypatch):
+    client = MagicMock()
+    frigate = MagicMock()
+    frigate.get_event_snapshot.return_value = synthetic_snapshot
+    monkeypatch.setattr(speciesid, 'frigate_client', frigate)
+    monkeypatch.setattr(speciesid, 'classifier_background_index', background)
+    monkeypatch.setattr(speciesid, 'config', {
+        'frigate': {'camera': ['birdcam'], 'frigate_url': 'http://frigate'},
+        'mqtt': {'topic_prefix': 'frigate'}, 'classification': {'threshold': 0.7},
+    })
+    categories = [] if index is None else [speciesid.Category(index, score, 'Cyanistes caeruleus', '/m/01kvvt')]
+    monkeypatch.setattr(speciesid, 'classify', lambda image: categories)
+    monkeypatch.setattr(speciesid, 'get_common_name', lambda name: name)
+    process = MagicMock()
+    monkeypatch.setattr(speciesid, '_process_qualifying_detection', process)
+    message = MagicMock(retain=False, topic='frigate/events', payload=json.dumps({
+        'type': 'new', 'after': {'camera': 'birdcam', 'label': 'bird', 'id': 'empty-result', 'start_time': 1700000000},
+    }))
+    speciesid._on_message_inner(client, None, message)
+    assert process.called is expected
+    assert client.publish.called is expected
 
 
 def _qualifying_message(event_id):

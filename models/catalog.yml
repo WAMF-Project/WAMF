@@ -1,0 +1,25 @@
+schema_version: 1
+default:
+  model_id: bird
+  version: bundled-1
+models:
+  - id: bird
+    name: Bird classification
+    description: The bundled WAMF bird species classifier.
+    artifacts:
+      - version: bundled-1
+        filename: model.tflite
+        bundled_path: model.tflite
+        sha256: 95f59df4cff9053355abcd0b6e5e7e740f6eae19ed8cded32e2c3e8068195093
+        size_bytes: 3561598
+        format: tflite
+        runtime: litert
+        contract: wamf-bird-v1
+        class_count: 965
+        background:
+          index: 964
+          display_label: None
+          category_label: __background__
+        source: Existing WAMF bundled artifact; upstream provenance has not been established from repository evidence.
+        licence: Unverified; do not infer the model weights licence from WAMF's software licence.
+        notes: bundled-1 is a WAMF artifact revision, not an asserted upstream version. RGB, direct 224x224 resize, raw uint8 input; bird events only.

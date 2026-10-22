@@ -10,6 +10,7 @@ COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY model.tflite .
+COPY models/ ./models/
 COPY birdnames.db .
 COPY speciesid.py .
 COPY webui.py .

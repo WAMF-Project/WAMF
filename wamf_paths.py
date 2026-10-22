@@ -50,12 +50,64 @@ def get_clips_path(config=None):
     return _configured_path("media", "clips_path", DEFAULT_CLIPS_PATH, config)
 
 
-def ensure_storage_paths():
-    """Create the database parent and configured media directories."""
+class ModelPathError(ValueError):
+    """A managed artifact would escape its WAMF-owned storage root."""
+
+
+def get_models_path(config=None):
+    """Use the existing data mount, independently of database location."""
+    return _configured_path("storage", "models_path", REPO_ROOT / "data" / "models", config)
+
+
+def _contained_model_path(root, *parts):
+    try:
+        root = Path(root).resolve()
+        candidate = root.joinpath(*parts).resolve()
+        if candidate == root or root not in candidate.parents:
+            raise ModelPathError("Model path must remain beneath its storage root")
+        return candidate
+    except (OSError, RuntimeError) as exc:
+        raise ModelPathError("Model path could not be resolved safely") from exc
+
+
+def get_model_id_path(model_id, config=None):
+    from app.model_catalogue import safe_identity
+
+    safe_identity(model_id, "model_id")
+    return _contained_model_path(get_models_path(config), model_id)
+
+
+def get_model_version_path(model_id, version, config=None):
+    from app.model_catalogue import safe_identity
+
+    safe_identity(model_id, "model_id")
+    safe_identity(version, "model_version")
+    return _contained_model_path(get_models_path(config), model_id, version)
+
+
+def get_model_artifact_path(model_id, version, filename, config=None):
+    from app.model_catalogue import safe_component, safe_identity
+
+    safe_identity(model_id, "model_id")
+    safe_identity(version, "model_version")
+    safe_component(filename, "filename")
+    return _contained_model_path(get_models_path(config), model_id, version, filename)
+
+
+def get_bundled_model_path(value, repo_root=None):
+    from app.model_catalogue import safe_bundled_path
+
+    safe_bundled_path(value)
+    return _contained_model_path(repo_root or REPO_ROOT, value)
+
+
+def ensure_storage_paths(config=None):
+    """Create the database parent and configured media/model directories."""
     paths = (
-        get_database_path().parent,
-        get_snapshots_path(),
-        get_clips_path(),
+        get_database_path(config).parent,
+        get_snapshots_path(config),
+        get_clips_path(config),
+        get_models_path(config),
     )
     for path in paths:
         path.mkdir(parents=True, exist_ok=True)

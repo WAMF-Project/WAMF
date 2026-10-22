@@ -368,6 +368,19 @@ def build_settings_candidate(existing_config, form, known_species=()):
     for field in FIELDS:
         if field.name not in form:
             continue
+        if field.name == "classification_model":
+            classification = candidate.get("classification", {})
+            if isinstance(classification, Mapping) and any(
+                key in classification for key in ("model_id", "model_version")
+            ):
+                # M1 has no managed-selection UI. The existing path input
+                # renders its usual default for managed YAML configurations;
+                # an unchanged field must not insert a conflicting legacy key.
+                if form.get(field.name) == field.default:
+                    continue
+                # An explicitly edited legacy path switches back to custom.
+                classification.pop("model_id", None)
+                classification.pop("model_version", None)
         if (
             field.name in CANONICAL_RETENTION_INTEGER_FIELDS
             and form.get(field.name, "").strip() == ""

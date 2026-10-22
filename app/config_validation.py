@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from app.config_normalization import normalize_config
+from app.model_catalogue import ModelCatalogueError
+from app.model_registry import ModelSelectionError, selected_catalogue_artifact
 from app.retention_schedule import RetentionScheduleError, parse_retention_schedule
 
 
@@ -192,19 +194,28 @@ def _validate_mqtt(mqtt, errors, readiness_issues, *, connection_only=False):
         errors.append(ValidationIssue("mqtt.tls.ca_certs", "must be a string"))
 
 
-def _validate_classification(config, errors, readiness_issues):
+def _validate_classification(config, errors, readiness_issues, catalogue=None):
     classification = config.get("classification")
     if classification is not None and not isinstance(classification, Mapping):
         return
     classification = classification or {}
 
-    model = classification.get("model")
-    if model is not None and not isinstance(model, str):
-        errors.append(ValidationIssue("classification.model", "must be a string"))
-    elif is_placeholder(model):
-        readiness_issues.append(
-            ValidationIssue("classification.model", "a model path is required")
-        )
+    managed = any(key in classification for key in ("model_id", "model_version"))
+    if managed:
+        try:
+            selected_catalogue_artifact(classification, catalogue)
+        except ModelSelectionError as exc:
+            errors.append(ValidationIssue(exc.field, exc.message))
+        except ModelCatalogueError:
+            errors.append(ValidationIssue("classification.model_id", "supported model catalogue could not be loaded"))
+    else:
+        model = classification.get("model")
+        if model is not None and not isinstance(model, str):
+            errors.append(ValidationIssue("classification.model", "must be a string"))
+        elif is_placeholder(model):
+            readiness_issues.append(
+                ValidationIssue("classification.model", "a model path is required")
+            )
 
     threshold = classification.get("threshold")
     if threshold is None:
@@ -292,8 +303,12 @@ def validate_mqtt_connection_config(config):
     return ConfigValidationResult(tuple(errors), tuple(readiness_issues))
 
 
-def validate_config(config):
-    """Validate loaded configuration without I/O, mutation, or connectivity checks."""
+def validate_config(config, *, catalogue=None):
+    """Validate config without mutation, artifact inspection or connectivity.
+
+    Managed identity checks use release-owned catalogue metadata only. Callers
+    may pass a parsed catalogue; legacy validation needs no catalogue loading.
+    """
 
     if not isinstance(config, Mapping):
         return ConfigValidationResult(
@@ -304,7 +319,12 @@ def validate_config(config):
     readiness_issues = []
     _validate_webui(config, errors, readiness_issues)
     _validate_frigate(config, errors, readiness_issues)
-    _validate_classification(config, errors, readiness_issues)
+    _validate_classification(config, errors, readiness_issues, catalogue)
+    storage = config.get("storage")
+    if isinstance(storage, Mapping) and "models_path" in storage:
+        value = storage["models_path"]
+        if not isinstance(value, str) or not value.strip():
+            errors.append(ValidationIssue("storage.models_path", "must be a nonempty path string"))
     _validate_retention_policy(config, errors)
     _validate_retention_schedule(config, errors)
 

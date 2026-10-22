@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from functools import partial
 from io import BytesIO
-from pathlib import Path
 
 import numpy as np
 import paho.mqtt.client as mqtt
@@ -25,6 +24,9 @@ from app.archive_media import archive_clip, archive_snapshot
 from app.config_editor import get_config_path
 from app.config_loader import load_runtime_config
 from app.config_normalization import normalize_config
+from app.classifier_model import LEGACY_BACKGROUND_INDEX, ModelValidationError, prepare_classifier
+from app.model_registry import resolve_classifier_model
+from app.model_validation import validate_model_artifact
 from app.db import connect_db, ensure_schema
 from app.frigate_client import FrigateClient, FrigateError
 from app.health import set_detection_worker_enabled, start_health_monitor
@@ -45,7 +47,7 @@ from app.retention_scheduler import (
 from app.system_events import log_system_event
 from integrations.bridge import post_observation_event
 from version import VERSION
-from wamf_paths import ensure_storage_paths
+from wamf_paths import ensure_storage_paths, get_models_path
 from webui import app
 
 classifier = None
@@ -53,6 +55,7 @@ classifier_input = None
 classifier_output = None
 classifier_display_names = None
 classifier_category_names = None
+classifier_background_index = LEGACY_BACKGROUND_INDEX
 config = None
 frigate_client = None
 logger = logging.getLogger(__name__)
@@ -195,41 +198,25 @@ def classify(image):
     ][:CLASSIFIER_MAX_RESULTS]
 
 
-def initialize_classifier(model_path):
-    import zipfile
-
+def initialize_classifier(model_path, *, artifact=None, allowed_root=None):
     global classifier
     global classifier_input
     global classifier_output
     global classifier_display_names
     global classifier_category_names
+    global classifier_background_index
 
-    model_path = Path(model_path)
-    new_classifier = Interpreter(model_path=str(model_path), num_threads=4)
-    new_classifier.allocate_tensors()
-    input_details = new_classifier.get_input_details()[0]
-    output_details = new_classifier.get_output_details()[0]
-
-    if input_details['dtype'] != np.uint8:
-        raise ValueError("Classifier input tensor must use uint8 data")
-    if tuple(input_details['shape']) != (1, 224, 224, 3):
-        raise ValueError(
-            "Classifier input tensor must have shape (1, 224, 224, 3)"
-        )
-
-    with zipfile.ZipFile(model_path) as model:
-        display_names = model.read('probability-labels-en.txt').decode('utf-8').splitlines()
-        category_names = model.read('probability-labels.txt').decode('utf-8').splitlines()
-
-    output_size = int(np.prod(output_details['shape']))
-    if len(display_names) != output_size or len(category_names) != output_size:
-        raise ValueError("Classifier labels do not match the output tensor size")
-
-    classifier = new_classifier
-    classifier_input = input_details
-    classifier_output = output_details
-    classifier_display_names = display_names
-    classifier_category_names = category_names
+    if artifact is not None:
+        result = validate_model_artifact(model_path, artifact, allowed_root=allowed_root)
+        if not result.valid:
+            raise ModelValidationError(result.code)
+    prepared = prepare_classifier(model_path, artifact=artifact, interpreter_factory=Interpreter)
+    classifier = prepared.interpreter
+    classifier_input = prepared.input_details
+    classifier_output = prepared.output_details
+    classifier_display_names = prepared.display_labels
+    classifier_category_names = prepared.category_labels
+    classifier_background_index = prepared.background_index
     return classifier
 
 
@@ -641,6 +628,10 @@ def _process_live_message(client, message):
 
                 categories = classify(np_arr)
 
+                if not categories:
+                    logger.info("No usable classification result for event %s", frigate_event)
+                    return
+
                 category = categories[0]
 
                 index = category.index
@@ -675,9 +666,8 @@ def _process_live_message(client, message):
 
                 logger.info("Classification result: %s", result_text)
 
-                # 964 = background
                 if (
-                    index != 964
+                    index != classifier_background_index
                     and score > config['classification']['threshold']
                 ):
 
@@ -934,9 +924,14 @@ def run_mqtt_client(runtime_writer=None):
 
     settings = _mqtt_runtime_settings()
 
-    initialize_classifier(
-        REPO_ROOT / Path(config['classification']['model']).expanduser()
-    )
+    selection = resolve_classifier_model(config, repo_root=REPO_ROOT)
+    if selection.managed:
+        initialize_classifier(
+            selection.path, artifact=selection.artifact,
+            allowed_root=REPO_ROOT if selection.artifact.bundled_path else get_models_path(config),
+        )
+    else:
+        initialize_classifier(selection.path)
 
     logger.info("Classifier initialized in MQTT subprocess")
     logger.info(

@@ -23,6 +23,7 @@ def test_compose_persists_resolved_application_paths(compose_name, example_name,
     assert wamf_paths.get_database_path().parent == Path(mounts['./data'])
     assert wamf_paths.get_snapshots_path() == Path(mounts['./media']) / 'wamf/snapshots'
     assert wamf_paths.get_clips_path() == Path(mounts['./media']) / 'wamf/clips'
+    assert wamf_paths.get_models_path(config) == Path(mounts['./data']) / 'models'
     assert service['ports'] == ['7767:7767']
     assert config['webui']['port'] == 7767
     assert config['webui']['host'] == '0.0.0.0'
@@ -38,7 +39,7 @@ def test_dockerfile_includes_runtime_and_bootstrap_resources():
             copies[source] = destination
     for resource in ('model.tflite', 'birdnames.db', 'speciesid.py', 'webui.py',
                      'wamf_paths.py', 'version.py', 'retention.py', 'app/',
-                     'routes/', 'templates/', 'static/', 'integrations/'):
+                     'routes/', 'templates/', 'static/', 'integrations/', 'models/'):
         assert resource in copies, f'Missing runtime resource: {resource}'
         assert (ROOT / resource).exists()
     assert copies['config/config.yml.example'] == '/usr/local/share/wamf/config.yml.example'
@@ -47,6 +48,10 @@ def test_dockerfile_includes_runtime_and_bootstrap_resources():
     assert 'EXPOSE 7767' in lines
     assert 'CMD ["python", "./speciesid.py"]' in lines
     assert 'ENTRYPOINT ["sh", "/usr/local/bin/wamf-entrypoint"]' in lines
+    assert copies['models/'] == './models/'
+    assert (ROOT / 'models/catalog.yml').is_file()
+    ignored = (ROOT / '.dockerignore').read_text().splitlines()
+    assert 'models/' not in ignored and 'data/' in ignored
 
 
 @pytest.mark.parametrize('existing', [False, True])

@@ -483,6 +483,21 @@ def test_ordinary_form_update_persists_through_shared_editor(
     assert persisted["camera"]["live_view_url"] == "https://new-camera.example/live"
 
 
+def test_settings_save_preserves_managed_yaml_selection(flask_client, tmp_path, monkeypatch):
+    config = ready_config()
+    config["classification"] = {"model_id": "bird", "model_version": "bundled-1", "threshold": 0.7}
+    config_path, _ = configure_paths(tmp_path, monkeypatch, config=config)
+    disable_runtime_reload(monkeypatch)
+    response = flask_client.post("/admin/config/save", data={
+        "classification_model": "model.tflite",  # Existing form's unchanged display default.
+        "classification_threshold": "0.8", "active_section": "classification",
+    })
+    assert response.status_code == 302
+    assert yaml.safe_load(config_path.read_text())["classification"] == {
+        "model_id": "bird", "model_version": "bundled-1", "threshold": 0.8,
+    }
+
+
 def test_invalid_form_value_does_not_persist_and_error_is_safe(
     flask_client, tmp_path, monkeypatch
 ):
