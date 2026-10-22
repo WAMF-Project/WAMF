@@ -18,7 +18,11 @@ import wamf_paths
 
 @pytest.fixture
 def catalogue():
-    return load_catalogue()
+    # These bundled/legacy tests must not depend on additional catalogue
+    # versions or which downloadable artifacts happen to be installed locally.
+    catalogue = load_catalogue()
+    model = replace(catalogue.models[0], artifacts=(catalogue.default_artifact,))
+    return replace(catalogue, models=(model,))
 
 
 def managed_config():

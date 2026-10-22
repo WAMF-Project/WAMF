@@ -1,0 +1,27 @@
+AIY Birds V1 CPU classifier, packaged for WAMF as bird/aiy-v1.
+Original model publisher: Google (AIY / Coral).
+Model licence: Apache License, Version 2.0; see the associated LICENSE file.
+
+Authoritative CPU artifact, pinned to Coral test_data commit:
+https://github.com/google-coral/test_data/blob/104342d2d3480b3e66203073dac24f4e2dbb4c41/mobilenet_v2_1.0_224_inat_bird_quant.tflite
+Upstream SHA-256:
+350fcd8cf1df1560060d464595dfed8b174b05792788052896004848d9ad04f9
+
+Google's model-specific Apache 2.0 licence and original AIY provenance:
+https://github.com/tensorflow/tfhub.dev/blob/81fdea8ffa53b5acbd66a012d17fb8f9602c714b/assets/docs/google/models/aiy/vision/classifier/birds_V1/1.md
+Google's official scientific-name label map:
+https://www.gstatic.com/aihub/tfhub/labelmaps/aiy_birds_V1_labelmap.csv
+
+WAMF packaging modifications:
+- Upstream model bytes, weights and original inat_bird_labels.txt are unchanged.
+- Added WAMF's existing probability-labels-en.txt and probability-labels.txt.
+- WAMF scientific labels at indexes 110 and 758 contain U+00D7 (multiplication
+  sign), correcting literal backslash-x-d-7 text in Coral's associated labels.
+  These scientific names agree with Google's official AIY label map.
+- No classes were reordered or remapped. There are 965 classes, with WAMF
+  background labels None / __background__ at index 964.
+- Added this packaging notice and a copy of the Apache 2.0 licence.
+
+The Google model documentation describes 964 bird species plus background,
+trained on a subset of iNaturalist 2017 for the AIY Vision Kit Natural Explorer.
+No training images are included. Google does not endorse this WAMF packaging.

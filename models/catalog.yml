@@ -23,3 +23,19 @@ models:
         source: Existing WAMF bundled artifact; upstream provenance has not been established from repository evidence.
         licence: Unverified; do not infer the model weights licence from WAMF's software licence.
         notes: bundled-1 is a WAMF artifact revision, not an asserted upstream version. RGB, direct 224x224 resize, raw uint8 input; bird events only.
+      - version: aiy-v1
+        filename: bird-aiy-v1.tflite
+        download_url: https://github.com/WAMF-Project/WAMF/releases/download/models-aiy-v1/bird-aiy-v1.tflite
+        sha256: 1dea79841cd7d767515c928ed5010ec49df57bef37aaa894f70b44eaa45d1cab
+        size_bytes: 3621418
+        format: tflite
+        runtime: litert
+        contract: wamf-bird-v1
+        class_count: 965
+        background:
+          index: 964
+          display_label: None
+          category_label: __background__
+        source: https://github.com/google-coral/test_data/blob/104342d2d3480b3e66203073dac24f4e2dbb4c41/mobilenet_v2_1.0_224_inat_bird_quant.tflite
+        licence: Apache-2.0; Google's model-specific licence declaration and packaging attribution are recorded in models/aiy-v1.NOTICE.txt. LICENSE and NOTICE are embedded in the artifact.
+        notes: Google AIY Birds V1 CPU model with unchanged upstream bytes and WAMF's existing labels. Two literal backslash-x-d-7 scientific-name strings are corrected to U+00D7, agreeing with Google's official label map; no classes are reordered. See models/aiy-v1.md for reproduction and provenance.

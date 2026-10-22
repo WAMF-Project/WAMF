@@ -32,6 +32,22 @@ def test_release_catalogue_is_frozen_and_has_one_explicit_default(catalogue_data
     assert catalogue_data == before
 
 
+def test_aiy_release_artifact_does_not_change_bundled_default():
+    catalogue = load_catalogue()
+    artifact = catalogue.get_artifact("bird", "aiy-v1")
+    assert artifact is not None and artifact.bundled_path is None
+    assert artifact.filename == "bird-aiy-v1.tflite"
+    assert artifact.download_url == (
+        "https://github.com/WAMF-Project/WAMF/releases/download/models-aiy-v1/bird-aiy-v1.tflite"
+    )
+    assert artifact.size_bytes == 3621418
+    assert artifact.sha256 == "1dea79841cd7d767515c928ed5010ec49df57bef37aaa894f70b44eaa45d1cab"
+    assert artifact.contract == "wamf-bird-v1" and artifact.class_count == 965
+    assert artifact.background == catalogue.default_artifact.background
+    assert artifact.licence.startswith("Apache-2.0")
+    assert catalogue.default_artifact.version == "bundled-1"
+
+
 @pytest.mark.parametrize("version", [0, 2, "1", True, None])
 def test_unsupported_schema(catalogue_data, version):
     catalogue_data["schema_version"] = version
