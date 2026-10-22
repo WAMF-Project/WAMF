@@ -5,7 +5,7 @@ default:
 models:
   - id: bird
     name: Bird classification
-    description: The bundled WAMF bird species classifier.
+    description: Bird species classification from 224×224 RGB images.
     artifacts:
       - version: bundled-1
         filename: model.tflite

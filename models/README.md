@@ -1,6 +1,8 @@
 This directory contains WAMF's release-owned classification catalogue. It is
 not a record of the models installed on a particular host. M1 provides local
 discovery/validation; M2 adds an explicit install service without activation.
+M3 exposes these within Settings → Classification, with explicit selection
+and the existing WAMF restart flow.
 
 `catalog.yml` uses schema version 1. Its single `default` reference selects a
 model ID and immutable artifact version. Each model has a name, description,
@@ -20,7 +22,7 @@ application root or absolute/`~`-expanded as before. Managed configuration uses
 both `classification.model_id` and `classification.model_version`, for example
 `bird` and `bundled-1`. These managed fields cannot coexist with `model`.
 No automatic conversion of legacy configuration is performed. The examples
-remain on the legacy path until the later Model Manager UI work.
+remain valid legacy configurations and do not require conversion.
 
 Downloaded artifacts resolve beneath
 `data/models/<id>/<version>/<filename>`. `storage.models_path` can override that
@@ -40,7 +42,9 @@ The M2 backend API is `app.model_install.install_model(id, version, ...)` and
 `get_install_status()`, or an explicitly constructed `ModelInstaller` with its
 own `snapshot()`. Calls are synchronous, owned by the calling request; another
 request can read the frozen in-memory snapshot. No queue, background thread,
-Admin endpoint, automatic activation or configuration write is involved.
+automatic activation or configuration write is involved in installation.
+Authenticated, CSRF-protected Admin install requests use that synchronous
+service while separate status requests poll its in-memory snapshot.
 
 Sources must be HTTPS release downloads under `WAMF-Project/WAMF`. Redirects
 are manually limited to five and explicit GitHub asset hosts, including the
@@ -64,7 +68,7 @@ artifacts are validated in place and never repaired/downloaded automatically.
 Repair of an invalid final file is deferred with `repair_blocked` when running
 identity is unknown. Internal callers may provide authoritative `running_paths`
 (or `()` if no classifier runs); configured selection is also protected.
-M3 must coordinate selection changes using the same install guard. Different
+M3 coordinates selection changes using the same install guard. Different
 versions coexist and no existing bytes are truncated during repair.
 
 Progress is observational and forgotten on restart. Killed workers may leave
@@ -72,3 +76,13 @@ recognized staging files for the next install to clean. A deadline interrupting
 after atomic promotion can leave a fully validated installed artifact without
 a successful response; retry discovers it idempotently. Installation never
 asserts that a model is active. No accuracy measurement is performed.
+
+M3's selection action freshly validates an installed artifact while holding
+the install guard, then changes only model selection inside the canonical
+config transaction. Normal partial Settings saves also rebuild against current
+locked config, so an unchanged legacy field cannot undo concurrent selection.
+The MQTT worker publishes loaded identity only after successful initialization
+through the existing generation-scoped diagnostics store. Exited/replaced
+workers lose that identity; unknown diagnostics never imply a model is active.
+The Settings view caches validation observations by file identity/stat and
+catalogue metadata; this cache is never used to authorize selection.

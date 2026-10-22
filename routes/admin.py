@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timezone
 from zoneinfo import available_timezones
 
 import yaml
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.config_editor import (
@@ -45,6 +45,8 @@ from app.frigate_presentation import build_camera_presentation
 from app.mqtt_connection import MESSAGES, MqttProbeResult, probe_mqtt_connection
 from app.mqtt_settings import mqtt_settings_from_config
 from app.mqtt_presentation import build_mqtt_presentation
+from app.model_install import install_model, get_install_status
+from app.model_manager import build_model_manager, select_model, ModelSelectionError
 from app.process_control import INSTANCE_ID, schedule_restart
 from app.retention_presentation import (
     build_retention_presentation,
@@ -259,6 +261,9 @@ def _settings_context(config, submitted_form=None, errors=(), field_errors=None)
 
     return {
         "settings": settings_values(config, submitted_form),
+        "model_manager": _model_manager_state(config),
+        "classification_model_original": (configured_settings['classification_model']
+            if isinstance(config.get('classification'), dict) and 'model' in config['classification'] else ''),
         "config_version": migrate_config(config).target_version,
         "errors": list(errors),
         "field_errors": field_errors or {},
@@ -478,6 +483,65 @@ def admin_config():
     return _render_settings(load_persisted_config())
 
 
+def _model_manager_state(config=None):
+    reader = current_app.extensions.get('mqtt_runtime_status')
+    try:
+        runtime = reader() if reader is not None else None
+    except (EOFError, OSError, RuntimeError, ValueError):
+        runtime = None  # Diagnostic loss must be unknown, never inferred.
+    try:
+        return build_model_manager(load_persisted_config() if config is None else config, runtime)
+    except (ValueError, OSError, ConfigMigrationError):
+        return {
+            "models": [], "running_label": "Unknown — current classifier status is unavailable.",
+            "selected_label": "Unavailable", "restart_required": False, "running_known": False,
+            "selected_error": "Model catalogue or settings could not be read. Refresh and review configuration.",
+            "custom": False,
+        }
+
+
+@admin_bp.route('/admin/config/models')
+def model_manager_status():
+    return _model_manager_state()
+
+
+@admin_bp.route('/admin/config/models/install-status')
+def model_install_status():
+    snapshot = get_install_status()
+    operation = asdict(snapshot) if snapshot is not None else None
+    if operation is not None:
+        operation['percent'] = snapshot.percent
+    return {"operation": operation}
+
+
+@admin_bp.route('/admin/config/models/<model_id>/<version>/install', methods=['POST'])
+def install_classifier_model(model_id, version):
+    # Request-owned M2 work; another Flask request can poll its shared snapshot.
+    # No thread pool, durable queue, config update or automatic selection.
+    result = install_model(model_id, version)
+    return {"success": result.success, **asdict(result)}, (409 if result.code == 'install_in_progress' else 200)
+
+
+@admin_bp.route('/admin/config/models/<model_id>/<version>/select', methods=['POST'])
+def select_classifier_model(model_id, version):
+    import webui
+
+    try:
+        select_model(model_id, version, reload_callback=webui.load_config)
+    except ModelSelectionError as exc:
+        return {"success": False, "code": exc.code, "message": exc.message}, 409
+    except ConfigPersistenceError:
+        logger.error("Classifier selection could not be persisted")
+        return {"success": False, "code": "save_failed", "message": "Model selection could not be saved. The previous selection is unchanged."}, 500
+    except (ValueError, OSError, ConfigMigrationError):
+        return {"success": False, "code": "configuration_error", "message": "Model selection could not be validated. Review configuration and try again."}, 409
+    manager = _model_manager_state()
+    message = ("Model selection saved. This model is already running."
+               if manager['running_known'] and not manager['restart_required']
+               else "Model selection saved. Restart WAMF to apply it.")
+    return {"success": True, "message": message, "manager": manager}
+
+
 def _save_settings_form():
     import webui
 
@@ -501,11 +565,16 @@ def _save_settings_form():
                 status=400,
             )
 
+        def update_saved_settings(current):
+            nonlocal result
+            fresh = build_settings_candidate(current, request.form, known_species=_known_species())
+            result = _validate_config_content(yaml.safe_dump(fresh, sort_keys=False))
+            if not result.is_valid:
+                raise ValueError("Settings changed during validation")
+            return fresh
+
         webui.write_config_preserving_admin(
-            candidate_content,
-            admin_config=candidate.get("admin"),
-            api_config=candidate.get("api"),
-            reload_callback=webui.load_config,
+            candidate_content, reload_callback=webui.load_config, update=update_saved_settings,
         )
         log_system_event("INFO", "CONFIG", "Settings updated via Administration UI")
         if result.is_ready:
@@ -622,6 +691,8 @@ def mqtt_test_no_store(response):
     if request.endpoint in {
         'admin.test_mqtt_connection', 'admin.test_frigate_connection',
         'admin.discover_frigate_camera_options',
+        'admin.model_manager_status', 'admin.model_install_status',
+        'admin.install_classifier_model', 'admin.select_classifier_model',
     }:
         response.headers['Cache-Control'] = 'no-store'
     return response

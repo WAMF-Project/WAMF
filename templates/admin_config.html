@@ -233,10 +233,15 @@
 
     <section class="settings-section" id="classification" aria-labelledby="classification-heading">
       <div class="settings-section-heading"><h2 id="classification-heading">Classification</h2><p>Configure the model and confidence threshold used to identify visitors.</p></div>
-      <div class="settings-card"><div class="settings-grid">
-        <div class="settings-field"><label for="classification_model">Model path</label><input id="classification_model" name="classification_model" type="text" value="{{ settings.classification_model }}" required />{% if field_errors.classification_model %}<span class="settings-field-error">{{ field_errors.classification_model }}</span>{% endif %}</div>
-        <div class="settings-field"><label for="classification_threshold">Confidence threshold</label><input id="classification_threshold" name="classification_threshold" type="number" min="0" max="1" step="0.01" value="{{ settings.classification_threshold }}" required aria-describedby="classification_threshold_help" /><small id="classification_threshold_help">A number from 0 to 1.</small>{% if field_errors.classification_threshold %}<span class="settings-field-error">{{ field_errors.classification_threshold }}</span>{% endif %}</div>
-      </div></div>
+      {% include '_model_manager.html' %}
+      <div class="settings-card">
+      <details class="model-custom-details">
+        <summary>Custom model path</summary>
+        <p>Custom paths remain supported. Edit the path and Save settings to use it after restart.</p>
+        <label><input id="classification_custom_enabled" type="checkbox" {% if model_manager.custom or field_errors.classification_model %}checked{% endif %} /> Use a custom model path</label>
+        <div class="settings-field"><label for="classification_model">Model path</label><input id="classification_model" name="classification_model" type="text" value="{% if model_manager.custom or field_errors.classification_model %}{{ settings.classification_model }}{% endif %}" {% if not model_manager.custom and not field_errors.classification_model %}disabled{% endif %} required aria-describedby="custom-model-help" />{% if field_errors.classification_model %}<span class="settings-field-error">{{ field_errors.classification_model }}</span>{% endif %}<small id="custom-model-help">Changing this field replaces managed selection only when you save Settings. Install and Use after restart leave other unsaved Settings fields untouched.</small></div>
+        <input type="hidden" name="classification_model_original" id="classification_model_original" value="{{ classification_model_original }}" />
+      </details></div>
     </section>
 
     <section class="settings-section" id="live-view" aria-labelledby="live-view-heading">
@@ -828,5 +833,6 @@
     }
   }());
 </script>
+<script src="{{ url_for('static', filename='js/model-manager.js') }}"></script>
 
 {% endblock %}

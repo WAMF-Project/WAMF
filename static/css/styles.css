@@ -1,3 +1,23 @@
+#classification [hidden] { display: none !important; }
+.model-summary { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .4rem 1rem; margin: .75rem 0; }
+.model-summary dt { font-weight: 600; }
+.model-summary dd { margin: 0; overflow-wrap: anywhere; }
+.model-card { min-width: 0; }
+.model-card h4 { margin: 0 0 .4rem; }
+.model-card .settings-managed-row { align-items: flex-start; border-top: 0; padding-top: 0; margin-top: 0; }
+.model-card .model-badges { display: inline-block; white-space: normal; }
+.model-card details { margin-top: .75rem; }
+.model-card summary, .model-custom-details summary { cursor: pointer; }
+.model-custom-details { margin-top: 1rem; }
+.model-custom-details .settings-field { margin-top: .75rem; }
+#model-progress { display: block; width: 100%; max-width: 32rem; }
+@media (max-width: 600px) {
+  .model-summary { grid-template-columns: minmax(0, 1fr); gap: .25rem; }
+  .model-summary dd { margin-bottom: .5rem; }
+  .model-card .settings-managed-row { flex-direction: column; }
+  .model-action { max-width: 100%; }
+}
+
 .wamf-body {
   margin: 0;
   background: #0b1220;

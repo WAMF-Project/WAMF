@@ -59,6 +59,8 @@ DBPATH = None
 NAMEDBPATH = DEFAULT_NAMES_DB_PATH
 LOGIN_ATTEMPTS = security.LOGIN_ATTEMPTS
 CSRF_PROTECTED_ENDPOINTS = {
+    'admin.install_classifier_model',
+    'admin.select_classifier_model',
     'admin.test_mqtt_connection',
     'admin.test_frigate_connection',
     'admin.discover_frigate_camera_options',

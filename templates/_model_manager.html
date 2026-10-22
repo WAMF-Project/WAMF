@@ -1,0 +1,36 @@
+<div id="model-manager" data-status-url="{{ url_for('admin.model_manager_status') }}" data-install-status-url="{{ url_for('admin.model_install_status') }}">
+  <div class="settings-card">
+    <h3>Model Manager</h3>
+    <dl class="model-summary">
+      <dt>Active / running</dt><dd id="model-running">{{ model_manager.running_label }}</dd>
+      <dt>Saved selection</dt><dd id="model-selected">{{ model_manager.selected_label }}</dd>
+    </dl>
+    <p id="model-restart-required" class="settings-notice" {% if not model_manager.restart_required %}hidden{% endif %}>Restart required. Model selection saved. Restart WAMF to apply it.</p>
+    <p id="model-selected-error" class="settings-field-error" role="alert" {% if not model_manager.selected_error %}hidden{% endif %}>{{ model_manager.selected_error or '' }}</p>
+    <div class="settings-grid">
+      <div class="settings-field"><label for="classification_threshold">Confidence threshold</label><input id="classification_threshold" name="classification_threshold" type="number" min="0" max="1" step="0.01" value="{{ settings.classification_threshold }}" required aria-describedby="classification_threshold_help" /><small id="classification_threshold_help">A number from 0 to 1. Save settings to apply threshold changes.</small>{% if field_errors.classification_threshold %}<span class="settings-field-error">{{ field_errors.classification_threshold }}</span>{% endif %}</div>
+    </div>
+    <p>Install adds a model without selecting it. Use after restart saves only the model selection; Restart WAMF applies it.</p>
+    <p id="model-message" role="status" aria-live="polite" aria-atomic="true"></p>
+    <progress id="model-progress" role="progressbar" max="100" aria-label="Model installation" hidden></progress>
+  </div>
+  <h3>Supported models</h3>
+  {% for model in model_manager.models %}
+  <article class="settings-card model-card" data-model-id="{{ model.model_id }}" data-model-version="{{ model.version }}">
+    <div class="settings-managed-row">
+      <div><h4>{{ model.name }} · {{ model.version }}</h4><p>{{ model.description }}</p>
+        <p class="settings-status model-badges"></p>
+        <p class="model-issue settings-field-error" {% if not model.issue %}hidden{% endif %}>{{ model.issue or '' }}</p>
+      </div>
+      <button type="button" class="settings-button settings-button-secondary model-action" data-install-url="{{ url_for('admin.install_classifier_model', model_id=model.model_id, version=model.version) }}" data-select-url="{{ url_for('admin.select_classifier_model', model_id=model.model_id, version=model.version) }}" hidden>Use after restart</button>
+    </div>
+    <details><summary>Model details</summary><dl class="model-summary">
+      <dt>Size</dt><dd>{{ '%.2f'|format(model.size_bytes / 1048576) }} MiB</dd>
+      <dt>Source</dt><dd>{{ model.source }}</dd>
+      <dt>Licence</dt><dd>{{ model.licence }}</dd>
+      {% if model.notes %}<dt>Notes</dt><dd>{{ model.notes }}</dd>{% endif %}
+    </dl></details>
+  </article>
+  {% endfor %}
+</div>
+<script id="model-manager-initial" type="application/json">{{ model_manager|tojson }}</script>

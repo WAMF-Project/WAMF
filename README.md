@@ -286,6 +286,30 @@ webui:
   host: 0.0.0.0
 ```
 
+Model Manager is in **Administration → Settings → Classification**, alongside
+the confidence threshold. Fresh installs include the default bird classifier
+(`bird/bundled-1`, stored as `model.tflite`), which works without a model download.
+The optional `bird/aiy-v1` CPU classifier can be installed from the supported
+catalogue when internet access is available. Downloads are checked for exact
+size, SHA-256, and compatibility before installation; they do not select or
+activate a model automatically.
+
+Choose **Use after restart** on an installed, validated model to save just its
+selection, then use the existing **Restart WAMF** control to apply it. Model
+Manager distinguishes the worker's running model from the saved selection and
+shows when a restart is required. Other unsaved Settings fields are preserved
+on the page. Downloaded models live under `data/models/<id>/<version>/`, using
+Docker's existing `/app/data` persistence, and remain usable offline once
+installed. Supported models arrive with WAMF's repository catalogue; there is
+no independently refreshed remote catalogue.
+
+Existing `classification.model` configurations remain supported without
+automatic migration. Custom paths can still be edited under **Custom model
+path** and saved with **Save settings**. Managed selections store both
+`classification.model_id` and `classification.model_version` instead of a
+legacy path. See [AIY artifact provenance and Apache 2.0 notices](models/aiy-v1.md)
+for the downloadable model's source, packaging, and licence details.
+
 # Docker Compose
 
 Build and run the current checkout:

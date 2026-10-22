@@ -916,6 +916,31 @@ def run_webui(mqtt_runtime_reader=None):
     )
 
 
+def initialize_worker_classifier(runtime_writer=None):
+    """Initialize once in the consumer and publish its actual loaded identity."""
+    from app.classifier_runtime import ClassifierRuntimeSnapshot, loaded_classifier
+
+    try:
+        selection = resolve_classifier_model(config, repo_root=REPO_ROOT)
+        if selection.managed:
+            initialize_classifier(
+                selection.path, artifact=selection.artifact,
+                allowed_root=REPO_ROOT if selection.artifact.bundled_path else get_models_path(config),
+            )
+        else:
+            initialize_classifier(selection.path)
+    except Exception:
+        if runtime_writer is not None:
+            runtime_writer.record_classifier(ClassifierRuntimeSnapshot(state="failed"))
+        raise
+    if runtime_writer is not None:
+        try:
+            observation = loaded_classifier(selection)
+        except OSError:
+            observation = ClassifierRuntimeSnapshot(state="unknown")
+        runtime_writer.record_classifier(observation)
+
+
 def run_mqtt_client(runtime_writer=None):
     configure_worker_signals()
 
@@ -924,14 +949,7 @@ def run_mqtt_client(runtime_writer=None):
 
     settings = _mqtt_runtime_settings()
 
-    selection = resolve_classifier_model(config, repo_root=REPO_ROOT)
-    if selection.managed:
-        initialize_classifier(
-            selection.path, artifact=selection.artifact,
-            allowed_root=REPO_ROOT if selection.artifact.bundled_path else get_models_path(config),
-        )
-    else:
-        initialize_classifier(selection.path)
+    initialize_worker_classifier(runtime_writer)
 
     logger.info("Classifier initialized in MQTT subprocess")
     logger.info(

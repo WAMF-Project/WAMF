@@ -149,12 +149,25 @@ def _persist_composed_config(transaction, config_content, admin_config, api_conf
     )
 
 
-def write_config_preserving_admin(config_content, admin_config=None, api_config=None, reload_callback=None):
+def write_config_preserving_admin(config_content, admin_config=None, api_config=None, reload_callback=None,
+                                  *, update=None):
+    """Persist editor content, or a small update built from current locked data.
+
+    ``update`` must return a config mapping and must not acquire another config
+    transaction. It lets selection changes preserve concurrent Settings saves.
+    """
     config_path = Path(get_config_path())
     with ConfigPersistenceTransaction(config_path) as transaction:
         current_config = load_config_from_content(
             transaction.read_text()
         )
+        if update is not None:
+            updated = update(current_config)
+            config_content = yaml.safe_dump(updated, sort_keys=False)
+            if admin_config is None:
+                admin_config = updated.get('admin')
+            if api_config is None:
+                api_config = updated.get('api')
         if admin_config is None:
             admin_config = current_config.get('admin')
         if api_config is None:

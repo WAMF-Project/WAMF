@@ -3,8 +3,9 @@
 One manager-hosted store serializes small snapshot replacements. A killed MQTT
 worker cannot hold its lock: the lock belongs to the manager's server thread.
 The supervisor owns generation changes and withdrawal; workers can update only
-their current generation. No settings, payloads, exceptions or broker addresses
-cross this boundary. Readers receive frozen ordinary data, never a proxy.
+their current generation. Only loaded-classifier identity/path/hash is added;
+no settings, payloads, exceptions or broker addresses cross this boundary.
+Readers receive frozen ordinary data, never a proxy.
 
 Freshness is lifecycle based, not an event/heartbeat timeout. A quiet topic is
 healthy. The existing supervisor watchdog withdraws an exited worker within its
@@ -20,11 +21,13 @@ the native fork lifecycle: spawn would introduce a resource-tracker helper
 which survives until exec and can become an unreaped child after re-exec.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from multiprocessing.managers import BaseManager
 from threading import Lock
 import uuid
+
+from app.classifier_runtime import ClassifierRuntimeSnapshot
 
 
 def _now():
@@ -55,6 +58,7 @@ class MqttRuntimeSnapshot:
     last_event_message_at: str | None = None
     updated_at: str | None = None
     is_current: bool = False
+    classifier: ClassifierRuntimeSnapshot = field(default_factory=ClassifierRuntimeSnapshot)
 
     @property
     def is_operational(self):
@@ -87,6 +91,7 @@ class _RuntimeStore:
             self._snapshot = MqttRuntimeSnapshot(
                 worker_generation=generation, connection_state="starting",
                 reason_code=None, updated_at=_now(), is_current=True,
+                classifier=ClassifierRuntimeSnapshot(state="starting"),
             )
             return generation
 
@@ -97,7 +102,14 @@ class _RuntimeStore:
                     self._snapshot, connection_state="stopped",
                     subscription_state="unknown", reason_code="worker_stopped",
                     is_current=False, updated_at=_now(),
+                    classifier=ClassifierRuntimeSnapshot(state="stopped"),
                 )
+
+    def record_classifier(self, generation, classifier):
+        with self._lock:
+            if (self._snapshot.worker_generation == generation and self._snapshot.is_current
+                    and isinstance(classifier, ClassifierRuntimeSnapshot)):
+                self._snapshot = replace(self._snapshot, classifier=classifier, updated_at=_now())
 
     def record(self, generation, action, wire_code):
         with self._lock:
@@ -175,6 +187,12 @@ class MqttRuntimeWriter(MqttRuntimeReader):
             self._store.record(self.generation, action, _wire_code(reason))
         except Exception:
             pass  # Observations must never change production processing.
+
+    def record_classifier(self, classifier):
+        try:
+            self._store.record_classifier(self.generation, classifier)
+        except (EOFError, OSError, RuntimeError):
+            return  # Diagnostic transport failure must not interrupt inference.
 
 
 class MqttRuntimeDiagnostics:

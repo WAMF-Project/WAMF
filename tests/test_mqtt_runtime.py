@@ -77,6 +77,20 @@ def test_initial_and_started_state_are_safe_ordinary_data(runtime):
         started.connection_state = 'connected'
 
 
+def test_loaded_classifier_observation_crosses_existing_worker_ipc(runtime):
+    from app.classifier_runtime import ClassifierRuntimeSnapshot
+
+    writer = runtime.begin_worker()
+    identity = ClassifierRuntimeSnapshot(state='ready', model_id='bird', model_version='aiy-v1')
+    child = multiprocessing.Process(target=writer.record_classifier, args=(identity,))
+    child.start()
+    child.join(timeout=5)
+    assert child.exitcode == 0
+    assert get_mqtt_runtime_status(runtime.reader).classifier == identity
+    runtime.stop_worker(writer)
+    assert get_mqtt_runtime_status(runtime.reader).classifier.state == 'stopped'
+
+
 def test_connack_requires_matching_successful_suback(runtime, consumer):
     client, context = consumer
     connect(client, context)

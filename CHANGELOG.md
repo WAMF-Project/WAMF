@@ -18,6 +18,7 @@ versioning for releases.
 ### Added
 
 - Added species profiles with cached descriptions and reference images, first/last sightings, detection totals, active days, camera counts, and hourly activity. Species links throughout the interface now lead to these profiles.
+- Added Model Manager in Settings → Classification, with a release-versioned catalogue, bundled/default and custom-path compatibility, and safe on-demand installation of the AIY Birds V1 CPU classifier with size, SHA-256, and isolated model validation. Installed, selected-for-next-start, and worker-reported active states remain distinct; explicit selection uses the existing save/restart flow without automatic activation. Added Python and browser regression coverage.
 - Added paginated Recent Feed and all-history species detection views for browsing older observations.
 - Added historical Activity navigation and previous/next recorded-day navigation in Activity and Daily Summary, with hourly charts, species summaries, and links to matching detections.
 - Added a native retention service for expired snapshots and clips, orphan detection and optional deletion, missing-media diagnostics, and system-event pruning while preserving a configurable minimum number of recent events. Media deletion remains opt-in, with report-only modes for expired and orphaned media.

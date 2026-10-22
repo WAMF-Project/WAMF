@@ -21,7 +21,7 @@ def main():
             'frigate': {'frigate_url': 'http://fixture-frigate', 'camera': ['garden']},
             'classification': {'model': 'model.tflite', 'threshold': 0.7},
             'admin': {'auth_enabled': False},
-            'storage': {'database_path': str(root / 'speciesid.db')},
+            'storage': {'database_path': str(root / 'speciesid.db'), 'models_path': str(root / 'models')},
             'media': {'snapshots_path': str(root / 'snapshots'), 'clips_path': str(root / 'clips')},
         }
         path = root / 'config.yml'
@@ -36,8 +36,11 @@ def main():
         from app import health
         from app.config_loader import load_runtime_config
         from app.mqtt_runtime import MqttRuntimeSnapshot
+        from app.classifier_runtime import ClassifierRuntimeSnapshot
+        from app.model_install import install_result
         from app.mqtt_connection import MESSAGES, MqttProbeResult
         from routes import admin
+        admin.install_model = lambda *args, **kwargs: install_result('connection_error')
 
         # Fail closed if a test forgets interception; never contact a broker.
         admin.probe_mqtt_connection = lambda settings: MqttProbeResult(
@@ -72,6 +75,10 @@ def main():
             connection_state='connected', subscription_state='subscribed',
             worker_started_at='2026-10-18T11:00:00Z', last_connected_at='2026-10-18T11:01:00Z',
             last_event_message_at='2026-10-18T11:02:00Z', updated_at='2026-10-18T11:02:00Z',
+            classifier=ClassifierRuntimeSnapshot(
+                state='ready', path=str(Path(__file__).resolve().parents[2] / 'model.tflite'),
+                sha256='95f59df4cff9053355abcd0b6e5e7e740f6eae19ed8cded32e2c3e8068195093',
+            ),
         )
         def read_runtime():
             mode = g.mqtt_fixture_state
