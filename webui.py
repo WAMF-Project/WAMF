@@ -2,6 +2,7 @@ from flask import Flask, request, redirect, url_for, jsonify, session, flash, g,
 import logging
 from datetime import datetime
 from app import security
+from app.bootstrap import preflight
 from app.config_loader import load_runtime_config
 from app.config_normalization import normalize_config
 # Blueprint modules intentionally consume these through the webui module.
@@ -49,6 +50,7 @@ from wamf_paths import (
     delete_wamf_media_files,
     ensure_storage_paths,
     is_wamf_media_path,
+    get_database_path,
 )
 
 app = Flask(__name__)
@@ -303,6 +305,30 @@ def load_config():
     configure_session_secret()
 
 
+def configure_runtime(runtime_config, database_path):
+    """Bind an already initialized DB; safe in forked or spawned workers."""
+    global config, DBPATH
+    from app import health, queries, system_events
+
+    config = runtime_config
+    DBPATH = database_path
+    queries.DBPATH = database_path
+    health.DB_PATH = database_path
+    system_events.DB_PATH = database_path
+    configure_session_secret()
+
+
+def initialize_app(runtime_config=None):
+    """Explicit standalone/test startup; production initializes in its parent."""
+    candidate = load_runtime_config() if runtime_config is None else runtime_config
+    preflight(candidate)
+    database_path = get_database_path(candidate).resolve()
+    ensure_schema(database_path)
+    ensure_storage_paths(candidate)
+    configure_runtime(candidate, database_path)
+    return app
+
+
 def register_blueprints(flask_app):
     from routes.admin import admin_bp
     from routes.admin_api import admin_api_bp
@@ -322,6 +348,3 @@ def register_blueprints(flask_app):
 
 
 register_blueprints(app)
-load_config()
-ensure_storage_paths()
-ensure_schema(DBPATH)

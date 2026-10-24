@@ -14,8 +14,7 @@ from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 from paho.mqtt.reasoncodes import ReasonCode
 
-# webui calls load_config() at module level; point it at the example config
-# so it doesn't fail when speciesid (which imports webui) is imported here.
+# Explicit configuration loading in these tests uses the example by default.
 os.environ.setdefault("WHOSATMYFEEDER_CONFIG", "config/config.yml.example")
 
 import speciesid  # noqa: E402
@@ -623,7 +622,7 @@ def test_parent_initializes_config_and_schema_before_spawning_workers(monkeypatc
         'classification': {'model': 'model.tflite', 'threshold': 0.7},
     })
     monkeypatch.setattr(speciesid, 'load_config', lambda: calls.append('config'))
-    monkeypatch.setattr(speciesid, 'setupdb', lambda: calls.append('schema'))
+    monkeypatch.setattr(speciesid, 'ensure_schema', lambda path: calls.append('schema'))
     def process(**kwargs):
         assert calls == ['config', 'schema']
         child = MagicMock()

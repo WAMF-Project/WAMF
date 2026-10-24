@@ -103,7 +103,7 @@ def test_watchdog_does_not_respawn_during_restart(monkeypatch):
         if timeout is not None:
             signal.getsignal(signal.SIGUSR1)(signal.SIGUSR1, None)
     mqtt.join.side_effect = request_restart
-    with patch('speciesid.load_config'), patch('speciesid.setupdb'), patch('speciesid.log_system_event'), patch('speciesid.multiprocessing.Process', side_effect=[flask, mqtt]) as factory, patch('app.process_control.reexec_application') as reexec:
+    with patch('speciesid.load_config'), patch('speciesid.ensure_schema'), patch('speciesid.log_system_event'), patch('speciesid.multiprocessing.Process', side_effect=[flask, mqtt]) as factory, patch('app.process_control.reexec_application') as reexec:
         speciesid.main()
     assert factory.call_count == 2
     flask.terminate.assert_called_once()

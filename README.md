@@ -393,9 +393,12 @@ config, bundled model, and taxonomy database resolve from the application
 location. `WHOSATMYFEEDER_CONFIG` can select another existing file (relative paths
 are relative to the caller's working directory); a missing override is an error.
 `WAMF_SECRET_KEY`, when set to a valid value, continues to override the configured
-session secret. Runtime storage directories and the SQLite schema are created
-automatically. The runtime account needs write access for bootstrap and admin
-configuration changes.
+session secret. The supervisor initializes and migrates the configured SQLite
+database before starting services; incompatible/newer schemas or migration
+failures refuse startup. Runtime storage directories are created automatically.
+The runtime account needs write access for database initialization, bootstrap,
+and admin configuration changes. See [database migrations](docs/database-migrations.md)
+for the migration and read-only compatibility inspection APIs.
 
 Wait for `MQTT event subscription ready` in the console before testing a new
 bird event. This message follows the broker subscription acknowledgement.

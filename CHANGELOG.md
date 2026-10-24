@@ -17,6 +17,7 @@ versioning for releases.
 
 ### Added
 
+- Added ordered transactional database migrations with safe legacy schema adoption, a supervisor-owned startup migration barrier, and a read-only compatibility inspection API for diagnostics and future Backup & Restore validation. Existing detection/species/archive references and migration history are preserved; incompatible or newer schemas refuse startup. Application imports no longer initialize the database.
 - Added species profiles with cached descriptions and reference images, first/last sightings, detection totals, active days, camera counts, and hourly activity. Species links throughout the interface now lead to these profiles.
 - Added Model Manager in Settings → Classification, with a release-versioned catalogue, bundled/default and custom-path compatibility, and safe on-demand installation of the AIY Birds V1 CPU classifier with size, SHA-256, and isolated model validation. Installed, selected-for-next-start, and worker-reported active states remain distinct; explicit selection uses the existing save/restart flow without automatic activation. Added Python and browser regression coverage.
 - Added paginated Recent Feed and all-history species detection views for browsing older observations.

@@ -1,6 +1,6 @@
 from app.bootstrap import DEFAULT_PORT, REPO_ROOT, preflight, prepare_native_startup
 
-# Bootstrap once in the native parent, before webui import creates storage.
+# Configuration bootstrap belongs exclusively to the native parent.
 if __name__ == "__main__":
     prepare_native_startup()
 
@@ -27,7 +27,7 @@ from app.config_normalization import normalize_config
 from app.classifier_model import LEGACY_BACKGROUND_INDEX, ModelValidationError, prepare_classifier
 from app.model_registry import resolve_classifier_model
 from app.model_validation import validate_model_artifact
-from app.db import connect_db, ensure_schema
+from app.db import DatabaseNewerError, SchemaMigrationError, connect_db, ensure_schema
 from app.frigate_client import FrigateClient, FrigateError
 from app.health import set_detection_worker_enabled, start_health_monitor
 from app.media_coordination import media_activity_guard
@@ -47,7 +47,7 @@ from app.retention_scheduler import (
 from app.system_events import log_system_event
 from integrations.bridge import post_observation_event
 from version import VERSION
-from wamf_paths import ensure_storage_paths, get_models_path
+from wamf_paths import ensure_storage_paths, get_database_path, get_models_path
 from webui import app
 
 classifier = None
@@ -104,7 +104,7 @@ def _record_mqtt_runtime(userdata, action, reason=None):
 def _start_mqtt_worker(workers, runtime):
     writer = runtime.begin_worker()
     process = workers.start(
-        run_mqtt_client, args=(writer,),
+        run_mqtt_client, args=(writer, config, DBPATH),
         on_exit=lambda: runtime.stop_worker(writer),
     )
     if process is None:
@@ -873,12 +873,6 @@ def _process_live_message(client, message):
             conn.close()
 
 
-def setupdb():
-
-    ensure_storage_paths()
-    ensure_schema(DBPATH)
-
-
 def load_config():
 
     global config
@@ -889,6 +883,20 @@ def load_config():
     frigate_client = FrigateClient(config['frigate']['frigate_url'])
 
 
+def configure_worker_runtime(runtime_config, database_path):
+    """Receive the parent's validated snapshot without reloading or migrating."""
+    global config, DBPATH, frigate_client
+    from copy import deepcopy
+
+    import webui
+
+    config = deepcopy(runtime_config)
+    config.setdefault('storage', {})['database_path'] = str(database_path)
+    DBPATH = database_path
+    frigate_client = FrigateClient(config.get('frigate', {}).get('frigate_url') or '')
+    webui.configure_runtime(config, database_path)
+
+
 def _mqtt_runtime_settings(userdata=None):
     if isinstance(userdata, MqttConsumerContext):
         return userdata.settings
@@ -897,8 +905,10 @@ def _mqtt_runtime_settings(userdata=None):
     return mqtt_settings_from_config(normalize_config(config).config)
 
 
-def run_webui(mqtt_runtime_reader=None):
+def run_webui(mqtt_runtime_reader=None, runtime_config=None, database_path=None):
     configure_worker_signals()
+    if runtime_config is not None:
+        configure_worker_runtime(runtime_config, database_path)
     logger.info("Starting Flask app")
 
     set_detection_worker_enabled(not preflight(config))
@@ -941,8 +951,10 @@ def initialize_worker_classifier(runtime_writer=None):
         runtime_writer.record_classifier(observation)
 
 
-def run_mqtt_client(runtime_writer=None):
+def run_mqtt_client(runtime_writer=None, runtime_config=None, database_path=None):
     configure_worker_signals()
+    if runtime_config is not None:
+        configure_worker_runtime(runtime_config, database_path)
 
     if runtime_writer is not None:
         runtime_writer.record("started")
@@ -990,6 +1002,28 @@ def run_mqtt_client(runtime_writer=None):
 def main():
     configure_logging()
 
+    try:
+        load_config()
+        setup_issues = preflight(config)
+        # Resolve once from the validated snapshot, never from a later YAML read.
+        database_path = get_database_path(config).resolve()
+        ensure_schema(database_path)
+        # ensure_schema has committed and closed its connection before binding
+        # any consumers or constructing diagnostics/processes/background work.
+        ensure_storage_paths(config)
+        configure_worker_runtime(config, database_path)
+    except Exception as exc:
+        if isinstance(exc, DatabaseNewerError):
+            reason = 'database is newer than this WAMF build'
+        elif isinstance(exc, SchemaMigrationError):
+            reason = 'invalid or unsupported database schema/history'
+        else:
+            reason = 'configuration or database initialization failed'
+        # Exception text may contain SQL values or secrets. Process logging is
+        # available even when no application database can be opened.
+        logger.error('WAMF startup refused: %s (%s)', reason, type(exc).__name__)
+        raise SystemExit(1) from exc
+
     now = datetime.now()
 
     current_time = now.strftime(
@@ -1001,7 +1035,8 @@ def main():
     log_system_event(
         event_type="SYSTEM",
         severity="INFO",
-        message=f"WAMF {VERSION} started"
+        message=f"WAMF {VERSION} started",
+        db_path=DBPATH,
     )
 
     ...
@@ -1010,10 +1045,6 @@ def main():
     logger.info("Python version: %s", sys.version)
     logger.info("Version info: %s", sys.version_info)
 
-    load_config()
-
-    setup_issues = preflight(config)
-    setupdb()
     retention_schedule = parse_retention_schedule(config)
     scheduler_state = None
     if retention_schedule.enabled:
@@ -1034,10 +1065,10 @@ def main():
                 ', '.join(setup_issues),
                 config.get('webui', {}).get('port', DEFAULT_PORT),
             )
-            flask_process = workers.start(run_webui, args=(mqtt_runtime.reader,))
+            flask_process = workers.start(run_webui, args=(mqtt_runtime.reader, config, DBPATH))
         else:
             logger.info("Starting processes for Flask and MQTT")
-            flask_process = workers.start(run_webui, args=(mqtt_runtime.reader,))
+            flask_process = workers.start(run_webui, args=(mqtt_runtime.reader, config, DBPATH))
             mqtt_process = _start_mqtt_worker(workers, mqtt_runtime)
 
         if scheduler_state is not None:

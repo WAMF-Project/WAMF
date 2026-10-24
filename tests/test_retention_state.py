@@ -201,8 +201,7 @@ def test_migration_failure_rolls_back_and_does_not_record_marker(
         "2025-01-01T00:00:00", 1, 2, 3
     )
     assert conn.execute(
-        "SELECT COUNT(*) FROM schema_migrations "
-        "WHERE version = '005_retention_status_v2'"
+        "SELECT COUNT(*) FROM sqlite_master WHERE name = 'schema_migrations'"
     ).fetchone()[0] == 0
     conn.close()
 
@@ -247,8 +246,7 @@ def test_migration_failure_after_table_replacement_rolls_back_destructive_ddl(
     }
     assert conn.execute("SELECT * FROM retention_status").fetchall() == [original]
     assert conn.execute(
-        "SELECT COUNT(*) FROM schema_migrations "
-        "WHERE version = '005_retention_status_v2'"
+        "SELECT COUNT(*) FROM sqlite_master WHERE name = 'schema_migrations'"
     ).fetchone()[0] == 0
     assert conn.execute(
         "SELECT COUNT(*) FROM sqlite_master "

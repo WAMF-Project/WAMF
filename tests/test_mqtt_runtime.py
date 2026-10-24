@@ -417,7 +417,7 @@ def test_native_watchdog_withdraws_old_generation_before_starting_replacement(ru
         'frigate': {'frigate_url': 'http://frigate', 'camera': ['garden']},
         'classification': {'model': 'model.tflite', 'threshold': 0.7},
     })
-    for name in ('load_config', 'setupdb', 'log_system_event'):
+    for name in ('load_config', 'ensure_schema', 'log_system_event'):
         monkeypatch.setattr(speciesid, name, MagicMock())
     monkeypatch.setattr(speciesid, 'MqttRuntimeDiagnostics', lambda: runtime)
     flask = MagicMock(pid=101)
@@ -444,7 +444,9 @@ def test_native_watchdog_withdraws_old_generation_before_starting_replacement(ru
     def factory(target, args):
         process = next(processes)
         if target is speciesid.run_mqtt_client:
-            writer, = args
+            writer, runtime_config, database_path = args
+            assert runtime_config is speciesid.config
+            assert database_path == speciesid.DBPATH
             def start():
                 writer.record('started')
                 if process is old:
@@ -453,7 +455,7 @@ def test_native_watchdog_withdraws_old_generation_before_starting_replacement(ru
             process.start.side_effect = start
         else:
             assert target is speciesid.run_webui
-            assert args == (runtime.reader,)
+            assert args == (runtime.reader, speciesid.config, speciesid.DBPATH)
         return process
     monkeypatch.setattr(speciesid.multiprocessing, 'Process', factory)
     speciesid.main()
@@ -518,7 +520,7 @@ def test_native_supervisor_creates_diagnostics_before_any_worker(runtime, monkey
     order = []
     monkeypatch.setattr(speciesid, 'config', {})
     monkeypatch.setattr(speciesid, 'load_config', lambda: None)
-    monkeypatch.setattr(speciesid, 'setupdb', lambda: None)
+    monkeypatch.setattr(speciesid, 'ensure_schema', lambda path: None)
     monkeypatch.setattr(speciesid, 'log_system_event', MagicMock())
     monkeypatch.setattr(speciesid, 'preflight', lambda config: ['setup'] if setup_required else [])
     def diagnostics():

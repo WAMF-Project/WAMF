@@ -32,6 +32,7 @@ def main():
         }))
         os.environ['WHOSATMYFEEDER_CONFIG'] = str(path)
         import webui
+        webui.initialize_app()
         from flask import session, request, g
         from app import health
         from app.config_loader import load_runtime_config

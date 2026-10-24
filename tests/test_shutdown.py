@@ -96,7 +96,7 @@ def test_watchdog_does_not_respawn_when_shutdown_requested_during_wait(monkeypat
         if timeout is not None:
             signal.getsignal(signum)(signum, None)
     mqtt.join.side_effect = request_shutdown
-    with patch('speciesid.load_config'), patch('speciesid.setupdb'), patch('speciesid.log_system_event'), patch('speciesid.multiprocessing.Process', side_effect=[flask, mqtt]) as factory:
+    with patch('speciesid.load_config'), patch('speciesid.ensure_schema'), patch('speciesid.log_system_event'), patch('speciesid.multiprocessing.Process', side_effect=[flask, mqtt]) as factory:
         speciesid.main()
     assert factory.call_count == 2
     flask.terminate.assert_called_once()

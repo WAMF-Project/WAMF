@@ -6,8 +6,30 @@ Both app.queries and webui.py keep DB paths as module-level globals
 databases.
 """
 import sqlite3
+import sys
+from pathlib import Path
+
 import pytest
 import yaml
+
+
+@pytest.fixture(autouse=True)
+def preserve_database_runtime(monkeypatch):
+    """Supervisor tests must not leave production bindings in other fixtures."""
+    for name, attributes in (
+        ('speciesid', ('config', 'DBPATH', 'frigate_client')),
+        ('webui', ('config', 'DBPATH')),
+        ('app.queries', ('DBPATH',)),
+        ('app.health', ('DB_PATH',)),
+        ('app.system_events', ('DB_PATH',)),
+    ):
+        module = sys.modules.get(name)
+        if module is not None:
+            for attribute in attributes:
+                monkeypatch.setattr(module, attribute, getattr(module, attribute))
+    if 'webui' in sys.modules:
+        app = sys.modules['webui'].app
+        monkeypatch.setitem(app.config, 'SECRET_KEY', app.secret_key)
 
 
 @pytest.fixture(autouse=True)
@@ -111,6 +133,7 @@ def _create_name_db(path: str) -> None:
 def _create_config(path: str, frigate_url: str = "http://localhost:5000") -> None:
     """Write a minimal config.yml."""
     cfg = {
+        "storage": {"database_path": str(Path(path).with_name("speciesid.db"))},
         "config_version": 2,
         "frigate": {
             "frigate_url": frigate_url,
@@ -159,7 +182,7 @@ def tmp_dbs(tmp_path_factory):
 @pytest.fixture(scope="session")
 def patched_queries(tmp_dbs):
     """Import app.queries with DB paths pointing at temp databases."""
-    import app.queries as queries
+    from app import queries
     queries.DBPATH = tmp_dbs["det_db"]
     queries.NAMEDBPATH = tmp_dbs["name_db"]
     return queries
@@ -169,19 +192,23 @@ def patched_queries(tmp_dbs):
 def flask_client(tmp_dbs, patched_queries):
     """
     Return a Flask test client with webui's globals patched to use temp DBs.
-    Set WHOSATMYFEEDER_CONFIG before importing webui so load_config() (which
-    runs at module level) reads the temp config instead of the missing default.
+    Explicit initialization uses only the temporary configuration/database.
     """
     import os
     os.environ['WHOSATMYFEEDER_CONFIG'] = tmp_dbs["config"]
 
     import webui
-    webui.load_config()
+    webui.initialize_app()
     webui.DBPATH = tmp_dbs["det_db"]
     webui.NAMEDBPATH = tmp_dbs["name_db"]
 
     webui.app.config["TESTING"] = True
     webui.app.config["SECRET_KEY"] = "test-secret"
     # Health reads runtime diagnostics; rendering routes never probes a broker.
-    with webui.app.test_client() as client:
-        yield client
+    with pytest.MonkeyPatch.context() as patches:
+        # Settings tests may save configs without storage paths. Event logging
+        # must still use the fixture DB instead of resolving the live default.
+        patches.setattr('app.system_events.DB_PATH', tmp_dbs["det_db"])
+        patches.setattr('app.health.DB_PATH', tmp_dbs["det_db"])
+        with webui.app.test_client() as client:
+            yield client

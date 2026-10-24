@@ -31,7 +31,7 @@ def test_startup_selects_only_required_workers(config, targets, monkeypatch, cap
     monkeypatch.setattr(speciesid, 'config', config)
     child = MagicMock()
     child.is_alive.return_value = False
-    with patch('speciesid.load_config'), patch('speciesid.setupdb'), patch('speciesid.log_system_event'), patch('speciesid.multiprocessing.Process', return_value=child) as process:
+    with patch('speciesid.load_config'), patch('speciesid.ensure_schema'), patch('speciesid.log_system_event'), patch('speciesid.multiprocessing.Process', return_value=child) as process:
         speciesid.main()
     assert [call.kwargs['target'].__name__ for call in process.call_args_list] == targets
     assert child.start.call_count == len(targets)

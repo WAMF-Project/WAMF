@@ -664,7 +664,7 @@ def test_native_supervisor_starts_exactly_one_scheduler_only_when_enabled(
 
     monkeypatch.setattr(speciesid, "config", _native_config(enabled))
     monkeypatch.setattr(speciesid, "load_config", MagicMock())
-    monkeypatch.setattr(speciesid, "setupdb", MagicMock())
+    monkeypatch.setattr(speciesid, "ensure_schema", MagicMock())
     monkeypatch.setattr(speciesid, "log_system_event", MagicMock())
     flask = MagicMock(pid=101)
     flask.is_alive.side_effect = [True, False, False]
@@ -702,7 +702,7 @@ def test_scheduler_starts_even_when_mqtt_frigate_readiness_disables_detector(
 
     monkeypatch.setattr(speciesid, "config", _native_config(True))
     monkeypatch.setattr(speciesid, "load_config", MagicMock())
-    monkeypatch.setattr(speciesid, "setupdb", MagicMock())
+    monkeypatch.setattr(speciesid, "ensure_schema", MagicMock())
     monkeypatch.setattr(speciesid, "preflight", lambda config: ["mqtt.host"])
     monkeypatch.setattr(speciesid, "log_system_event", MagicMock())
     flask = MagicMock(pid=101)
