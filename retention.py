@@ -1,8 +1,10 @@
 """Compatibility CLI for the safe in-process retention service."""
 
 import logging
+from contextlib import ExitStack
 
 from app.config_loader import load_runtime_config
+from app.database_lifecycle import database_consumer
 from app.db import ensure_schema
 from app.retention_service import run_retention
 from wamf_paths import get_database_path
@@ -11,8 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    with ExitStack() as lifecycle:
+        return _main(lifecycle)
+
+
+def _main(lifecycle):
     try:
         config = load_runtime_config()
+        lifecycle.enter_context(database_consumer(get_database_path(config)))
         ensure_schema(get_database_path(config))
     except Exception:
         logger.exception("Standalone retention schema initialization failed")

@@ -3,6 +3,7 @@
 import logging
 import time
 from collections.abc import Mapping
+from contextlib import ExitStack
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -10,6 +11,8 @@ from datetime import UTC, datetime, timedelta
 from app.config_loader import load_runtime_config
 from app.config_migration import migrate_config
 from app.config_validation import validate_config
+from app.database_lifecycle import database_consumer
+from app.database_restore_application import retention_hold_active
 from app.db import connect_db
 from app.media_coordination import (
     media_activity_guard,
@@ -805,6 +808,11 @@ def _safe_explicit_database_target(config_snapshot):
 
 
 def run_retention(trigger="direct", *, config=None, now=None):
+    with ExitStack() as lifecycle:
+        return _run_retention(trigger, config=config, now=now, lifecycle=lifecycle)
+
+
+def _run_retention(trigger="direct", *, config=None, now=None, lifecycle):
     """Run all independent retention phases without allowing overlap."""
 
     result = _new_result(trigger)
@@ -827,6 +835,7 @@ def run_retention(trigger="direct", *, config=None, now=None):
             )
         policy = build_retention_policy(config_snapshot)
         database_path = get_database_path(config_snapshot)
+        lifecycle.enter_context(database_consumer(database_path))
     except Exception as exc:
         result.outcome = "failed"
         message = "retention configuration could not be prepared"
@@ -842,6 +851,14 @@ def run_retention(trigger="direct", *, config=None, now=None):
         if database_path is not None:
             _persist_final_state(result, database_path)
         return result
+
+    if retention_hold_active(database_path):
+        result.outcome = 'held'
+        result.error_summaries.append('Database-only restore hold: destructive retention is blocked pending acknowledgement')
+        for phase in result.phases.values():
+            phase.outcome = 'skipped'
+        _finish_timing(result, preparation_started)
+        return result  # No execution acquired; do not overwrite observational retention state.
 
     acquired_run = False
     acquired_started = None

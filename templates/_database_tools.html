@@ -1,0 +1,52 @@
+<section class="settings-section" aria-labelledby="database-tools-heading" id="database-tools"
+         data-enabled="{{ 'true' if database_tools_enabled else 'false' }}" data-csrf="{{ csrf_token }}">
+  <div class="settings-section-heading"><h2 id="database-tools-heading">Database Backup &amp; Restore</h2></div>
+  <div class="settings-card admin-health-card">
+    {% if not database_tools_enabled %}
+    <p role="status">Database tools are disabled. Enable Admin authentication in Settings to create, download, upload or restore backups.</p>
+    {% else %}
+    <p class="settings-preservation-note">Database only. Snapshots, clips, configuration and models are not included. Manual backups are kept until removed offline.</p>
+    <div class="database-actions">
+      <button type="button" class="settings-button settings-button-primary" id="database-create">Create backup</button>
+      <button type="button" class="settings-button settings-button-secondary" id="database-refresh">Refresh backups</button>
+      <button type="button" class="settings-button settings-button-secondary" id="database-cancel-job" hidden>Cancel operation</button>
+    </div>
+    <p id="database-status" role="status" aria-live="polite">Loading database status…</p>
+    <div id="database-hold" class="database-notice" hidden>
+      <strong>Retention held after database-only restore</strong>
+      <p>Snapshots and clips were not restored. References may point to missing files, and newer media may appear orphaned. Destructive retention remains blocked.</p>
+      <label><input type="checkbox" id="database-ack-check"> I understand retention may clear missing references and delete orphaned media according to the saved policy.</label>
+      <button type="button" class="settings-button settings-button-secondary" id="database-ack">Acknowledge media mismatch and resume retention</button>
+    </div>
+    <details id="database-catalog" open>
+      <summary>Available backups</summary>
+      <ul id="database-backups" class="database-backup-list" aria-label="Database backups"></ul>
+    </details>
+    <details id="database-restore">
+      <summary>Restore a database backup</summary>
+      <p>Validate a managed backup above, or upload a WAMF ZIP package. Validation never changes the active database.</p>
+      <form id="database-upload-form" enctype="multipart/form-data">
+        <label for="database-package">WAMF backup package (up to 1 GiB plus package metadata)</label>
+        <input type="file" id="database-package" name="package" accept=".zip,application/zip" required>
+        <button type="submit" class="settings-button settings-button-secondary" id="database-upload">Upload and validate</button>
+      </form>
+    </details>
+    <div id="database-preview" class="database-notice" hidden>
+      <h3>Restore preview</h3>
+      <p id="database-preview-schema"></p>
+      <p id="database-preview-warning"></p>
+      <label><input type="checkbox" id="database-confirm-check"> Replace the current database with this exact backup. Newer database changes will be lost from the active database; a rollback backup will be preserved.</label>
+      <div class="database-actions">
+        <button type="button" class="settings-button settings-button-primary" id="database-apply">Restore and restart</button>
+        <button type="button" class="settings-button settings-button-secondary" id="database-cancel-restore">Cancel restore preview</button>
+      </div>
+      <p id="database-native-note" class="settings-preservation-note"></p>
+    </div>
+    <p id="database-recovery" class="database-notice" hidden>WAMF needs offline recovery. Do not repeat Restore or delete SQLite sidecars. Preserve the database and backups, check service/process logs, and follow the offline recovery procedure in <code>docs/database-backups.md</code>. Rollback is an explicit offline maintenance operation.</p>
+    {% endif %}
+  </div>
+</section>
+{% if database_tools_enabled %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/database-tools.css') }}">
+<script src="{{ url_for('static', filename='js/database-tools.js') }}" defer></script>
+{% endif %}

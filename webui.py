@@ -1,5 +1,8 @@
 from flask import Flask, request, redirect, url_for, jsonify, session, flash, g, has_request_context
 import logging
+from contextlib import ExitStack
+from app.database_lifecycle import maintenance_access
+from app.database_restore_application import database_startup
 from datetime import datetime
 from app import security
 from app.bootstrap import preflight
@@ -170,7 +173,7 @@ def is_valid_csrf_token(token):
 
 
 def csrf_failure_response():
-    if request.path.startswith('/admin/config/') or request.path.startswith('/detections/'):
+    if request.path.startswith(('/admin/config/', '/admin/database', '/detections/')):
         return jsonify({
             'success': False,
             'message': 'Security token expired. Refresh the page and try again.',
@@ -190,6 +193,16 @@ def get_safe_next_url(default_endpoint='admin.admin_dashboard'):
 
 @app.before_request
 def require_admin_auth():
+    if request.path.startswith('/admin/database'):
+        from app.database_admin import MAX_UPLOAD_REQUEST_BYTES
+
+        request.max_content_length = MAX_UPLOAD_REQUEST_BYTES
+        request.max_form_parts = 4
+        if not is_admin_auth_enabled():
+            return jsonify(success=False, code='admin_auth_required',
+                           message='Database tools require Admin authentication to be enabled.'), 403, {'Cache-Control': 'no-store'}
+        if not session.get('admin_authenticated'):
+            return jsonify(success=False, code='login_required', message='Admin login required.'), 401, {'Cache-Control': 'no-store'}
     if request.path.startswith('/admin/api/'):
         if session.get('admin_authenticated') or is_valid_api_token():
             return None
@@ -220,7 +233,7 @@ def require_csrf_for_mutations():
     if request.method not in {'POST', 'PUT', 'PATCH', 'DELETE'}:
         return None
 
-    if request.endpoint not in CSRF_PROTECTED_ENDPOINTS:
+    if request.endpoint not in CSRF_PROTECTED_ENDPOINTS and not request.path.startswith('/admin/database'):
         return None
 
     if not session.get('admin_authenticated'):
@@ -323,9 +336,21 @@ def initialize_app(runtime_config=None):
     candidate = load_runtime_config() if runtime_config is None else runtime_config
     preflight(candidate)
     database_path = get_database_path(candidate).resolve()
-    ensure_schema(database_path)
-    ensure_storage_paths(candidate)
-    configure_runtime(candidate, database_path)
+    # The explicit standalone owner lives as long as this app/process. Native
+    # workers already inherit their supervisor's lifetime lease.
+    lifecycle = ExitStack()
+    try:
+        startup = lifecycle.enter_context(database_startup(database_path))
+        with maintenance_access(startup.lease):
+            ensure_schema(database_path)
+        ensure_storage_paths(candidate)
+        configure_runtime(candidate, database_path)
+        startup.allow_consumers()
+        startup.mark_succeeded()
+    except BaseException:
+        lifecycle.close()
+        raise
+    app.extensions.setdefault('database_lifecycles', []).append(lifecycle)
     return app
 
 
@@ -334,6 +359,7 @@ def register_blueprints(flask_app):
     from routes.admin_api import admin_api_bp
     from routes.api import api_bp
     from routes.auth import auth_bp
+    from routes.database_admin import database_admin_bp
     from routes.detections import detections_bp
     from routes.media import media_bp
     from routes.public import public_bp
@@ -345,6 +371,7 @@ def register_blueprints(flask_app):
     flask_app.register_blueprint(detections_bp)
     flask_app.register_blueprint(admin_bp)
     flask_app.register_blueprint(admin_api_bp)
+    flask_app.register_blueprint(database_admin_bp)
 
 
 register_blueprints(app)

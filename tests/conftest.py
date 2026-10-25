@@ -14,6 +14,19 @@ import yaml
 
 
 @pytest.fixture(autouse=True)
+def isolate_default_database_lifecycle(monkeypatch, tmp_path):
+    """Lifecycle tests/ mocked supervisors must never lock the deployment DB."""
+    import wamf_paths
+    monkeypatch.setattr(wamf_paths, 'DEFAULT_DATABASE_PATH', tmp_path / 'default.db')
+    yield
+    # Standalone Flask fixtures explicitly own leases through app extensions.
+    module = sys.modules.get('webui')
+    if module is not None:
+        for lifecycle in module.app.extensions.pop('database_lifecycles', []):
+            lifecycle.close()
+
+
+@pytest.fixture(autouse=True)
 def preserve_database_runtime(monkeypatch):
     """Supervisor tests must not leave production bindings in other fixtures."""
     for name, attributes in (

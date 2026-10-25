@@ -5,6 +5,7 @@ A supported upgrade path is structural eligibility, not a promise that a later
 write will succeed. Callers must stage/exclude runtime activity before migration.
 """
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
@@ -151,7 +152,36 @@ def _inspect_connection(conn, result, migrations, check_integrity):
                    legacy_recognized=True)
 
 
-def inspect_database(db_path, *, check_integrity=False):
+@contextmanager
+def sqlite_read_checkpoint(conn, checkpoint=None):
+    """Cooperative interruption without SQLite swallowing callback exceptions."""
+    if checkpoint is None:
+        yield
+        return
+    interrupted = []
+
+    def progress():
+        try:
+            checkpoint()
+        except BaseException as exc:
+            interrupted.append(exc)
+            raise  # SQLite interrupts; the context re-raises the original below.
+        return 0
+
+    conn.set_progress_handler(progress, 1000)
+    try:
+        checkpoint()
+        yield
+        checkpoint()
+    except sqlite3.Error:
+        if interrupted:
+            raise interrupted[0]
+        raise
+    finally:
+        conn.set_progress_handler(None, 0)
+
+
+def inspect_database(db_path, *, check_integrity=False, checkpoint=None):
     """Inspect an existing filesystem path using SQLite mode=ro and query_only.
 
     Returns structured incompatibility/read errors without raw exception values.
@@ -163,6 +193,8 @@ def inspect_database(db_path, *, check_integrity=False):
     WAL-format files return UNKNOWN before opening: SQLite can otherwise create
     sidecars even with mode=ro. Callers must exclude journal-mode changes during
     inspection; staged files should be stable and self-contained.
+    An optional cooperative checkpoint may raise to cancel a maintenance job.
+    Such exceptions propagate unchanged; lock waits are shortened for that job.
     """
     migrations = _ordered_migrations()
     result = DatabaseInspection(None, DatabaseCompatibility.UNKNOWN,
@@ -191,9 +223,12 @@ def inspect_database(db_path, *, check_integrity=False):
         # configuration defaults. as_uri safely quotes '?'/'#'/spaces in paths.
         conn = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True,
                                timeout=MIGRATION_LOCK_TIMEOUT_MS / 1000)
-        conn.execute('PRAGMA query_only = ON')
-        conn.execute('BEGIN')
-        return _inspect_connection(conn, result, migrations, check_integrity)
+        if checkpoint is not None:
+            conn.execute('PRAGMA busy_timeout = 100')
+        with sqlite_read_checkpoint(conn, checkpoint):
+            conn.execute('PRAGMA query_only = ON')
+            conn.execute('BEGIN')
+            return _inspect_connection(conn, result, migrations, check_integrity)
     except FileNotFoundError:
         return replace(result, error_category=InspectionError.MISSING_FILE)
     except OSError:

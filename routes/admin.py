@@ -358,6 +358,7 @@ def admin_dashboard():
         retention=retention,
         mqtt=mqtt,
         cameras=build_camera_presentation(health.get('frigate_cameras', {}), retention_config),
+        database_tools_enabled=webui.is_admin_auth_enabled(),
     )
 
 

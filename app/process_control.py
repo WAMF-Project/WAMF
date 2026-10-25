@@ -15,10 +15,14 @@ _restart_scheduled = False
 _restart_lock = threading.Lock()
 
 
+def native_restart_available():
+    return _supervisor_pid is not None and os.getppid() == _supervisor_pid
+
+
 def schedule_restart(delay=1.0):
     """Request one parent re-exec after the HTTP response can complete."""
     global _restart_scheduled
-    if _supervisor_pid is None or os.getppid() != _supervisor_pid:
+    if not native_restart_available():
         raise RuntimeError('Restart requires the native WAMF parent process.')
     with _restart_lock:
         if _restart_scheduled:

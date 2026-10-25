@@ -1,5 +1,6 @@
 """Central configuration and compatibility helpers for WAMF storage paths."""
 
+import stat
 from pathlib import Path
 
 import yaml
@@ -57,6 +58,45 @@ class ModelPathError(ValueError):
 def get_models_path(config=None):
     """Use the existing data mount, independently of database location."""
     return _configured_path("storage", "models_path", REPO_ROOT / "data" / "models", config)
+
+
+class DatabaseBackupPathError(ValueError):
+    """A backup storage descendant is unsafe."""
+
+
+def get_database_backup_root():
+    """Fixed data-mount location; inspection never creates directories.
+
+    The data mount itself is trusted (and may be mounted/resolved elsewhere).
+    Descendants must not be symlinks. Backup storage is independent of a custom
+    active database location, like the existing default managed model storage.
+    """
+    return _database_backup_directory('backups', 'database')
+
+
+def get_database_backup_staging_root():
+    return _database_backup_directory('backups', 'database', '.staging')
+
+
+def get_database_restore_root():
+    """Private restore operation/control namespace, outside the active DB."""
+    return _database_backup_directory('backups', 'database', '.restore')
+
+
+def _database_backup_directory(*parts):
+    try:
+        path = (REPO_ROOT / 'data').resolve()
+        for part in parts:
+            path = path / part
+            try:
+                info = path.lstat()
+            except FileNotFoundError:
+                continue
+            if not stat.S_ISDIR(info.st_mode):
+                raise DatabaseBackupPathError('Unsafe backup storage directory')
+        return path
+    except (OSError, RuntimeError) as exc:
+        raise DatabaseBackupPathError('Backup storage is unavailable') from exc
 
 
 def _contained_model_path(root, *parts):

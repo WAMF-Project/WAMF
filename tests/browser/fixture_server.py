@@ -31,6 +31,8 @@ def main():
             'mqtt': {'username': 'M2-SECRET-USER-SENTINEL', 'password': 'M2-SECRET-PASSWORD-SENTINEL'},
         }))
         os.environ['WHOSATMYFEEDER_CONFIG'] = str(path)
+        import wamf_paths
+        wamf_paths.REPO_ROOT = root  # Database artifacts must never use Bird-Lab storage.
         import webui
         webui.initialize_app()
         from flask import session, request, g
@@ -59,11 +61,19 @@ def main():
             '2026-10-19T12:00:00+00:00', None,
         )
         webui.app.secret_key = 'isolated-browser-session'
+        original_auth_enabled = webui.is_admin_auth_enabled
+        webui.is_admin_auth_enabled = lambda: (
+            request.headers.get('X-WAMF-Test-Database-Auth') == 'enabled' or original_auth_enabled()
+        )
 
         @webui.app.before_request
         def browser_session():
             session['admin_authenticated'] = True
             g.mqtt_fixture_state = request.headers.get('X-WAMF-Test-MQTT-State', 'connected')
+        # The isolated session must exist before production authentication gates.
+        hooks = webui.app.before_request_funcs[None]
+        hooks.remove(browser_session)
+        hooks.insert(0, browser_session)
 
         webui.app.view_functions['auth.login'] = lambda: '<h1>Log in</h1>'
         webui.get_retention_status = lambda: {

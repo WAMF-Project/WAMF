@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.database_lifecycle import database_consumer
 from wamf_paths import get_database_path
 
 RETENTION_STATUS_MIGRATION = '005_retention_status_v2'
@@ -189,6 +190,22 @@ DETECTION_COLUMNS = (
 DETECTION_SELECT = ', '.join(f'detections.{column}' for column in DETECTION_COLUMNS)
 
 
+class _LifecycleConnection(sqlite3.Connection):
+    _lifecycle = None
+
+    def close(self):
+        super().close()
+        context, self._lifecycle = self._lifecycle, None
+        if context is not None:
+            context.__exit__(None, None, None)
+
+    def __del__(self):
+        try:
+            self.close()
+        except (sqlite3.Error, OSError, AttributeError):
+            pass  # Interpreter shutdown also closes all owned descriptors.
+
+
 def connect_db(db_path=None, row_factory=True):
     target_path = get_database_path() if db_path is None else db_path
 
@@ -196,7 +213,17 @@ def connect_db(db_path=None, row_factory=True):
     if target_path != ':memory:':
         Path(target_path).parent.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect(target_path)
+    lifecycle = None
+    if target_path != ':memory:':
+        lifecycle = database_consumer(target_path)
+        lifecycle.__enter__()
+    try:
+        conn = sqlite3.connect(target_path, factory=_LifecycleConnection)
+        conn._lifecycle = lifecycle
+    except BaseException:
+        if lifecycle is not None:
+            lifecycle.__exit__(None, None, None)
+        raise
 
     if row_factory:
         conn.row_factory = sqlite3.Row

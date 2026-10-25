@@ -400,6 +400,12 @@ The runtime account needs write access for database initialization, bootstrap,
 and admin configuration changes. See [database migrations](docs/database-migrations.md)
 for the migration and read-only compatibility inspection APIs.
 
+Authenticated administrators can create and download database backups and preview
+a database-only restore under **Admin → System Health → Database Backup & Restore**.
+Restore requires an explicit confirmation and native controlled restart; destructive
+media retention stays held until acknowledged. See [database backups and recovery](docs/database-backups.md)
+before restoring. Live Bird-Lab restore and rollback validation is still outstanding.
+
 Wait for `MQTT event subscription ready` in the console before testing a new
 bird event. This message follows the broker subscription acknowledgement.
 MQTT retained deliveries are skipped explicitly. The first live `new` bird event

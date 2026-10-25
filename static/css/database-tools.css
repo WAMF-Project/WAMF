@@ -1,0 +1,12 @@
+#database-tools { margin-top: 1rem; }
+#database-tools [hidden] { display: none !important; }
+#database-tools p, #database-tools label, .database-backup-list li { overflow-wrap: anywhere; }
+.database-actions { display: flex; flex-wrap: wrap; gap: .65rem; margin: .8rem 0; }
+.database-backup-list { padding-left: 1.25rem; }
+.database-backup-list li { margin: .8rem 0; }
+.database-backup-list a { margin-right: .8rem; }
+.database-backup-list button { margin-top: .4rem; }
+.database-notice { border-left: .25rem solid var(--color-warning, #b7791f); padding: .8rem 1rem; margin: 1rem 0; background: var(--surface-muted, #f6f7f9); }
+#database-tools label { display: block; margin: .8rem 0; }
+#database-tools input[type=file] { max-width: 100%; display: block; margin-bottom: .8rem; }
+#database-tools details { margin: 1rem 0; }

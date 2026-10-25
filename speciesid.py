@@ -11,6 +11,7 @@ import sqlite3
 import sys
 import time
 from dataclasses import dataclass, field
+from contextlib import ExitStack
 from datetime import datetime
 from functools import partial
 from io import BytesIO
@@ -28,6 +29,8 @@ from app.classifier_model import LEGACY_BACKGROUND_INDEX, ModelValidationError, 
 from app.model_registry import resolve_classifier_model
 from app.model_validation import validate_model_artifact
 from app.db import DatabaseNewerError, SchemaMigrationError, connect_db, ensure_schema
+from app.database_lifecycle import maintenance_access
+from app.database_restore_application import database_startup
 from app.frigate_client import FrigateClient, FrigateError
 from app.health import set_detection_worker_enabled, start_health_monitor
 from app.media_coordination import media_activity_guard
@@ -1000,6 +1003,11 @@ def run_mqtt_client(runtime_writer=None, runtime_config=None, database_path=None
 
 
 def main():
+    with ExitStack() as lifecycle:
+        return _main(lifecycle)
+
+
+def _main(lifecycle):
     configure_logging()
 
     try:
@@ -1007,11 +1015,14 @@ def main():
         setup_issues = preflight(config)
         # Resolve once from the validated snapshot, never from a later YAML read.
         database_path = get_database_path(config).resolve()
-        ensure_schema(database_path)
+        startup = lifecycle.enter_context(database_startup(database_path))
+        with maintenance_access(startup.lease):
+            ensure_schema(database_path)
         # ensure_schema has committed and closed its connection before binding
         # any consumers or constructing diagnostics/processes/background work.
         ensure_storage_paths(config)
         configure_worker_runtime(config, database_path)
+        startup.allow_consumers()
     except Exception as exc:
         if isinstance(exc, DatabaseNewerError):
             reason = 'database is newer than this WAMF build'
@@ -1077,6 +1088,7 @@ def main():
 
         # Keep worker watchdogs active while Flask is serving, but never
         # respawn during shutdown or after the Flask worker has exited.
+        startup.mark_succeeded()
         while not workers.stopping and flask_process.is_alive():
             if mqtt_process is None:
                 flask_process.join(timeout=0.5)

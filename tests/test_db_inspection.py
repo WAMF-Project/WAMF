@@ -253,6 +253,7 @@ def test_readonly_file_and_directory_are_inspectable(tmp_path, create, status):
     path = parent / 'staged.db'
     create(path)
     before = path.read_bytes()
+    before_files = set(parent.iterdir())
     path.chmod(0o444)
     parent.chmod(0o555)
     try:
@@ -260,7 +261,7 @@ def test_readonly_file_and_directory_are_inspectable(tmp_path, create, status):
         assert result.compatibility is status
         assert result.integrity_checked
         assert path.read_bytes() == before
-        assert set(parent.iterdir()) == {path}
+        assert set(parent.iterdir()) == before_files
     finally:
         parent.chmod(0o755)
         path.chmod(0o644)

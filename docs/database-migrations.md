@@ -177,6 +177,15 @@ Locks use the same bounded five-second wait as migrations.
 
 ## Contract for #49 Backup & Restore
 
+The #49 implementation of managed package storage, read-only validation and
+online backup creation is documented in [Database backups](database-backups.md).
+It reuses this inspection API; restore remains deferred. Maintenance callers may
+supply an optional `checkpoint` to cooperate with cancellation/deadlines. It
+does not change ordinary inspection's compatibility logic or default lock wait.
+For online source inspection, #49 uses a separate owned interpreter: the
+inspector's ordinary header-file close must not release POSIX locks belonging
+to other SQLite connections in the calling application process.
+
 No backup packaging, SQLite backup API, file replacement, restore workflow, or
 Admin surface is implemented here. The future #49 workflow should:
 
