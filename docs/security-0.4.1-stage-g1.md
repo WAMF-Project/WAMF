@@ -250,3 +250,13 @@ Raw local evidence: `/tmp/wamf041-stageg1/`, including no-cache build logs,
 image inspection, full inventories, exact payload/file comparisons, full test
 outputs, native results, vulnerability scan JSON, startup checks and upgrade
 snapshots. Evidence reuse is explicitly identified above.
+
+## Post-release dependency manifest cleanup
+
+Following the v0.4.1 release, the redundant dependency snapshots
+`requirements/frozen.txt` and `requirements/working.txt`, along with
+the unused `requirements/ui-dev.txt`, were removed from `main`.
+
+The original files remain available in the immutable v0.4.1 Git tag.
+This housekeeping change does not modify runtime dependency versions,
+the published Docker image, or the previously documented protobuf risk.
