@@ -1,14 +1,23 @@
-FROM python:3.11-slim
+# Retain Debian 13 and CPython 3.11; refresh this reviewed digest for security updates.
+FROM python:3.11.17-slim-trixie@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377
+
+LABEL org.opencontainers.image.version="0.4.1"
 
 WORKDIR /app
 
 RUN apt-get update \
-&& apt-get upgrade -y \
-    && apt-get install --no-install-recommends -y ffmpeg libsm6 libxext6 \
+    && apt-get upgrade -y \
+    && apt-get install --no-install-recommends -y libusb-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements/ ./requirements/
-RUN pip install --no-cache-dir -r requirements/base.txt
+# Use patched build tools, then remove them and their bootstrap wheels.
+RUN python -m pip install --no-cache-dir --upgrade \
+    pip==26.2.2 setuptools==84.1.0 wheel==0.48.0 packaging==26.3 \
+    && python -m pip install --no-cache-dir -c requirements/constraints.txt -r requirements/base.txt \
+    && python -m pip check \
+    && python -m pip uninstall --yes pip setuptools wheel packaging \
+    && python -c "import pathlib, shutil, sysconfig; shutil.rmtree(pathlib.Path(sysconfig.get_path('stdlib')) / 'ensurepip')"
 
 COPY model.tflite .
 COPY birdnames.db .

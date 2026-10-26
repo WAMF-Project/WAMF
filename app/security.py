@@ -7,7 +7,7 @@ import time
 from urllib.parse import urlsplit
 
 from flask import request, session, url_for
-from werkzeug.security import check_password_hash
+from app.credentials import verify_credential
 
 
 LOGIN_ATTEMPTS = {}
@@ -54,7 +54,7 @@ def is_valid_api_token(config):
     return bool(
         token
         and token_hash
-        and check_password_hash(token_hash, token)
+        and verify_credential(token_hash, token, for_api=True)
     )
 
 

@@ -1,17 +1,16 @@
 """Native first-run configuration and credentials, before worker creation."""
 import fcntl
-import hashlib
 import os
 from pathlib import Path
-import re
 import secrets
 import string
 from urllib.parse import urlsplit
 
 import yaml
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
 
 from app.config_editor import get_config_path
+from app.credentials import valid_credential_hash
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PORT = 7767
@@ -25,20 +24,12 @@ def is_placeholder(value):
 
 
 def valid_password_hash(value):
-    if is_placeholder(value):
-        return False
-    try:
-        method, salt, digest = value.split('$', 2)
-        if not (method.startswith(('pbkdf2:', 'scrypt:')) or method == 'scrypt' or method in hashlib.algorithms_available):
-            return False
-        if not salt or not re.fullmatch(r'[0-9a-f]+', digest):
-            return False
-        # Exercise the installed Werkzeug implementation, including method parameters.
-        check_password_hash(value, secrets.token_urlsafe(16))
-        sample = generate_password_hash('validation', method=method, salt_length=len(salt))
-        return len(digest) == len(sample.rsplit('$', 1)[1])
-    except (ValueError, TypeError, OverflowError):
-        return False
+    return valid_credential_hash(value)
+
+
+def _unconfigured(value, example):
+    # Only known example text counts as unconfigured, not arbitrary bad hashes.
+    return value is None or isinstance(value, str) and (not value.strip() or value.strip() == example)
 
 
 def _replace_admin_values(content, config, updates):
@@ -101,15 +92,34 @@ def _bootstrap_locked(path):
         admin = config.get('admin') or {}
         if not isinstance(admin, dict):
             raise ValueError('admin must be a YAML mapping')
+        api = config.get('api') or {}
+        if not isinstance(api, dict):
+            raise ValueError('api must be a YAML mapping')
+        password_missing = _unconfigured(admin.get('password_hash'), '<generated werkzeug password hash>')
+        token_missing = _unconfigured(api.get('token_hash'), '<generated werkzeug token hash>')
+        secret_missing = _unconfigured(admin.get('session_secret'), '<long random session secret>')
+        fresh = password_missing and token_missing and secret_missing
+        # Validate everything before provisioning or writing anything. Existing
+        # invalid credentials are configuration errors, never a reset request.
+        if not password_missing and not valid_password_hash(admin.get('password_hash')):
+            raise ValueError('admin.password_hash has a malformed or unsupported credential format')
+        if not token_missing and not valid_credential_hash(api.get('token_hash'), for_api=True):
+            raise ValueError('api.token_hash has a malformed or unsupported credential format')
         updates = {}
         password = None
         if admin.get('auth_enabled', False):
             env_secret = os.environ.get('WAMF_SECRET_KEY')
-            if env_secret and is_placeholder(env_secret):
+            if env_secret and _unconfigured(env_secret, '<long random session secret>'):
                 raise ValueError('WAMF_SECRET_KEY must not be blank or a placeholder')
-            if not env_secret and is_placeholder(admin.get('session_secret')):
+            if not secret_missing and not isinstance(admin.get('session_secret'), str):
+                raise ValueError('admin.session_secret must be a string')
+            if not fresh and password_missing:
+                raise ValueError('Existing installation requires admin.password_hash; credentials were not changed')
+            if not fresh and secret_missing and not env_secret:
+                raise ValueError('Existing installation requires admin.session_secret or WAMF_SECRET_KEY; credentials were not changed')
+            if fresh and not env_secret:
                 updates['session_secret'] = secrets.token_hex(32)
-            if not valid_password_hash(admin.get('password_hash')):
+            if fresh:
                 alphabet = string.ascii_letters + string.digits
                 password = '-'.join(''.join(secrets.choice(alphabet) for _ in range(6)) for _ in range(4))
                 updates['password_hash'] = generate_password_hash(password)

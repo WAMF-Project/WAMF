@@ -1,0 +1,689 @@
+{
+  "stage": "F",
+  "result": "PASS",
+  "image": {
+    "image": "wamf:0.4.1-f-auth",
+    "id": "sha256:69c22df0e48e0cdaa4bc444ae0ab2255191cb1f4421a298d79533eef840161da",
+    "size": 621275937,
+    "python_packages": 24,
+    "os_packages": 88,
+    "scan": [
+      {
+        "target": "wamf:0.4.1-f-auth (debian 13.7)",
+        "findings": 166,
+        "unique_ids": 73,
+        "fixable": 0,
+        "severities": {
+          "LOW": 61,
+          "HIGH": 44,
+          "MEDIUM": 60,
+          "UNKNOWN": 1
+        }
+      },
+      {
+        "target": "Python",
+        "findings": 2,
+        "unique_ids": 2,
+        "fixable": 2,
+        "severities": {
+          "HIGH": 2
+        }
+      }
+    ]
+  },
+  "tests": {
+    "host": {
+      "python": "3.11.17",
+      "passed": 411,
+      "failed": 0
+    },
+    "container": {
+      "python": "3.11.17",
+      "passed": 406,
+      "skipped": 5,
+      "failed": 0,
+      "skip_reason": "Node-dependent cases; all passed on the host"
+    },
+    "original_image_vectors": 57,
+    "fail_closed_container": {
+      "fail_closed_configuration_cases": 5,
+      "starts_per_case": 2,
+      "credentials_unchanged": true,
+      "sanitised_errors": true
+    },
+    "runtime_dependency_metadata": "PASS",
+    "host_pip_check": "PASS",
+    "native_inference": "JPEG/PNG/WEBP results identical to Stage D baseline",
+    "runtime_package_inventories": "identical to Stage D"
+  },
+  "upgrade_and_rollback": {
+    "images": {
+      "ghcr.io/wamf-project/wamf:0.4.0": "sha256:46a23e993cd7f98559fcd86cb869ce6c32567bbe3de7b748f4a1319a55807002",
+      "wamf:0.4.1-f-auth": "sha256:69c22df0e48e0cdaa4bc444ae0ab2255191cb1f4421a298d79533eef840161da"
+    },
+    "scenarios": [
+      {
+        "name": "current-paths",
+        "port": 7767,
+        "legacy_aliases": false,
+        "session_secret_source": "config",
+        "initial_password_method": "pbkdf2:sha256:600000",
+        "initial_token_method": "scrypt:32768:8:1",
+        "phases": [
+          {
+            "phase": "original",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "initial_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 4,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 7
+            },
+            "db_sha256": "51938567f621705d68bae5b3bc69eed1acd0eb764708f4bb75bbd4c2c599b6e7",
+            "config_sha256": "07a891b5fac14f13a769fe279061e8c922401e4a1225dbf8a059f35b9b4b5463",
+            "new_test_event": "stagee-current-paths-original",
+            "operator_credential_rotation": false,
+            "final_password_method": "pbkdf2:sha256:600000",
+            "final_token_method": "scrypt:32768:8:1"
+          },
+          {
+            "phase": "upgrade",
+            "image": "wamf:0.4.1-f-auth",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "credential_rotation"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 5,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 13
+            },
+            "db_sha256": "f784735e7142797288756ef78335c93ecb7f9eb245ffd83995288c345f6da072",
+            "config_sha256": "c980548301f9fb737ba60c6b8a545e2c7d471f670fe42aa2741640d7a0f256a7",
+            "new_test_event": "stagee-current-paths-upgrade",
+            "operator_credential_rotation": true,
+            "final_password_method": "scrypt:32768:8:1",
+            "final_token_method": "scrypt:32768:8:1"
+          },
+          {
+            "phase": "rollback",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 6,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 19
+            },
+            "db_sha256": "cbb8882b5670116b6fef838699d0dacff0a164d212d086766a9112b736a2ea17",
+            "config_sha256": "c980548301f9fb737ba60c6b8a545e2c7d471f670fe42aa2741640d7a0f256a7",
+            "new_test_event": "stagee-current-paths-rollback",
+            "operator_credential_rotation": false,
+            "final_password_method": "scrypt:32768:8:1",
+            "final_token_method": "scrypt:32768:8:1"
+          }
+        ],
+        "result": "PASS"
+      },
+      {
+        "name": "legacy-paths",
+        "port": 7766,
+        "legacy_aliases": true,
+        "session_secret_source": "environment",
+        "initial_password_method": "scrypt:32768:8:1",
+        "initial_token_method": "pbkdf2:sha256:260000",
+        "phases": [
+          {
+            "phase": "original",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "initial_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 4,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 7
+            },
+            "db_sha256": "5ba4d1fe7f5bb2ff449bf4cf83a04b896d3d9dd198b6e72f270ed08b9b0e23a1",
+            "config_sha256": "8c15fbe3801c5bb190af7f52cb214f0ce92e9319139918b9497d76acf8d2d229",
+            "new_test_event": "stagee-legacy-paths-original",
+            "operator_credential_rotation": false,
+            "final_password_method": "scrypt:32768:8:1",
+            "final_token_method": "pbkdf2:sha256:260000"
+          },
+          {
+            "phase": "upgrade",
+            "image": "wamf:0.4.1-f-auth",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 5,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 13
+            },
+            "db_sha256": "1c62c1ebe22cc3c229b766bf8be7ddcb5c330a51e4d994562c2e811c25a6067a",
+            "config_sha256": "8c15fbe3801c5bb190af7f52cb214f0ce92e9319139918b9497d76acf8d2d229",
+            "new_test_event": "stagee-legacy-paths-upgrade",
+            "operator_credential_rotation": false,
+            "final_password_method": "scrypt:32768:8:1",
+            "final_token_method": "pbkdf2:sha256:260000"
+          },
+          {
+            "phase": "rollback",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 6,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 19
+            },
+            "db_sha256": "cb4809deabf7d43357fb5864534cba7a83cf982378d625fd39bcbe110bf3637b",
+            "config_sha256": "8c15fbe3801c5bb190af7f52cb214f0ce92e9319139918b9497d76acf8d2d229",
+            "new_test_event": "stagee-legacy-paths-rollback",
+            "operator_credential_rotation": false,
+            "final_password_method": "scrypt:32768:8:1",
+            "final_token_method": "pbkdf2:sha256:260000"
+          }
+        ],
+        "result": "PASS"
+      },
+      {
+        "name": "sha256",
+        "port": 7767,
+        "legacy_aliases": false,
+        "session_secret_source": "config",
+        "initial_password_method": "sha256",
+        "initial_token_method": "sha256",
+        "phases": [
+          {
+            "phase": "original",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "initial_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 4,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 7
+            },
+            "db_sha256": "01a93c7fbe55898e19bbf6dade8670c76041364e8a48a49f25990770f1262c50",
+            "config_sha256": "a63bf5bd3aedf3138c18dd51fa972b4e16941d82ba2c9e2852a486da725f000f",
+            "new_test_event": "stagee-sha256-original",
+            "operator_credential_rotation": false,
+            "final_password_method": "sha256",
+            "final_token_method": "sha256"
+          },
+          {
+            "phase": "upgrade",
+            "image": "wamf:0.4.1-f-auth",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 5,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 13
+            },
+            "db_sha256": "9ece45029ee47d46951e25f3dcdaeda0b93424c1d698ff4e64097623922f7bcc",
+            "config_sha256": "a63bf5bd3aedf3138c18dd51fa972b4e16941d82ba2c9e2852a486da725f000f",
+            "new_test_event": "stagee-sha256-upgrade",
+            "operator_credential_rotation": false,
+            "final_password_method": "sha256",
+            "final_token_method": "sha256"
+          },
+          {
+            "phase": "rollback",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 6,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 19
+            },
+            "db_sha256": "87c0c64062d75694a50210521dbc912a5103098dc996bb167d050068bd432d73",
+            "config_sha256": "a63bf5bd3aedf3138c18dd51fa972b4e16941d82ba2c9e2852a486da725f000f",
+            "new_test_event": "stagee-sha256-rollback",
+            "operator_credential_rotation": false,
+            "final_password_method": "sha256",
+            "final_token_method": "sha256"
+          }
+        ],
+        "result": "PASS"
+      },
+      {
+        "name": "sha1",
+        "port": 7767,
+        "legacy_aliases": false,
+        "session_secret_source": "config",
+        "initial_password_method": "sha1",
+        "initial_token_method": "sha1",
+        "phases": [
+          {
+            "phase": "original",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "initial_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 4,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 7
+            },
+            "db_sha256": "7b1b63a67b2e09321a0d6f087d6782233cf1da8b6f1fba3b64d72cc66217ef64",
+            "config_sha256": "b696ad936e6740e88fa33a277e5d7f9d7cd1d68866524f224b22d4916b6a090f",
+            "new_test_event": "stagee-sha1-original",
+            "operator_credential_rotation": false,
+            "final_password_method": "sha1",
+            "final_token_method": "sha1"
+          },
+          {
+            "phase": "upgrade",
+            "image": "wamf:0.4.1-f-auth",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 5,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 13
+            },
+            "db_sha256": "b1b90f3e6da782ce7e670020b347489d7d2824d3d42847a8848489cf48c911c6",
+            "config_sha256": "b696ad936e6740e88fa33a277e5d7f9d7cd1d68866524f224b22d4916b6a090f",
+            "new_test_event": "stagee-sha1-upgrade",
+            "operator_credential_rotation": false,
+            "final_password_method": "sha1",
+            "final_token_method": "sha1"
+          },
+          {
+            "phase": "rollback",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 6,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 19
+            },
+            "db_sha256": "89b8cf6035b48710dc1b19242630154ec8a9f670c843d92f3fee52df7f002eb6",
+            "config_sha256": "b696ad936e6740e88fa33a277e5d7f9d7cd1d68866524f224b22d4916b6a090f",
+            "new_test_event": "stagee-sha1-rollback",
+            "operator_credential_rotation": false,
+            "final_password_method": "sha1",
+            "final_token_method": "sha1"
+          }
+        ],
+        "result": "PASS"
+      },
+      {
+        "name": "md5",
+        "port": 7767,
+        "legacy_aliases": false,
+        "session_secret_source": "config",
+        "initial_password_method": "md5",
+        "initial_token_method": "md5",
+        "phases": [
+          {
+            "phase": "original",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "initial_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 4,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 7
+            },
+            "db_sha256": "1bd67d15c239d446c83171d48b858b62fcd3e4ae835eb2a0828049bfa92f7d8e",
+            "config_sha256": "38911f16356162e1c3eb26e848a9b9e88027ee299f5a9a9715ecb52f7c45c10b",
+            "new_test_event": "stagee-md5-original",
+            "operator_credential_rotation": false,
+            "final_password_method": "md5",
+            "final_token_method": "md5"
+          },
+          {
+            "phase": "upgrade",
+            "image": "wamf:0.4.1-f-auth",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 5,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 13
+            },
+            "db_sha256": "c98fccbcda2f1940cf0d836cc5bfe3cc2818ac4b6836ccf12fe0ec3e0d8f6f72",
+            "config_sha256": "38911f16356162e1c3eb26e848a9b9e88027ee299f5a9a9715ecb52f7c45c10b",
+            "new_test_event": "stagee-md5-upgrade",
+            "operator_credential_rotation": false,
+            "final_password_method": "md5",
+            "final_token_method": "md5"
+          },
+          {
+            "phase": "rollback",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 6,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 19
+            },
+            "db_sha256": "6afa31ee490e8439f63363760574434d3cfeb7ac509a4ff69129ba01a84835b7",
+            "config_sha256": "38911f16356162e1c3eb26e848a9b9e88027ee299f5a9a9715ecb52f7c45c10b",
+            "new_test_event": "stagee-md5-rollback",
+            "operator_credential_rotation": false,
+            "final_password_method": "md5",
+            "final_token_method": "md5"
+          }
+        ],
+        "result": "PASS"
+      }
+    ],
+    "safety": {
+      "published_ports": false,
+      "production_mounts": false
+    },
+    "broker_image_id": "sha256:860aeb5d63ce509508f6dcfb2bc8a1c1dd2bc60555b562b45ce90e52d8dabb0f",
+    "result": "PASS"
+  },
+  "evidence_directory": "/tmp/wamf041-stagef",
+  "authentication_release_blocker": "resolved",
+  "remaining_python_cves": [
+    "CVE-2025-4565",
+    "CVE-2026-0994"
+  ]
+}

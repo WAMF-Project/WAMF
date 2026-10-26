@@ -17,7 +17,7 @@ def config_path(tmp_path, monkeypatch):
 
 
 def write_admin(path, **admin):
-    path.write_text(yaml.safe_dump({'admin': {'auth_enabled': True, **admin}, 'api': {'token_hash': 'keep'}}))
+    path.write_text(yaml.safe_dump({'admin': {'auth_enabled': True, **admin}, 'api': {'token_hash': ''}}))
 
 
 def temporary_password(output):
@@ -46,8 +46,8 @@ def test_missing_override_fails_without_creation(config_path):
 
 
 @pytest.mark.parametrize('secret', [None, '', '  ', '<long random session secret>'])
-@pytest.mark.parametrize('password_hash', [None, '', '<generated werkzeug password hash>', 'broken', 'invalid$salt$deadbeef', 'pbkdf2:sha256:1$salt$bad'])
-def test_invalid_credentials_bootstrap_once(config_path, capsys, secret, password_hash):
+@pytest.mark.parametrize('password_hash', [None, '', '<generated werkzeug password hash>'])
+def test_fresh_credentials_bootstrap_once(config_path, capsys, secret, password_hash):
     write_admin(config_path, session_secret=secret, password_hash=password_hash)
     config = bootstrap.bootstrap_config()
     output = capsys.readouterr().out
@@ -56,7 +56,7 @@ def test_invalid_credentials_bootstrap_once(config_path, capsys, secret, passwor
     assert len(admin['session_secret']) == 64
     assert check_password_hash(admin['password_hash'], password)
     assert password not in config_path.read_text()
-    assert config['api'] == {'token_hash': 'keep'}
+    assert config['api'] == {'token_hash': ''}
     persisted = config_path.read_bytes()
     assert bootstrap.bootstrap_config() == config
     assert config_path.read_bytes() == persisted
@@ -72,14 +72,20 @@ def test_valid_credentials_preserved_byte_for_byte(config_path, capsys):
     assert capsys.readouterr().out == ''
 
 
-def test_only_invalid_field_replaced(config_path, capsys):
+def test_existing_incomplete_credentials_are_not_replaced(config_path, capsys):
     password_hash = generate_password_hash('existing-password')
-    write_admin(config_path, session_secret='<placeholder>', password_hash=password_hash)
-    assert bootstrap.bootstrap_config()['admin']['password_hash'] == password_hash
+    write_admin(config_path, session_secret='<long random session secret>', password_hash=password_hash)
+    original = config_path.read_bytes()
+    with pytest.raises(ValueError, match='session_secret'):
+        bootstrap.bootstrap_config()
+    assert config_path.read_bytes() == original
     assert capsys.readouterr().out == ''
     write_admin(config_path, session_secret='existing-secret', password_hash='bad')
-    assert bootstrap.bootstrap_config()['admin']['session_secret'] == 'existing-secret'
-    assert 'temporary admin password' in capsys.readouterr().out
+    original = config_path.read_bytes()
+    with pytest.raises(ValueError, match='password_hash'):
+        bootstrap.bootstrap_config()
+    assert config_path.read_bytes() == original
+    assert capsys.readouterr().out == ''
 
 
 def test_disabled_auth_does_not_generate(config_path, capsys):
@@ -98,16 +104,29 @@ def test_environment_secret_is_preserved(config_path, monkeypatch):
     assert config_path.read_bytes() == original
 
 
+def test_fresh_installation_with_environment_secret(config_path, monkeypatch, capsys):
+    write_admin(config_path, session_secret=None, password_hash=None)
+    monkeypatch.setenv('WAMF_SECRET_KEY', 'synthetic-first-run-environment-secret')
+    config = bootstrap.bootstrap_config()
+    password = temporary_password(capsys.readouterr().out)
+    assert check_password_hash(config['admin']['password_hash'], password)
+    assert config['admin']['session_secret'] is None
+    original = config_path.read_bytes()
+    assert bootstrap.bootstrap_config() == config
+    assert config_path.read_bytes() == original
+    assert capsys.readouterr().out == ''
+
+
 @pytest.mark.parametrize('content', [
-    'admin:\n  auth_enabled: true\napi:\n  token_hash: keep\n',
-    'admin: {auth_enabled: true}\napi: {token_hash: keep}\n',
+    'admin:\n  auth_enabled: true\napi:\n  token_hash: ""\n',
+    'admin: {auth_enabled: true}\napi: {token_hash: ""}\n',
 ])
 def test_missing_admin_keys_are_inserted(config_path, content):
     config_path.write_text(content)
     config = bootstrap.bootstrap_config()
     assert config['admin']['auth_enabled'] is True
     assert bootstrap.valid_password_hash(config['admin']['password_hash'])
-    assert config['api']['token_hash'] == 'keep'
+    assert config['api']['token_hash'] == ''
 
 
 def test_example_comments_and_unrelated_values_preserved(config_path):
@@ -172,7 +191,7 @@ def test_generated_password_can_login_and_be_changed(config_path, capsys, flask_
     import webui
     monkeypatch.setenv('WHOSATMYFEEDER_CONFIG', str(config_path))
     monkeypatch.setitem(webui.app.config, 'SECRET_KEY', webui.app.secret_key)
-    write_admin(config_path, session_secret='<placeholder>', password_hash='<placeholder>')
+    write_admin(config_path, session_secret='<long random session secret>', password_hash='<generated werkzeug password hash>')
     bootstrap.bootstrap_config()
     password = temporary_password(capsys.readouterr().out)
     monkeypatch.setattr(webui, 'config', webui.config)
@@ -199,7 +218,7 @@ def test_generated_password_can_login_and_be_changed(config_path, capsys, flask_
 
 
 def test_no_password_disclosed_if_persistence_fails(config_path, monkeypatch, capsys):
-    write_admin(config_path, session_secret='<placeholder>', password_hash='<placeholder>')
+    write_admin(config_path, session_secret='<long random session secret>', password_hash='<generated werkzeug password hash>')
     original = config_path.read_bytes()
     real_open = Path.open
     def open_file(path, mode='r', *args, **kwargs):

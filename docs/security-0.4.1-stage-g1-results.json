@@ -1,0 +1,925 @@
+{
+  "stage": "G1",
+  "recommendation": "READY for Stage G2 release approval; no publication authorised",
+  "baseline_commit": "2f3b5ae99ea2c31b26cc5c2cb9cd4e9e26ede153",
+  "branch": "maintenance/0.4.1",
+  "application_version": "0.4.1",
+  "image": {
+    "image": "wamf:0.4.1-rc1",
+    "id": "sha256:3bd3e6712ee3932d4b2d49cc23681fc22c8201989049e0dfba1231bc3233a28e",
+    "size": 621275926,
+    "python_packages": 24,
+    "os_packages": 88,
+    "scan": [
+      {
+        "target": "wamf:0.4.1-rc1 (debian 13.7)",
+        "findings": 166,
+        "unique_ids": 73,
+        "fixable": 0,
+        "severities": {
+          "LOW": 61,
+          "HIGH": 44,
+          "MEDIUM": 60,
+          "UNKNOWN": 1
+        }
+      },
+      {
+        "target": "Python",
+        "findings": 2,
+        "unique_ids": 2,
+        "fixable": 2,
+        "severities": {
+          "HIGH": 2
+        }
+      }
+    ]
+  },
+  "base_index_digest": "sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377",
+  "reviewed_base_amd64_manifest": "sha256:b95327ce1439e687237841b0210677aeadd62d55a060a5f6bcb9c15bf6251dd3",
+  "build_flags": [
+    "--no-cache",
+    "--pull"
+  ],
+  "python_distributions": [
+    {
+      "name": "Werkzeug",
+      "version": "3.1.9",
+      "requires": [
+        "markupsafe>=2.1.1",
+        "watchdog>=2.3 ; extra == \"watchdog\""
+      ]
+    },
+    {
+      "name": "paho-mqtt",
+      "version": "1.6.1",
+      "requires": [
+        "PySocks; extra == \"proxy\""
+      ]
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.4.7",
+      "requires": []
+    },
+    {
+      "name": "Flask",
+      "version": "3.1.3",
+      "requires": [
+        "blinker>=1.9.0",
+        "click>=8.1.3",
+        "importlib-metadata>=3.6.0; python_version < '3.10'",
+        "itsdangerous>=2.2.0",
+        "jinja2>=3.1.2",
+        "markupsafe>=2.1.1",
+        "werkzeug>=3.1.0",
+        "asgiref>=3.2 ; extra == \"async\"",
+        "python-dotenv ; extra == \"dotenv\""
+      ]
+    },
+    {
+      "name": "blinker",
+      "version": "1.9.0",
+      "requires": []
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0",
+      "requires": [
+        "brotli>=1.2.0; (platform_python_implementation == 'CPython') and extra == 'brotli'",
+        "brotlicffi>=1.2.0.0; (platform_python_implementation != 'CPython') and extra == 'brotli'",
+        "h2<5,>=4; extra == 'h2'",
+        "pysocks!=1.5.7,<2.0,>=1.5.6; extra == 'socks'",
+        "backports-zstd>=1.0.0; (python_version < '3.14') and extra == 'zstd'"
+      ]
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.3",
+      "requires": []
+    },
+    {
+      "name": "protobuf",
+      "version": "3.20.3",
+      "requires": []
+    },
+    {
+      "name": "pillow",
+      "version": "13.0.0",
+      "requires": [
+        "furo; extra == \"docs\"",
+        "olefile; extra == \"docs\"",
+        "sphinx>=8.2; extra == \"docs\"",
+        "sphinx-autobuild; extra == \"docs\"",
+        "sphinx-copybutton; extra == \"docs\"",
+        "sphinx-inline-tabs; extra == \"docs\"",
+        "sphinxext-opengraph; extra == \"docs\"",
+        "olefile; extra == \"fpx\"",
+        "olefile; extra == \"mic\"",
+        "arro3-compute; extra == \"test-arrow\"",
+        "arro3-core; extra == \"test-arrow\"",
+        "nanoarrow; extra == \"test-arrow\"",
+        "pyarrow; extra == \"test-arrow\"",
+        "coverage>=7.4.2; extra == \"tests\"",
+        "defusedxml; extra == \"tests\"",
+        "markdown2; extra == \"tests\"",
+        "olefile; extra == \"tests\"",
+        "packaging; extra == \"tests\"",
+        "psutil; (sys_platform == \"linux\" or sys_platform == \"darwin\") and extra == \"tests\"",
+        "pytest; extra == \"tests\"",
+        "pytest-cov; extra == \"tests\"",
+        "pytest-timeout; extra == \"tests\"",
+        "pytest-xdist; extra == \"tests\"",
+        "setuptools; extra == \"tests\"",
+        "trove-classifiers>=2024.10.12; extra == \"tests\"",
+        "defusedxml; extra == \"xmp\""
+      ]
+    },
+    {
+      "name": "flatbuffers",
+      "version": "25.12.19",
+      "requires": []
+    },
+    {
+      "name": "pybind11",
+      "version": "3.0.4",
+      "requires": [
+        "pybind11-global==3.0.4; extra == \"global\""
+      ]
+    },
+    {
+      "name": "certifi",
+      "version": "2026.10.23",
+      "requires": []
+    },
+    {
+      "name": "numpy",
+      "version": "1.26.4",
+      "requires": []
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "requires": []
+    },
+    {
+      "name": "sounddevice",
+      "version": "0.5.5",
+      "requires": [
+        "cffi",
+        "numpy; extra == \"numpy\""
+      ]
+    },
+    {
+      "name": "tflite-support",
+      "version": "0.4.4",
+      "requires": [
+        "absl-py (>=0.7.0)",
+        "numpy (>=1.20.0)",
+        "flatbuffers (>=2.0)",
+        "protobuf (<4,>=3.18.0)",
+        "sounddevice (>=0.4.4)",
+        "pybind11 (>=2.6.0)"
+      ]
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "requires": []
+    },
+    {
+      "name": "idna",
+      "version": "3.16",
+      "requires": [
+        "ruff >= 0.6.2 ; extra == \"all\"",
+        "mypy >= 1.11.2 ; extra == \"all\"",
+        "pytest >= 8.3.2 ; extra == \"all\""
+      ]
+    },
+    {
+      "name": "absl-py",
+      "version": "2.4.0",
+      "requires": []
+    },
+    {
+      "name": "click",
+      "version": "8.4.1",
+      "requires": [
+        "colorama; platform_system == 'Windows'"
+      ]
+    },
+    {
+      "name": "Jinja2",
+      "version": "3.1.6",
+      "requires": [
+        "MarkupSafe>=2.0",
+        "Babel>=2.7 ; extra == \"i18n\""
+      ]
+    },
+    {
+      "name": "itsdangerous",
+      "version": "2.2.0",
+      "requires": []
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "requires": [
+        "charset_normalizer<4,>=2",
+        "idna<4,>=2.5",
+        "urllib3<3,>=1.26",
+        "certifi>=2023.5.7",
+        "PySocks!=1.5.7,>=1.5.6; extra == \"socks\"",
+        "chardet<8,>=3.0.2; extra == \"use-chardet-on-py3\""
+      ]
+    },
+    {
+      "name": "cffi",
+      "version": "2.0.0",
+      "requires": [
+        "pycparser; implementation_name != \"PyPy\""
+      ]
+    }
+  ],
+  "debian_packages": [
+    {
+      "name": "adduser",
+      "version": "3.152"
+    },
+    {
+      "name": "apt",
+      "version": "3.0.3"
+    },
+    {
+      "name": "base-files",
+      "version": "13.8+deb13u7"
+    },
+    {
+      "name": "base-passwd",
+      "version": "3.6.7"
+    },
+    {
+      "name": "bash",
+      "version": "5.2.37-2+b10"
+    },
+    {
+      "name": "bsdutils",
+      "version": "1:2.41.5-0+deb13u1"
+    },
+    {
+      "name": "ca-certificates",
+      "version": "20250419+deb13u1"
+    },
+    {
+      "name": "coreutils",
+      "version": "9.7-3"
+    },
+    {
+      "name": "dash",
+      "version": "0.5.12-12"
+    },
+    {
+      "name": "debconf",
+      "version": "1.5.91"
+    },
+    {
+      "name": "debian-archive-keyring",
+      "version": "2025.1"
+    },
+    {
+      "name": "debianutils",
+      "version": "5.23.2"
+    },
+    {
+      "name": "diffutils",
+      "version": "1:3.10-4"
+    },
+    {
+      "name": "dpkg",
+      "version": "1.22.22"
+    },
+    {
+      "name": "findutils",
+      "version": "4.10.0-3"
+    },
+    {
+      "name": "gcc-14-base:amd64",
+      "version": "14.2.0-19"
+    },
+    {
+      "name": "grep",
+      "version": "3.11-4"
+    },
+    {
+      "name": "gzip",
+      "version": "1.13-1+deb13u1"
+    },
+    {
+      "name": "hostname",
+      "version": "3.25"
+    },
+    {
+      "name": "init-system-helpers",
+      "version": "1.69~deb13u1"
+    },
+    {
+      "name": "libacl1:amd64",
+      "version": "2.3.2-2+b1"
+    },
+    {
+      "name": "libapt-pkg7.0:amd64",
+      "version": "3.0.3"
+    },
+    {
+      "name": "libattr1:amd64",
+      "version": "1:2.5.2-3"
+    },
+    {
+      "name": "libaudit-common",
+      "version": "1:4.0.2-2+deb13u1"
+    },
+    {
+      "name": "libaudit1:amd64",
+      "version": "1:4.0.2-2+deb13u1"
+    },
+    {
+      "name": "libblkid1:amd64",
+      "version": "2.41.5-0+deb13u1"
+    },
+    {
+      "name": "libbsd0:amd64",
+      "version": "0.12.2-2"
+    },
+    {
+      "name": "libbz2-1.0:amd64",
+      "version": "1.0.8-6"
+    },
+    {
+      "name": "libc-bin",
+      "version": "2.41-12+deb13u4"
+    },
+    {
+      "name": "libc6:amd64",
+      "version": "2.41-12+deb13u4"
+    },
+    {
+      "name": "libcap-ng0:amd64",
+      "version": "0.8.5-4+b1"
+    },
+    {
+      "name": "libcap2:amd64",
+      "version": "1:2.75-10+deb13u1+b3"
+    },
+    {
+      "name": "libcrypt1:amd64",
+      "version": "1:4.4.38-1"
+    },
+    {
+      "name": "libdb5.3t64:amd64",
+      "version": "5.3.28+dfsg2-9"
+    },
+    {
+      "name": "libdebconfclient0:amd64",
+      "version": "0.280"
+    },
+    {
+      "name": "libffi8:amd64",
+      "version": "3.4.8-2"
+    },
+    {
+      "name": "libgcc-s1:amd64",
+      "version": "14.2.0-19"
+    },
+    {
+      "name": "libgdbm6t64:amd64",
+      "version": "1.24-2"
+    },
+    {
+      "name": "libgmp10:amd64",
+      "version": "2:6.3.0+dfsg-3"
+    },
+    {
+      "name": "libhogweed6t64:amd64",
+      "version": "3.10.1-1"
+    },
+    {
+      "name": "liblastlog2-2:amd64",
+      "version": "2.41.5-0+deb13u1"
+    },
+    {
+      "name": "liblz4-1:amd64",
+      "version": "1.10.0-4"
+    },
+    {
+      "name": "liblzma5:amd64",
+      "version": "5.8.1-1+deb13u2"
+    },
+    {
+      "name": "libmd0:amd64",
+      "version": "1.1.0-2+b1"
+    },
+    {
+      "name": "libmount1:amd64",
+      "version": "2.41.5-0+deb13u1"
+    },
+    {
+      "name": "libncursesw6:amd64",
+      "version": "6.5+20250216-2"
+    },
+    {
+      "name": "libnettle8t64:amd64",
+      "version": "3.10.1-1"
+    },
+    {
+      "name": "libpam-modules:amd64",
+      "version": "1.7.0-5"
+    },
+    {
+      "name": "libpam-modules-bin",
+      "version": "1.7.0-5"
+    },
+    {
+      "name": "libpam-runtime",
+      "version": "1.7.0-5"
+    },
+    {
+      "name": "libpam0g:amd64",
+      "version": "1.7.0-5"
+    },
+    {
+      "name": "libpcre2-8-0:amd64",
+      "version": "10.46-1~deb13u3"
+    },
+    {
+      "name": "libreadline8t64:amd64",
+      "version": "8.2-6"
+    },
+    {
+      "name": "libseccomp2:amd64",
+      "version": "2.6.0-2"
+    },
+    {
+      "name": "libselinux1:amd64",
+      "version": "3.8.1-1"
+    },
+    {
+      "name": "libsemanage-common",
+      "version": "3.8.1-1"
+    },
+    {
+      "name": "libsemanage2:amd64",
+      "version": "3.8.1-1"
+    },
+    {
+      "name": "libsepol2:amd64",
+      "version": "3.8.1-1"
+    },
+    {
+      "name": "libsmartcols1:amd64",
+      "version": "2.41.5-0+deb13u1"
+    },
+    {
+      "name": "libsqlite3-0:amd64",
+      "version": "3.46.1-7+deb13u2"
+    },
+    {
+      "name": "libssl3t64:amd64",
+      "version": "3.5.7-1~deb13u3"
+    },
+    {
+      "name": "libstdc++6:amd64",
+      "version": "14.2.0-19"
+    },
+    {
+      "name": "libsystemd0:amd64",
+      "version": "257.13-1~deb13u1"
+    },
+    {
+      "name": "libtinfo6:amd64",
+      "version": "6.5+20250216-2"
+    },
+    {
+      "name": "libudev1:amd64",
+      "version": "257.13-1~deb13u1"
+    },
+    {
+      "name": "libusb-1.0-0:amd64",
+      "version": "2:1.0.28-1"
+    },
+    {
+      "name": "libuuid1:amd64",
+      "version": "2.41.5-0+deb13u1"
+    },
+    {
+      "name": "libxxhash0:amd64",
+      "version": "0.8.3-2"
+    },
+    {
+      "name": "libzstd1:amd64",
+      "version": "1.5.7+dfsg-1"
+    },
+    {
+      "name": "login",
+      "version": "1:4.16.0-2+really2.41.5-0+deb13u1"
+    },
+    {
+      "name": "login.defs",
+      "version": "1:4.17.4-2"
+    },
+    {
+      "name": "mawk",
+      "version": "1.3.4.20250131-1"
+    },
+    {
+      "name": "mount",
+      "version": "2.41.5-0+deb13u1"
+    },
+    {
+      "name": "ncurses-base",
+      "version": "6.5+20250216-2"
+    },
+    {
+      "name": "ncurses-bin",
+      "version": "6.5+20250216-2"
+    },
+    {
+      "name": "netbase",
+      "version": "6.5"
+    },
+    {
+      "name": "openssl",
+      "version": "3.5.7-1~deb13u3"
+    },
+    {
+      "name": "openssl-provider-legacy",
+      "version": "3.5.7-1~deb13u3"
+    },
+    {
+      "name": "passwd",
+      "version": "1:4.17.4-2"
+    },
+    {
+      "name": "perl-base",
+      "version": "5.40.1-6+deb13u1"
+    },
+    {
+      "name": "readline-common",
+      "version": "8.2-6"
+    },
+    {
+      "name": "sed",
+      "version": "4.9-2+deb13u1"
+    },
+    {
+      "name": "sqv",
+      "version": "1.3.0-3+b2"
+    },
+    {
+      "name": "sysvinit-utils",
+      "version": "3.14-4"
+    },
+    {
+      "name": "tar",
+      "version": "1.35+dfsg-3.1"
+    },
+    {
+      "name": "tzdata",
+      "version": "2026e-0+deb13u1"
+    },
+    {
+      "name": "util-linux",
+      "version": "2.41.5-0+deb13u1"
+    },
+    {
+      "name": "zlib1g:amd64",
+      "version": "1:1.3.dfsg+really1.3.1-1+b1"
+    }
+  ],
+  "comparison_to_stage_f": {
+    "app_payload_changed_files": [
+      "/app/version.py"
+    ],
+    "runtime_contract_unchanged": true,
+    "runtime_python_and_os_inventories_unchanged": true,
+    "stage_f_image_id": "sha256:69c22df0e48e0cdaa4bc444ae0ab2255191cb1f4421a298d79533eef840161da",
+    "rc1_image_id": "sha256:3bd3e6712ee3932d4b2d49cc23681fc22c8201989049e0dfba1231bc3233a28e",
+    "size_delta_bytes": -11,
+    "version_label": "0.4.1"
+  },
+  "tests": {
+    "host": {
+      "python": "3.11.17",
+      "passed": 411,
+      "failed": 0,
+      "skipped": 0
+    },
+    "container": {
+      "python": "3.11.17",
+      "passed": 406,
+      "failed": 0,
+      "skipped": 5,
+      "skip_reason": "Node-dependent restart cases; passed on host"
+    },
+    "dependency_checks": "host pip check, clean build pip check, post-removal runtime metadata checks passed",
+    "first_run_and_persistence_smoke": "PASS",
+    "native_inference": "PASS, exact JPEG/PNG/WebP predictions match Stage D baseline",
+    "fail_closed_startup": {
+      "fail_closed_configuration_cases": 5,
+      "starts_per_case": 2,
+      "credentials_unchanged": true,
+      "sanitised_errors": true
+    },
+    "version_reporting": "0.4.1 label, constant, API, UI and startup records; v0.4.0 after rollback",
+    "compose_example_syntax": "PASS"
+  },
+  "upgrade_rollback_rerun": {
+    "images": {
+      "ghcr.io/wamf-project/wamf:0.4.0": "sha256:46a23e993cd7f98559fcd86cb869ce6c32567bbe3de7b748f4a1319a55807002",
+      "wamf:0.4.1-rc1": "sha256:3bd3e6712ee3932d4b2d49cc23681fc22c8201989049e0dfba1231bc3233a28e"
+    },
+    "scenarios": [
+      {
+        "name": "current-paths",
+        "port": 7767,
+        "legacy_aliases": false,
+        "session_secret_source": "config",
+        "initial_password_method": "pbkdf2:sha256:600000",
+        "initial_token_method": "scrypt:32768:8:1",
+        "phases": [
+          {
+            "phase": "original",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "initial_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 4,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 7
+            },
+            "db_sha256": "ed8f40663f434f8f29b40d888918747c1e08740e74e048fea97b8d4d55db482d",
+            "config_sha256": "a4db30d248d52e3d7ecca6d4efc880970d6143c7a99116814f3f1d73f0ef3d83",
+            "new_test_event": "stagee-current-paths-original",
+            "operator_credential_rotation": false,
+            "final_password_method": "pbkdf2:sha256:600000",
+            "final_token_method": "scrypt:32768:8:1"
+          },
+          {
+            "phase": "upgrade",
+            "image": "wamf:0.4.1-rc1",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "credential_rotation"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 5,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 13
+            },
+            "db_sha256": "a2b69cec8853aa31a4fa0980695bfdb1a68fc43f25b29a385c49c6ca0d369fcf",
+            "config_sha256": "1f17c71b6e90478dc24a527ec39a4595d7b8a46f3d6eaa11e2677c9caf370f1b",
+            "new_test_event": "stagee-current-paths-upgrade",
+            "operator_credential_rotation": true,
+            "final_password_method": "scrypt:32768:8:1",
+            "final_token_method": "scrypt:32768:8:1"
+          },
+          {
+            "phase": "rollback",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 6,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 19
+            },
+            "db_sha256": "1289ec911a486e9f3f6b50c9d9a32396c20edb8c566a55f1405ad85b0cd2e5de",
+            "config_sha256": "1f17c71b6e90478dc24a527ec39a4595d7b8a46f3d6eaa11e2677c9caf370f1b",
+            "new_test_event": "stagee-current-paths-rollback",
+            "operator_credential_rotation": false,
+            "final_password_method": "scrypt:32768:8:1",
+            "final_token_method": "scrypt:32768:8:1"
+          }
+        ],
+        "result": "PASS"
+      },
+      {
+        "name": "sha256",
+        "port": 7767,
+        "legacy_aliases": false,
+        "session_secret_source": "config",
+        "initial_password_method": "sha256",
+        "initial_token_method": "sha256",
+        "phases": [
+          {
+            "phase": "original",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "initial_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 4,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 7
+            },
+            "db_sha256": "1fb1b3d4ac02046abe80f12c686fcdcaffd4640208f142b15b0aec92b73c222a",
+            "config_sha256": "a8a340e5994478ee8779279c62ba249ccd9efc3799019ac697f80286a8d4d04c",
+            "new_test_event": "stagee-sha256-original",
+            "operator_credential_rotation": false,
+            "final_password_method": "sha256",
+            "final_token_method": "sha256"
+          },
+          {
+            "phase": "upgrade",
+            "image": "wamf:0.4.1-rc1",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 5,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 13
+            },
+            "db_sha256": "b76835ec4c508a3bb9549b98329c159d6ac4887fd5af965298cfb7751f8bbce0",
+            "config_sha256": "a8a340e5994478ee8779279c62ba249ccd9efc3799019ac697f80286a8d4d04c",
+            "new_test_event": "stagee-sha256-upgrade",
+            "operator_credential_rotation": false,
+            "final_password_method": "sha256",
+            "final_token_method": "sha256"
+          },
+          {
+            "phase": "rollback",
+            "image": "ghcr.io/wamf-project/wamf:0.4.0",
+            "startup_integrity": "unchanged except appended lifecycle events",
+            "checks": [
+              "fresh_login",
+              "inherited_session",
+              "csrf",
+              "api_token",
+              "admin_pages",
+              "public_records",
+              "snapshots",
+              "clips",
+              "range_requests",
+              "frigate_proxy",
+              "logout",
+              "config_save",
+              "admin_restart",
+              "session_after_restart",
+              "real_mqtt_inference",
+              "existing_credentials"
+            ],
+            "shutdown_exit_code": 0,
+            "table_counts": {
+              "detections": 6,
+              "retention_status": 1,
+              "schema_migrations": 4,
+              "species_info": 3,
+              "system_events": 19
+            },
+            "db_sha256": "f124e1019e618ecab3423d237c0f6a1cf3d06b6de22431f90c56a761bed5f929",
+            "config_sha256": "a8a340e5994478ee8779279c62ba249ccd9efc3799019ac697f80286a8d4d04c",
+            "new_test_event": "stagee-sha256-rollback",
+            "operator_credential_rotation": false,
+            "final_password_method": "sha256",
+            "final_token_method": "sha256"
+          }
+        ],
+        "result": "PASS"
+      }
+    ],
+    "safety": {
+      "published_ports": false,
+      "production_mounts": false
+    },
+    "broker_image_id": "sha256:860aeb5d63ce509508f6dcfb2bc8a1c1dd2bc60555b562b45ce90e52d8dabb0f",
+    "result": "PASS"
+  },
+  "stage_f_evidence_reused": [
+    "legacy-paths and environment secret",
+    "SHA1",
+    "MD5",
+    "57 original-image vectors (also rerun in full suites)"
+  ],
+  "scanner": {
+    "tool_version": "0.76.1",
+    "database": {
+      "Version": 2,
+      "NextUpdate": "2026-10-27T07:15:18.945936953Z",
+      "UpdatedAt": "2026-10-26T07:15:18.945937093Z",
+      "DownloadedAt": "2026-10-26T09:26:43.896479068Z"
+    },
+    "findings_identical_to_stage_f": true,
+    "scope": "all severities, unfixed findings included, no ignore list"
+  },
+  "remaining_python_cves": [
+    "CVE-2025-4565",
+    "CVE-2026-0994"
+  ],
+  "not_performed": [
+    "ARM image build/execution",
+    "physical Coral hardware",
+    "production data access",
+    "external live Frigate installation (local synthetic HTTP fixture and real MQTT broker used)",
+    "bird classification accuracy benchmark",
+    "byte-for-byte rebuild reproduction",
+    "GitHub publish workflow execution",
+    "registry publication"
+  ],
+  "unresolved_release_blockers": [],
+  "evidence_directory": "/tmp/wamf041-stageg1"
+}

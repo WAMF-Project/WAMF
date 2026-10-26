@@ -20,7 +20,7 @@ import pytest
 os.environ.setdefault('WHOSATMYFEEDER_CONFIG', 'config/config.yml.example')
 
 for _mod in [
-    "numpy", "cv2",
+    "numpy",
     "tflite_support",
     "tflite_support.task",
     "tflite_support.task.core",

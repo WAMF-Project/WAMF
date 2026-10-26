@@ -1,7 +1,7 @@
 """
 Tests for the MQTT new-species-ever notification feature.
 
-speciesid.py has heavy ML imports (numpy, cv2, tflite_support, PIL) that are
+speciesid.py has heavy ML imports (numpy, tflite_support, PIL) that are
 not available in the test environment. We patch them in sys.modules before
 importing speciesid so only the functions we care about are exercised.
 """
@@ -21,7 +21,6 @@ os.environ.setdefault("WHOSATMYFEEDER_CONFIG", "config/config.yml.example")
 # Patch heavy ML deps before importing speciesid (not available in test env)
 for _mod in [
     "numpy",
-    "cv2",
     "tflite_support",
     "tflite_support.task",
     "tflite_support.task.core",

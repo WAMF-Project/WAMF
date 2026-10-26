@@ -1,5 +1,6 @@
 """Docker packaging must retain the native bootstrap and storage contract."""
 from pathlib import Path
+import re
 import shlex
 import subprocess
 
@@ -43,7 +44,10 @@ def test_dockerfile_includes_runtime_and_bootstrap_resources():
         assert (ROOT / resource).exists()
     assert copies['config/config.yml.example'] == '/usr/local/share/wamf/config.yml.example'
     assert copies['scripts/docker-entrypoint.sh'] == '/usr/local/bin/wamf-entrypoint'
-    assert 'FROM python:3.11-slim' in lines
+    base = next(line for line in lines if line.startswith('FROM '))
+    assert re.fullmatch(r'FROM python:3\.11\.\d+-slim-trixie@sha256:[0-9a-f]{64}', base)
+    assert '    && python -m pip install --no-cache-dir -c requirements/constraints.txt -r requirements/base.txt \\' in lines
+    assert '    && python -m pip check \\' in lines
     assert 'EXPOSE 7767' in lines
     assert 'CMD ["python", "./speciesid.py"]' in lines
     assert 'ENTRYPOINT ["sh", "/usr/local/bin/wamf-entrypoint"]' in lines

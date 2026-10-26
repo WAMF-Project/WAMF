@@ -4,7 +4,9 @@ import secrets
 
 import yaml
 from flask import Blueprint, flash, redirect, render_template, request, url_for
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
+
+from app.credentials import verify_credential
 
 from app.config_editor import (
     get_config_file_metadata,
@@ -275,7 +277,7 @@ def change_password():
         new_password = request.form.get('new_password', '')
         confirm_password = request.form.get('confirm_password', '')
 
-        if not check_password_hash(webui.get_admin_password_hash() or '', current_password):
+        if not verify_credential(webui.get_admin_password_hash(), current_password):
             error = 'Password change failed.'
         elif len(new_password) < 8:
             error = 'New password must be at least 8 characters.'
