@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     build:
       context: .
-    image: wamf:0.4.0
+    image: wamf:0.4.1
     volumes:
       - ./config:/app/config
       - ./data:/app/data

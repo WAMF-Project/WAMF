@@ -259,6 +259,9 @@ webui:
 
 # Docker Compose
 
+For v0.4.1 upgrade guidance and known security limitations, see the
+[security maintenance release notes](docs/release-0.4.1.md).
+
 Build and run the current checkout:
 
 ```bash

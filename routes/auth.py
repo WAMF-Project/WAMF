@@ -1,7 +1,7 @@
 """Authentication routes for the single-admin session flow."""
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
-from werkzeug.security import check_password_hash
+from app.credentials import verify_credential
 
 
 auth_bp = Blueprint('auth', __name__)
@@ -37,7 +37,7 @@ def login():
         else:
             password = request.form.get('password', '')
 
-            if check_password_hash(webui.get_admin_password_hash(), password):
+            if verify_credential(webui.get_admin_password_hash(), password):
                 session.clear()
                 session['admin_authenticated'] = True
                 webui.get_csrf_token()

@@ -55,6 +55,30 @@ UID, give that user write access to the three mounted directories first.
 
 ## Existing Docker installations
 
+### Upgrading v0.4.0 to v0.4.1
+
+Stop WAMF cleanly and back up the complete configuration, database and media
+directories together before upgrading. Keep the existing image available for
+rollback. Recreate the container with the v0.4.1 image and the same mounts,
+configuration, port mapping and `WAMF_SECRET_KEY` environment value, if used.
+For a local checkout build, use the example Compose commands above. Registry
+tag `0.4.1` is usable only after the release has been published.
+
+No configuration, database or media migration is required for v0.4.0. Preserve
+any additional `/data` or `/media` compatibility mounts already in use. Existing
+credentials are verified without automatic rehashing, including supported legacy
+Werkzeug formats. Malformed or unsupported configured hashes stop startup with a
+configuration error and are never replaced automatically. Only a genuinely
+unconfigured installation receives first-run credentials.
+
+After upgrading, check login, API access, archived media, MQTT detection and
+restart persistence. To roll back, stop the candidate cleanly and recreate the
+v0.4.0 container using the same mounts and session-secret environment value.
+Avoid simultaneous writers to the database.
+See [v0.4.1 release notes](release-0.4.1.md) for validation and security limitations.
+
+### Older path conventions
+
 Back up existing configuration, database, and media before changing the mounts.
 Older Docker config examples used `/data/speciesid.db` and `/media/wamf/...`.
 Update those settings to `./data/speciesid.db`, `./media/wamf/snapshots`, and

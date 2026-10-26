@@ -1,0 +1,968 @@
+{
+  "baseline": {
+    "image": "wamf:0.4.1-test",
+    "id": "sha256:7b743ac2a9c9a4e6d2dababe532a29198cf10f61db152762ff71c8c98ba24778",
+    "size": 1515506378,
+    "os_packages": 294,
+    "python_packages": 29
+  },
+  "steps": [
+    {
+      "image": "wamf:0.4.1-d1-no-ffmpeg",
+      "id": "sha256:b34461a0148b9c1f1137162a3eabd1b0a16fbbdece77654611729c74b7333167",
+      "size": 1179399338,
+      "python_packages": 29,
+      "os_packages": 131,
+      "scan": [
+        {
+          "target": "wamf:0.4.1-d1-no-ffmpeg (debian 13.7)",
+          "findings": 226,
+          "unique_ids": 109,
+          "fixable": 0,
+          "severities": {
+            "LOW": 93,
+            "HIGH": 54,
+            "MEDIUM": 76,
+            "UNKNOWN": 2,
+            "CRITICAL": 1
+          }
+        },
+        {
+          "target": "Python",
+          "findings": 9,
+          "unique_ids": 9,
+          "fixable": 9,
+          "severities": {
+            "HIGH": 6,
+            "MEDIUM": 2,
+            "LOW": 1
+          }
+        }
+      ],
+      "removed_os_packages": [
+        {
+          "name": "ffmpeg",
+          "version": "7.1.5"
+        },
+        {
+          "name": "fontconfig",
+          "version": "2.15.0"
+        },
+        {
+          "name": "fontconfig-config",
+          "version": "2.15.0"
+        },
+        {
+          "name": "fonts-dejavu-core",
+          "version": "2.37"
+        },
+        {
+          "name": "fonts-dejavu-mono",
+          "version": "2.37"
+        },
+        {
+          "name": "libaom3",
+          "version": "3.12.1"
+        },
+        {
+          "name": "libasound2-data",
+          "version": "1.2.14"
+        },
+        {
+          "name": "libasound2t64",
+          "version": "1.2.14"
+        },
+        {
+          "name": "libass9",
+          "version": "0.17.3"
+        },
+        {
+          "name": "libasyncns0",
+          "version": "0.8"
+        },
+        {
+          "name": "libavc1394-0",
+          "version": "0.5.4"
+        },
+        {
+          "name": "libavcodec61",
+          "version": "7.1.5"
+        },
+        {
+          "name": "libavdevice61",
+          "version": "7.1.5"
+        },
+        {
+          "name": "libavfilter10",
+          "version": "7.1.5"
+        },
+        {
+          "name": "libavformat61",
+          "version": "7.1.5"
+        },
+        {
+          "name": "libavutil59",
+          "version": "7.1.5"
+        },
+        {
+          "name": "libblas3",
+          "version": "3.12.1"
+        },
+        {
+          "name": "libbluray2",
+          "version": "1.3.4"
+        },
+        {
+          "name": "libbrotli1",
+          "version": "1.1.0"
+        },
+        {
+          "name": "libbs2b0",
+          "version": "3.1.0+dfsg"
+        },
+        {
+          "name": "libcaca0",
+          "version": "0.99.beta20"
+        },
+        {
+          "name": "libcairo-gobject2",
+          "version": "1.18.4"
+        },
+        {
+          "name": "libcairo2",
+          "version": "1.18.4"
+        },
+        {
+          "name": "libcdio-cdda2t64",
+          "version": "10.2+2.0.2"
+        },
+        {
+          "name": "libcdio-paranoia2t64",
+          "version": "10.2+2.0.2"
+        },
+        {
+          "name": "libcdio19t64",
+          "version": "2.2.0"
+        },
+        {
+          "name": "libchromaprint1",
+          "version": "1.5.1"
+        },
+        {
+          "name": "libcjson1",
+          "version": "1.7.18"
+        },
+        {
+          "name": "libcodec2-1.2",
+          "version": "1.2.0"
+        },
+        {
+          "name": "libcom-err2",
+          "version": "1.47.2"
+        },
+        {
+          "name": "libdatrie1",
+          "version": "0.2.13"
+        },
+        {
+          "name": "libdav1d7",
+          "version": "1.5.1"
+        },
+        {
+          "name": "libdbus-1-3",
+          "version": "1.16.2"
+        },
+        {
+          "name": "libdc1394-25",
+          "version": "2.2.6"
+        },
+        {
+          "name": "libdecor-0-0",
+          "version": "0.2.2"
+        },
+        {
+          "name": "libdeflate0",
+          "version": "1.23"
+        },
+        {
+          "name": "libdvdnav4",
+          "version": "6.1.1"
+        },
+        {
+          "name": "libdvdread8t64",
+          "version": "6.1.3"
+        },
+        {
+          "name": "libfftw3-double3",
+          "version": "3.3.10"
+        },
+        {
+          "name": "libflac14",
+          "version": "1.5.0+ds"
+        },
+        {
+          "name": "libflite1",
+          "version": "2.2"
+        },
+        {
+          "name": "libfontconfig1",
+          "version": "2.15.0"
+        },
+        {
+          "name": "libfreetype6",
+          "version": "2.13.3+dfsg"
+        },
+        {
+          "name": "libfribidi0",
+          "version": "1.0.16"
+        },
+        {
+          "name": "libgdk-pixbuf-2.0-0",
+          "version": "2.42.12+dfsg"
+        },
+        {
+          "name": "libgdk-pixbuf2.0-common",
+          "version": "2.42.12+dfsg"
+        },
+        {
+          "name": "libgfortran5",
+          "version": "14.2.0"
+        },
+        {
+          "name": "libgme0",
+          "version": "0.6.3"
+        },
+        {
+          "name": "libgnutls30t64",
+          "version": "3.8.9"
+        },
+        {
+          "name": "libgomp1",
+          "version": "14.2.0"
+        },
+        {
+          "name": "libgraphite2-3",
+          "version": "1.3.14"
+        },
+        {
+          "name": "libgsm1",
+          "version": "1.0.22"
+        },
+        {
+          "name": "libgssapi-krb5-2",
+          "version": "1.21.3"
+        },
+        {
+          "name": "libharfbuzz0b",
+          "version": "10.2.0"
+        },
+        {
+          "name": "libhwy1t64",
+          "version": "1.2.0"
+        },
+        {
+          "name": "libidn2-0",
+          "version": "2.3.8"
+        },
+        {
+          "name": "libiec61883-0",
+          "version": "1.2.0"
+        },
+        {
+          "name": "libjack-jackd2-0",
+          "version": "1.9.22~dfsg"
+        },
+        {
+          "name": "libjbig0",
+          "version": "2.1"
+        },
+        {
+          "name": "libjpeg62-turbo",
+          "version": "2.1.5"
+        },
+        {
+          "name": "libjxl0.11",
+          "version": "0.11.2"
+        },
+        {
+          "name": "libk5crypto3",
+          "version": "1.21.3"
+        },
+        {
+          "name": "libkeyutils1",
+          "version": "1.6.3"
+        },
+        {
+          "name": "libkrb5-3",
+          "version": "1.21.3"
+        },
+        {
+          "name": "libkrb5support0",
+          "version": "1.21.3"
+        },
+        {
+          "name": "liblapack3",
+          "version": "3.12.1"
+        },
+        {
+          "name": "liblcms2-2",
+          "version": "2.16"
+        },
+        {
+          "name": "liblerc4",
+          "version": "4.0.0+ds"
+        },
+        {
+          "name": "liblilv-0-0",
+          "version": "0.24.26"
+        },
+        {
+          "name": "libmbedcrypto16",
+          "version": "3.6.6"
+        },
+        {
+          "name": "libmp3lame0",
+          "version": "3.100"
+        },
+        {
+          "name": "libmpg123-0t64",
+          "version": "1.32.10"
+        },
+        {
+          "name": "libmysofa1",
+          "version": "1.3.3+dfsg"
+        },
+        {
+          "name": "libnorm1t64",
+          "version": "1.5.9+dfsg"
+        },
+        {
+          "name": "libnuma1",
+          "version": "2.0.19"
+        },
+        {
+          "name": "libogg0",
+          "version": "1.3.5"
+        },
+        {
+          "name": "libopenal-data",
+          "version": "1.24.2"
+        },
+        {
+          "name": "libopenal1",
+          "version": "1.24.2"
+        },
+        {
+          "name": "libopenjp2-7",
+          "version": "2.5.3"
+        },
+        {
+          "name": "libopenmpt0t64",
+          "version": "0.7.13"
+        },
+        {
+          "name": "libopus0",
+          "version": "1.5.2"
+        },
+        {
+          "name": "libp11-kit0",
+          "version": "0.25.5"
+        },
+        {
+          "name": "libpango-1.0-0",
+          "version": "1.56.3"
+        },
+        {
+          "name": "libpangocairo-1.0-0",
+          "version": "1.56.3"
+        },
+        {
+          "name": "libpangoft2-1.0-0",
+          "version": "1.56.3"
+        },
+        {
+          "name": "libpgm-5.3-0t64",
+          "version": "5.3.128~dfsg"
+        },
+        {
+          "name": "libpixman-1-0",
+          "version": "0.44.0"
+        },
+        {
+          "name": "libplacebo349",
+          "version": "7.349.0"
+        },
+        {
+          "name": "libpng16-16t64",
+          "version": "1.6.48"
+        },
+        {
+          "name": "libpocketsphinx3",
+          "version": "0.8+5prealpha+1"
+        },
+        {
+          "name": "libpostproc58",
+          "version": "7.1.5"
+        },
+        {
+          "name": "libpulse0",
+          "version": "17.0+dfsg1"
+        },
+        {
+          "name": "librabbitmq4",
+          "version": "0.15.0"
+        },
+        {
+          "name": "librav1e0.7",
+          "version": "0.7.1"
+        },
+        {
+          "name": "libraw1394-11",
+          "version": "2.1.2"
+        },
+        {
+          "name": "librist4",
+          "version": "0.2.11+dfsg"
+        },
+        {
+          "name": "librsvg2-2",
+          "version": "2.60.0+dfsg"
+        },
+        {
+          "name": "librubberband2",
+          "version": "3.3.0+dfsg"
+        },
+        {
+          "name": "libsamplerate0",
+          "version": "0.2.2"
+        },
+        {
+          "name": "libsdl2-2.0-0",
+          "version": "2.32.4+dfsg"
+        },
+        {
+          "name": "libserd-0-0",
+          "version": "0.32.4"
+        },
+        {
+          "name": "libsharpyuv0",
+          "version": "1.5.0"
+        },
+        {
+          "name": "libshine3",
+          "version": "3.1.1"
+        },
+        {
+          "name": "libslang2",
+          "version": "2.3.3"
+        },
+        {
+          "name": "libsnappy1v5",
+          "version": "1.2.2"
+        },
+        {
+          "name": "libsndfile1",
+          "version": "1.2.2"
+        },
+        {
+          "name": "libsodium23",
+          "version": "1.0.18"
+        },
+        {
+          "name": "libsord-0-0",
+          "version": "0.16.18"
+        },
+        {
+          "name": "libsoxr0",
+          "version": "0.1.3"
+        },
+        {
+          "name": "libspeex1",
+          "version": "1.2.1"
+        },
+        {
+          "name": "libsphinxbase3t64",
+          "version": "0.8+5prealpha+1"
+        },
+        {
+          "name": "libsratom-0-0",
+          "version": "0.6.18"
+        },
+        {
+          "name": "libsrt1.5-gnutls",
+          "version": "1.5.4"
+        },
+        {
+          "name": "libssh-4",
+          "version": "0.11.5"
+        },
+        {
+          "name": "libsvtav1enc2",
+          "version": "2.3.0+dfsg"
+        },
+        {
+          "name": "libswresample5",
+          "version": "7.1.5"
+        },
+        {
+          "name": "libswscale8",
+          "version": "7.1.5"
+        },
+        {
+          "name": "libtasn1-6",
+          "version": "4.20.0"
+        },
+        {
+          "name": "libthai-data",
+          "version": "0.1.29"
+        },
+        {
+          "name": "libthai0",
+          "version": "0.1.29"
+        },
+        {
+          "name": "libtheoradec1",
+          "version": "1.2.0~alpha1+dfsg"
+        },
+        {
+          "name": "libtheoraenc1",
+          "version": "1.2.0~alpha1+dfsg"
+        },
+        {
+          "name": "libtiff6",
+          "version": "4.7.0"
+        },
+        {
+          "name": "libtwolame0",
+          "version": "0.4.0"
+        },
+        {
+          "name": "libudfread0",
+          "version": "1.1.2"
+        },
+        {
+          "name": "libunibreak6",
+          "version": "6.1"
+        },
+        {
+          "name": "libunistring5",
+          "version": "1.3"
+        },
+        {
+          "name": "libva-drm2",
+          "version": "2.22.0"
+        },
+        {
+          "name": "libva-x11-2",
+          "version": "2.22.0"
+        },
+        {
+          "name": "libva2",
+          "version": "2.22.0"
+        },
+        {
+          "name": "libvdpau1",
+          "version": "1.5"
+        },
+        {
+          "name": "libvidstab1.1",
+          "version": "1.1.0"
+        },
+        {
+          "name": "libvorbis0a",
+          "version": "1.3.7"
+        },
+        {
+          "name": "libvorbisenc2",
+          "version": "1.3.7"
+        },
+        {
+          "name": "libvorbisfile3",
+          "version": "1.3.7"
+        },
+        {
+          "name": "libvpl2",
+          "version": "2.14.0"
+        },
+        {
+          "name": "libvpx9",
+          "version": "1.15.0"
+        },
+        {
+          "name": "libwayland-client0",
+          "version": "1.23.1"
+        },
+        {
+          "name": "libwayland-cursor0",
+          "version": "1.23.1"
+        },
+        {
+          "name": "libwayland-egl1",
+          "version": "1.23.1"
+        },
+        {
+          "name": "libwebp7",
+          "version": "1.5.0"
+        },
+        {
+          "name": "libwebpmux3",
+          "version": "1.5.0"
+        },
+        {
+          "name": "libx264-164",
+          "version": "0.164.3108+git31e19f9"
+        },
+        {
+          "name": "libx265-215",
+          "version": "4.1"
+        },
+        {
+          "name": "libxcb-render0",
+          "version": "1.17.0"
+        },
+        {
+          "name": "libxcb-shape0",
+          "version": "1.17.0"
+        },
+        {
+          "name": "libxcursor1",
+          "version": "1.2.3"
+        },
+        {
+          "name": "libxfixes3",
+          "version": "6.0.0"
+        },
+        {
+          "name": "libxi6",
+          "version": "1.8.2"
+        },
+        {
+          "name": "libxkbcommon0",
+          "version": "1.7.0"
+        },
+        {
+          "name": "libxrandr2",
+          "version": "1.5.4"
+        },
+        {
+          "name": "libxrender1",
+          "version": "0.9.12"
+        },
+        {
+          "name": "libxss1",
+          "version": "1.2.3"
+        },
+        {
+          "name": "libxv1",
+          "version": "1.0.11"
+        },
+        {
+          "name": "libxvidcore4",
+          "version": "1.3.7"
+        },
+        {
+          "name": "libzimg2",
+          "version": "3.0.5+ds1"
+        },
+        {
+          "name": "libzix-0-0",
+          "version": "0.6.2"
+        },
+        {
+          "name": "libzmq5",
+          "version": "4.3.5"
+        },
+        {
+          "name": "libzvbi-common",
+          "version": "0.2.44"
+        },
+        {
+          "name": "libzvbi0t64",
+          "version": "0.2.44"
+        },
+        {
+          "name": "ocl-icd-libopencl1",
+          "version": "2.3.3"
+        },
+        {
+          "name": "shared-mime-info",
+          "version": "2.4"
+        },
+        {
+          "name": "xkb-data",
+          "version": "2.42"
+        }
+      ],
+      "added_os_packages": [],
+      "removed_python_distributions": [],
+      "removed_bootstrap_wheels": []
+    },
+    {
+      "image": "wamf:0.4.1-d2-no-tools-complete",
+      "id": "sha256:9ca4122b589e7f956bd17c0af83ca9eab909b2da01e1bacd7e9f61935e5f5aed",
+      "size": 1152089708,
+      "python_packages": 25,
+      "os_packages": 131,
+      "scan": [
+        {
+          "target": "wamf:0.4.1-d2-no-tools-complete (debian 13.7)",
+          "findings": 226,
+          "unique_ids": 109,
+          "fixable": 0,
+          "severities": {
+            "LOW": 93,
+            "HIGH": 54,
+            "MEDIUM": 76,
+            "UNKNOWN": 2,
+            "CRITICAL": 1
+          }
+        },
+        {
+          "target": "Python",
+          "findings": 2,
+          "unique_ids": 2,
+          "fixable": 2,
+          "severities": {
+            "HIGH": 2
+          }
+        }
+      ],
+      "removed_os_packages": [],
+      "added_os_packages": [],
+      "removed_python_distributions": [
+        {
+          "name": "packaging",
+          "version": "26.3"
+        },
+        {
+          "name": "pip",
+          "version": "26.2.2"
+        },
+        {
+          "name": "setuptools",
+          "version": "84.1.0"
+        },
+        {
+          "name": "wheel",
+          "version": "0.48.0"
+        }
+      ],
+      "removed_bootstrap_wheels": [
+        "pip-24.0-py3-none-any.whl",
+        "setuptools-79.0.1-py3-none-any.whl"
+      ]
+    },
+    {
+      "image": "wamf:0.4.1-d3-minimal",
+      "id": "sha256:2f333ce201708ec5ec3bd70e5045c4e4a867f5baa1e4225ebcfd4f7d4b495c29",
+      "size": 621270442,
+      "python_packages": 24,
+      "os_packages": 88,
+      "scan": [
+        {
+          "target": "wamf:0.4.1-d3-minimal (debian 13.7)",
+          "findings": 166,
+          "unique_ids": 73,
+          "fixable": 0,
+          "severities": {
+            "LOW": 61,
+            "HIGH": 44,
+            "MEDIUM": 60,
+            "UNKNOWN": 1
+          }
+        },
+        {
+          "target": "Python",
+          "findings": 2,
+          "unique_ids": 2,
+          "fixable": 2,
+          "severities": {
+            "HIGH": 2
+          }
+        }
+      ],
+      "removed_os_packages": [
+        {
+          "name": "libatomic1",
+          "version": "14.2.0-19"
+        },
+        {
+          "name": "libdrm-amdgpu1",
+          "version": "2.4.124-2"
+        },
+        {
+          "name": "libdrm-common",
+          "version": "2.4.124-2"
+        },
+        {
+          "name": "libdrm-intel1",
+          "version": "2.4.124-2"
+        },
+        {
+          "name": "libdrm2",
+          "version": "2.4.124-2"
+        },
+        {
+          "name": "libedit2",
+          "version": "3.1-20250104-1"
+        },
+        {
+          "name": "libelf1t64",
+          "version": "0.192-4"
+        },
+        {
+          "name": "libexpat1",
+          "version": "2.9.0-1~deb13u1"
+        },
+        {
+          "name": "libgbm1",
+          "version": "25.0.7-2+deb13u1"
+        },
+        {
+          "name": "libgl1",
+          "version": "1.7.0-1+b2"
+        },
+        {
+          "name": "libgl1-mesa-dri",
+          "version": "25.0.7-2+deb13u1"
+        },
+        {
+          "name": "libglib2.0-0t64",
+          "version": "2.84.4-3~deb13u5"
+        },
+        {
+          "name": "libglvnd0",
+          "version": "1.7.0-1+b2"
+        },
+        {
+          "name": "libglx-mesa0",
+          "version": "25.0.7-2+deb13u1"
+        },
+        {
+          "name": "libglx0",
+          "version": "1.7.0-1+b2"
+        },
+        {
+          "name": "libice6",
+          "version": "2:1.1.1-1"
+        },
+        {
+          "name": "libllvm19",
+          "version": "1:19.1.7-3+b1"
+        },
+        {
+          "name": "libpciaccess0",
+          "version": "0.17-3+b3"
+        },
+        {
+          "name": "libsensors-config",
+          "version": "1:3.6.2-2"
+        },
+        {
+          "name": "libsensors5",
+          "version": "1:3.6.2-2"
+        },
+        {
+          "name": "libsm6",
+          "version": "2:1.2.6-1"
+        },
+        {
+          "name": "libvulkan1",
+          "version": "1.4.309.0-1"
+        },
+        {
+          "name": "libwayland-server0",
+          "version": "1.23.1-3"
+        },
+        {
+          "name": "libx11-6",
+          "version": "2:1.8.12-1"
+        },
+        {
+          "name": "libx11-data",
+          "version": "2:1.8.12-1"
+        },
+        {
+          "name": "libx11-xcb1",
+          "version": "2:1.8.12-1"
+        },
+        {
+          "name": "libxau6",
+          "version": "1:1.0.11-1"
+        },
+        {
+          "name": "libxcb-dri3-0",
+          "version": "1.17.0-2+b1"
+        },
+        {
+          "name": "libxcb-glx0",
+          "version": "1.17.0-2+b1"
+        },
+        {
+          "name": "libxcb-present0",
+          "version": "1.17.0-2+b1"
+        },
+        {
+          "name": "libxcb-randr0",
+          "version": "1.17.0-2+b1"
+        },
+        {
+          "name": "libxcb-shm0",
+          "version": "1.17.0-2+b1"
+        },
+        {
+          "name": "libxcb-sync1",
+          "version": "1.17.0-2+b1"
+        },
+        {
+          "name": "libxcb-xfixes0",
+          "version": "1.17.0-2+b1"
+        },
+        {
+          "name": "libxcb1",
+          "version": "1.17.0-2+b1"
+        },
+        {
+          "name": "libxdmcp6",
+          "version": "1:1.1.5-1"
+        },
+        {
+          "name": "libxext6",
+          "version": "2:1.3.4-1+b3"
+        },
+        {
+          "name": "libxml2",
+          "version": "2.12.7+dfsg+really2.9.14-2.1+deb13u3"
+        },
+        {
+          "name": "libxshmfence1",
+          "version": "1.3.3-1"
+        },
+        {
+          "name": "libxxf86vm1",
+          "version": "1:1.1.4-1+b4"
+        },
+        {
+          "name": "libz3-4",
+          "version": "4.13.3-1"
+        },
+        {
+          "name": "mesa-libgallium",
+          "version": "25.0.7-2+deb13u1"
+        },
+        {
+          "name": "x11-common",
+          "version": "1:7.7+24+deb13u1"
+        }
+      ],
+      "added_os_packages": [],
+      "removed_python_distributions": [
+        {
+          "name": "opencv-python",
+          "version": "4.11.0.86"
+        }
+      ],
+      "removed_bootstrap_wheels": []
+    }
+  ]
+}
