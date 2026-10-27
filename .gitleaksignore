@@ -1,0 +1,5 @@
+# Monaco Editor 0.52.2: confirmed JavaScript-expression false positives.
+# Both files match the official npm archive and PROVENANCE.json checksums.
+# Suppress only these exact release-commit findings; retain all other scanning.
+6cbe6d1e9824e88068070f2b497c239042be8c30:static/vendor/monaco-editor/0.52.2/min/vs/language/typescript/tsWorker.js:generic-api-key:320
+6cbe6d1e9824e88068070f2b497c239042be8c30:static/vendor/monaco-editor/0.52.2/min/vs/editor/editor.main.js:generic-api-key:631

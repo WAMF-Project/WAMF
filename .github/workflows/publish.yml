@@ -1,6 +1,8 @@
 name: Publish WAMF image
 
 on:
+  # Manual recovery publishes only the original, immutable v0.4.2 source.
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -18,9 +20,24 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && '6cbe6d1e9824e88068070f2b497c239042be8c30' || github.sha }}
+
+      - name: Verify immutable v0.4.2 source
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_COMMIT: 6cbe6d1e9824e88068070f2b497c239042be8c30
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          test "$(git rev-parse 'refs/tags/v0.4.2^{commit}')" = "$RELEASE_COMMIT"
 
       - name: Scan Git history for secrets
+        env:
+          # Policy comes from the reviewed workflow commit, not the release tag.
+          POLICY_COMMIT: ${{ github.sha }}
         run: |
+          set -euo pipefail
+          git show "${POLICY_COMMIT}:.gitleaksignore" > "$RUNNER_TEMP/wamf.gitleaksignore"
           curl -fsSL \
             https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
             -o "$RUNNER_TEMP/gitleaks.tar.gz"
@@ -30,6 +47,7 @@ jobs:
           tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
           "$RUNNER_TEMP/gitleaks" git \
             --config .gitleaks.toml \
+            --gitleaks-ignore-path "$RUNNER_TEMP/wamf.gitleaksignore" \
             --redact \
             --exit-code 1 \
             .
@@ -42,11 +60,15 @@ jobs:
           flavor: |
             latest=false
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ github.event_name == 'workflow_dispatch' && 'v0.4.2' || github.ref_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ github.event_name == 'workflow_dispatch' && 'v0.4.2' || github.ref_name }}
 
       - name: Build image
-        run: docker build --platform linux/amd64 -t wamf:release-candidate .
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=all)"
+          # Archive only the checked-out commit; CI policy stays outside the build.
+          git archive HEAD | docker build --platform linux/amd64 -t wamf:release-candidate -
 
       - name: Scan image for critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
