@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from app import bootstrap, credentials, security
+from app import admin_setup, bootstrap, credentials, security
 
 VECTORS = json.loads((Path(__file__).parent / 'fixtures/credentials-v040.json').read_text())['vectors']
 ADMIN_VECTORS = [v for v in VECTORS if not v['for_api_only']]
@@ -86,7 +86,7 @@ def test_startup_preserves_existing_vectors(vector, tmp_path, monkeypatch, capsy
     path.chmod(0o600)
     monkeypatch.setenv('WHOSATMYFEEDER_CONFIG', str(path))
     monkeypatch.delenv('WAMF_SECRET_KEY', raising=False)
-    monkeypatch.setattr(bootstrap, 'generate_password_hash', lambda *a, **k: pytest.fail('Startup rehashed a credential'))
+    monkeypatch.setattr(admin_setup, 'generate_password_hash', lambda *a, **k: pytest.fail('Startup rehashed a credential'))
     before = path.read_bytes(), path.stat().st_mtime_ns, path.stat().st_mode
     for _ in range(2):
         assert bootstrap.bootstrap_config() == config

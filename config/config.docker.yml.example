@@ -25,6 +25,8 @@ bridge:
 webui:
   port: 7767
   host: 0.0.0.0
+  # Optional external origin for the first-run setup link; no path or credentials.
+  # public_base_url: https://wamf.example
 
 storage:
   database_path: ./data/speciesid.db

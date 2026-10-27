@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WAMF Administrator Setup</title>
+    <script src="{{ url_for('static', filename='js/admin-setup.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles-dev.css') }}" />
+  </head>
+  <body class="admin-body">
+    <main class="login-main">
+      <form id="setup-form" class="login-panel" method="post" action="{{ url_for('auth.setup') }}">
+        <div class="login-title">Create administrator password</div>
+        <p>Use HTTPS or a trusted tunnel when setting up from another machine.</p>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <label for="password">Password (at least 8 characters)</label>
+        <input id="password" name="password" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required />
+        <label for="confirmation">Confirm password</label>
+        <input id="confirmation" name="confirmation" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required />
+        <p id="setup-error" role="alert"></p>
+        <button type="submit">Create administrator password</button>
+        <noscript>JavaScript is required to use the private setup link.</noscript>
+      </form>
+    </main>
+  </body>
+</html>

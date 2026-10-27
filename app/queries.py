@@ -10,6 +10,7 @@ from app.db import (
     NAMES_DB_PATH as DEFAULT_NAMES_DB_PATH,
     DETECTION_SELECT,
 )
+from app.logging_utils import sanitize_log_value
 from wamf_paths import get_clips_path, get_snapshots_path
 
 
@@ -56,7 +57,7 @@ def get_common_name(scientific_name):
     if result:
         return result[0]
 
-    logger.debug("No common name for: %s", scientific_name)
+    logger.debug("No common name for: %s", sanitize_log_value(scientific_name))
     return None
 
 def save_species_info(

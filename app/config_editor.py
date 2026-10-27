@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 import yaml
+from app.config_store import atomic_write_config, config_lock
 
 
 SENSITIVE_CONFIG_BLOCKS = {'admin', 'api'}
@@ -120,6 +121,13 @@ def append_sensitive_config_blocks(config_content, admin_config, api_config):
 
 
 def write_config_preserving_admin(config_content, admin_config=None, api_config=None, reload_callback=None):
+    with config_lock(get_config_path()):
+        _write_config_preserving_admin(config_content, admin_config, api_config)
+    if reload_callback:
+        reload_callback()
+
+
+def _write_config_preserving_admin(config_content, admin_config=None, api_config=None):
     if admin_config is None:
         admin_config = get_existing_admin_config()
 
@@ -145,16 +153,7 @@ def write_config_preserving_admin(config_content, admin_config=None, api_config=
         backup_path
     )
 
-    with open(
-        get_config_path(),
-        'w'
-    ) as config_file:
-        config_file.write(
-            final_content
-        )
-
-    if reload_callback:
-        reload_callback()
+    atomic_write_config(get_config_path(), final_content)
 
     prune_config_backups(
         get_config_path(),
@@ -163,29 +162,26 @@ def write_config_preserving_admin(config_content, admin_config=None, api_config=
 
 
 def update_admin_password_hash(password_hash, reload_callback=None):
-    current_content = load_config_file_content()
-    current_config = load_config_from_content(current_content)
-    admin_config = current_config.get('admin', {})
-    admin_config['password_hash'] = password_hash
-    write_config_preserving_admin(
-        current_content,
-        admin_config,
-        reload_callback=reload_callback
-    )
+    with config_lock(get_config_path()):
+        current_content = load_config_file_content()
+        current_config = load_config_from_content(current_content)
+        admin_config = current_config.get('admin', {})
+        admin_config['password_hash'] = password_hash
+        _write_config_preserving_admin(current_content, admin_config)
+    if reload_callback:
+        reload_callback()
 
 
 def update_api_token_hash(token_hash, reload_callback=None):
-    current_content = load_config_file_content()
-    current_config = load_config_from_content(current_content)
-    api_config = current_config.get('api', {})
-    api_config.setdefault('token_auth_enabled', True)
-    api_config['token_hash'] = token_hash
-    write_config_preserving_admin(
-        current_content,
-        current_config.get('admin'),
-        api_config,
-        reload_callback=reload_callback
-    )
+    with config_lock(get_config_path()):
+        current_content = load_config_file_content()
+        current_config = load_config_from_content(current_content)
+        api_config = current_config.get('api', {})
+        api_config.setdefault('token_auth_enabled', True)
+        api_config['token_hash'] = token_hash
+        _write_config_preserving_admin(current_content, current_config.get('admin'), api_config)
+    if reload_callback:
+        reload_callback()
 
 
 def get_config_file_metadata():

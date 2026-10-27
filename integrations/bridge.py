@@ -3,6 +3,8 @@ import time
 
 import requests
 
+from app.logging_utils import safe_exception_details
+
 logger = logging.getLogger(__name__)
 _last_warning_at = 0.0
 _WARNING_INTERVAL_SECONDS = 60
@@ -46,19 +48,20 @@ def post_event(bridge_config, category, level, title, details=""):
             timeout=bridge_config.get("timeout_seconds", 1),
         )
     except requests.exceptions.RequestException as exc:
-        _log_failure("Bridge observation event failed: %s", exc)
+        _log_failure("Bridge observation event failed: %s", safe_exception_details(exc))
         return False
     except Exception as exc:
         # This integration is deliberately best-effort, including malformed
         # optional configuration or unusual HTTP client failures.
-        _log_failure("Bridge observation event failed: %s", exc)
+        _log_failure("Bridge observation event failed: %s", safe_exception_details(exc))
         return False
 
     status_code = getattr(response, "status_code", None)
     if not isinstance(status_code, int) or not 200 <= status_code < 300:
+        safe_status = status_code if type(status_code) is int and 100 <= status_code <= 599 else "unknown"
         _log_failure(
             "Bridge observation event returned HTTP %s",
-            status_code,
+            safe_status,
         )
         return False
 

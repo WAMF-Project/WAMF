@@ -8,8 +8,8 @@
             </div>
             <div class="modal-body">
                 <img id="snapshotImage" src="" alt="Snapshot" class="img-fluid mb-3"/>
-                <button type="button" class="btn btn-primary" onclick="showVideo()">View Video</button>
-                <button type="button" class="btn btn-danger ms-2" id="deleteDetectionButton" onclick="deleteDetection()">Delete</button>
+                <button type="button" class="btn btn-primary" id="viewVideoButton">View Video</button>
+                <button type="button" class="btn btn-danger ms-2" id="deleteDetectionButton">Delete</button>
             </div>
         </div>
     </div>
@@ -127,11 +127,13 @@
 
         // Check if the image is a transparent pixel
         if (pixelData[0] === 0 && pixelData[1] === 0 && pixelData[2] === 0 && pixelData[3] === 0) {
-            // Hide the image and remove its onclick attribute
+            // The bound click listener also ignores hidden placeholders.
             img.style.display = "none";
-            img.onclick = null;
         }
     }
+
+    document.getElementById("viewVideoButton").addEventListener("click", showVideo);
+    document.getElementById("deleteDetectionButton").addEventListener("click", deleteDetection);
 
     document.getElementById("videoModal").addEventListener("hidden.bs.modal", function () {
         var videoClip = document.getElementById("videoClip");
@@ -139,3 +141,5 @@
         videoClip.currentTime = 0; // Reset the video playback time to the beginning
     });
 </script>
+
+<script src="{{ url_for('static', filename='js/detection-cards.js') }}"></script>

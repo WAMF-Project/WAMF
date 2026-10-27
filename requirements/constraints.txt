@@ -1,4 +1,4 @@
-# Runtime dependency versions for WAMF 0.4.1 on CPython 3.11 (Linux x86-64).
+# Runtime dependency versions for WAMF 0.4.2 on CPython 3.11 (Linux x86-64).
 # Apply with -c; constraints do not install packages by themselves.
 # Keep the legacy TFLite stack together. protobuf 3.20.3 retains known DoS
 # advisories; tflite-support 0.4.4 requires protobuf<4. Do not override it.

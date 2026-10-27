@@ -259,8 +259,8 @@ webui:
 
 # Docker Compose
 
-For v0.4.1 upgrade guidance and known security limitations, see the
-[security maintenance release notes](docs/release-0.4.1.md).
+For v0.4.2 upgrade guidance and known security limitations, see the
+[security maintenance release notes](docs/release-0.4.2.md).
 
 Build and run the current checkout:
 
@@ -269,8 +269,9 @@ docker compose -f docker-compose.yml.example up -d --build
 docker compose -f docker-compose.yml.example logs -f
 ```
 
-Open `http://<server-ip>:7767`. First startup creates configuration and prints a
-temporary admin password. Sign in and configure Frigate/MQTT through the Admin UI.
+First startup creates configuration and prints a private administrator setup link.
+Open that link within 15 minutes to choose a password, then sign in and configure
+Frigate/MQTT through the Admin UI. Remote password setup requires HTTPS or a trusted tunnel.
 Config, database, and media persist in `./config`, `./data`, and `./media`, mounted
 beneath `/app`. See [Docker installation and testing](docs/docker-testing.md) for
 setup, existing-install migration, and validation details.
@@ -311,14 +312,59 @@ waits for the new application instance, then reloads the Admin UI. Saving alone
 shows a restart-required message and does not start detection. Advanced users can still edit the YAML file directly.
 Structurally invalid configuration or invalid web bind settings remain startup errors.
 
-With admin authentication enabled, missing or invalid bootstrap credentials are
-replaced automatically. WAMF prints a random temporary admin password once to
-the startup console, stores only its hash, and generates a session secret when
-needed. Keep the temporary password, then sign in at `http://<server-ip>:7767/login`
-and change it at `/admin/password`. Subsequent starts preserve valid credentials
-and do not display the password again. Generated credentials are saved before
-the web UI starts, so keep the password shown on that first run.
-A config updated by credential bootstrap is restricted to its owner (mode 0600).
+On a genuinely unprovisioned installation with administrator authentication enabled,
+WAMF prints one private `/setup#token=...` link to the startup console. It expires
+after 15 minutes and can create the administrator password once. The page requires
+JavaScript, removes the token from the address bar, and sends it only in the setup
+POST body. Choose and confirm a password of at least eight characters, then use
+the normal login page. Only the token digest and password hash are persisted.
+Treat the startup log as sensitive: anyone with the unused link can complete setup.
+
+Operational workers remain paused until administrator setup succeeds. They resume
+automatically once setup completes if Frigate configuration is ready. Incomplete
+Frigate/MQTT configuration retains the existing Configuration / Save & Restart flow.
+Restarting while administrator setup is pending invalidates the old link and prints
+a fresh 15-minute link. HTTP requests cannot refresh or regenerate it.
+
+Existing valid administrator passwords, session secrets and API credentials are
+preserved; existing installations receive no setup link. Malformed or ambiguous
+authentication configuration fails closed instead of resetting credentials.
+Authentication-disabled installations retain their existing behaviour.
+
+Optionally set `webui.public_base_url` to the externally reachable HTTP/HTTPS origin
+(for example `https://wamf.example` or `http://localhost:17767`). It must not contain
+credentials, a query, a fragment or a path prefix. WAMF never derives it from request
+headers. Without it, the printed link uses `127.0.0.1` and the configured web port;
+replace the host and published port for access from another machine. Use HTTPS or
+a trusted tunnel for remote setup. Subpath proxy deployments are not supported by
+this setting. Configure secure session cookies when serving through HTTPS.
+
+Login throttling uses the actual connection peer and ignores `X-Forwarded-For`,
+`Forwarded` and `X-Real-IP`. WAMF does not currently configure trusted-proxy
+address parsing; `public_base_url` only controls the printed setup link. Clients
+behind the same reverse proxy or NAT therefore share its five-failure,
+five-minute login bucket. Login attempts are held in memory, limited to 1,024
+client buckets plus one shared overflow bucket. Active buckets are not evicted.
+Untracked clients continue sharing active overflow state even if dedicated
+capacity opens; dedicated allocation resumes only when the overflow bucket drains.
+Password verification reserves an attempt atomically, then runs outside the
+limiter lock. Pending attempts retain their slots until they finish, even beyond
+five minutes; completed failures expire five minutes after verification finishes.
+Success clears only failures already completed when that attempt was admitted;
+concurrent failures and reservations remain counted. Overflow successes release
+only their own reservation. Restarting the web process clears this in-memory state.
+
+Configuration updates use a lock and mode-0600 atomic replacement. Writable Docker
+directory mounts are supported; read-only configurations and single-file bind
+mounts fail safely. Mount the configuration directory rather than the individual
+file. Provisioning runs through `python speciesid.py`, not ordinary WSGI imports.
+Run one native WAMF parent per configuration; setup deadlines use the existing
+Linux/Python 3.11 fork-based worker model, not independent WSGI replicas.
+Initial setup requires an explicit administrator mapping without YAML anchors;
+ambiguous duplicate authentication keys are rejected. Existing valid anchored
+credentials remain unchanged. Invalid setup-token attempts share a ten-per-minute
+limit; they cannot block valid-token redemption. Failed attempts do not regenerate
+or permanently invalidate the token.
 
 The native default port is 7767; existing configured ports are preserved. The
 config, bundled model, and taxonomy database resolve from the application

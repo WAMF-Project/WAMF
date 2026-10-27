@@ -1,15 +1,15 @@
 """Native first-run configuration and credentials, before worker creation."""
-import fcntl
 import os
 from pathlib import Path
 import secrets
-import string
 from urllib.parse import urlsplit
 
 import yaml
-from werkzeug.security import generate_password_hash
 
 from app.config_editor import get_config_path
+from app.config_store import atomic_write_config, config_lock
+from app import admin_setup
+from app.logging_utils import safe_exception_details
 from app.credentials import valid_credential_hash
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -32,43 +32,13 @@ def _unconfigured(value, example):
     return value is None or isinstance(value, str) and (not value.strip() or value.strip() == example)
 
 
-def _replace_admin_values(content, config, updates):
-    """Replace only bootstrap fields, retaining unrelated YAML and comments."""
-    root = yaml.compose(content)
-    admin_node = next((v for k, v in root.value if k.value == 'admin'), None) if root else None
-    if admin_node is None:
-        return content.rstrip() + '\n\n' + yaml.safe_dump({'admin': updates}, sort_keys=False)
-    if not isinstance(admin_node, yaml.MappingNode):
-        raise ValueError('admin must be a YAML mapping')
-    replacements = []
-    remaining = dict(updates)
-    for key, value in admin_node.value:
-        if key.value in remaining:
-            replacement = '"' + remaining.pop(key.value) + '"'
-            replacements.append((value.start_mark.index, value.end_mark.index, replacement))
-    if remaining:
-        # Re-render just admin when keys are absent (also supports flow mappings).
-        admin = dict(config.get('admin') or {})
-        admin.update(updates)
-        rendered = yaml.safe_dump(admin, sort_keys=False, default_flow_style=True).strip()
-        return content[:admin_node.start_mark.index] + rendered + '\n' + content[admin_node.end_mark.index:]
-    for start, end, replacement in sorted(replacements, reverse=True):
-        content = content[:start] + replacement + content[end:]
-    return content
-
-
 def bootstrap_config():
     path = Path(get_config_path())
     if not path.exists() and 'WHOSATMYFEEDER_CONFIG' in os.environ:
         raise ValueError(f'WHOSATMYFEEDER_CONFIG file does not exist: {path}')
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Lock the directory so concurrent first starts cannot read a half-copied config.
-    directory_fd = os.open(path.parent, os.O_RDONLY)
-    try:
-        fcntl.flock(directory_fd, fcntl.LOCK_EX)
+    with config_lock(path):
         return _bootstrap_locked(path)
-    finally:
-        os.close(directory_fd)
 
 
 def _bootstrap_locked(path):
@@ -79,22 +49,24 @@ def _bootstrap_locked(path):
             descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(descriptor, 'w', encoding='utf-8') as target:
                 target.write(example_content)
-            print(f'Created {path} from the example. Review external settings before starting WAMF.', flush=True)
+            print('Created configuration from the example. Review external settings before starting WAMF.', flush=True)
         except FileExistsError:
             pass
 
     # Never print credentials before persistence.
     with path.open('r', encoding='utf-8') as target:
         content = target.read()
-        config = yaml.safe_load(content) or {}
+        config = admin_setup.load_auth_config(content)
         if not isinstance(config, dict):
             raise ValueError('Configuration must be a YAML mapping')
-        admin = config.get('admin') or {}
+        admin = config.get('admin', {})
         if not isinstance(admin, dict):
             raise ValueError('admin must be a YAML mapping')
-        api = config.get('api') or {}
+        api = config.get('api', {})
         if not isinstance(api, dict):
             raise ValueError('api must be a YAML mapping')
+        if 'auth_enabled' in admin and type(admin['auth_enabled']) is not bool:
+            raise ValueError('admin.auth_enabled must be a boolean')
         password_missing = _unconfigured(admin.get('password_hash'), '<generated werkzeug password hash>')
         token_missing = _unconfigured(api.get('token_hash'), '<generated werkzeug token hash>')
         secret_missing = _unconfigured(admin.get('session_secret'), '<long random session secret>')
@@ -106,35 +78,41 @@ def _bootstrap_locked(path):
         if not token_missing and not valid_credential_hash(api.get('token_hash'), for_api=True):
             raise ValueError('api.token_hash has a malformed or unsupported credential format')
         updates = {}
-        password = None
+        setup_token = None
         if admin.get('auth_enabled', False):
             env_secret = os.environ.get('WAMF_SECRET_KEY')
             if env_secret and _unconfigured(env_secret, '<long random session secret>'):
                 raise ValueError('WAMF_SECRET_KEY must not be blank or a placeholder')
             if not secret_missing and not isinstance(admin.get('session_secret'), str):
                 raise ValueError('admin.session_secret must be a string')
-            if not fresh and password_missing:
+            pending = admin_setup.is_pending(config)
+            if (not valid_password_hash(admin.get('password_hash'))
+                    and ('setup_pending' in admin or 'setup' in admin) and not pending):
+                raise ValueError('Administrator setup state is ambiguous; credentials were not changed')
+            if pending and (not admin_setup.valid_state(admin) or not password_missing or token_missing is False):
+                raise ValueError('Administrator setup state is invalid; credentials were not changed')
+            if not fresh and password_missing and not pending:
                 raise ValueError('Existing installation requires admin.password_hash; credentials were not changed')
             if not fresh and secret_missing and not env_secret:
                 raise ValueError('Existing installation requires admin.session_secret or WAMF_SECRET_KEY; credentials were not changed')
             if fresh and not env_secret:
                 updates['session_secret'] = secrets.token_hex(32)
-            if fresh:
-                alphabet = string.ascii_letters + string.digits
-                password = '-'.join(''.join(secrets.choice(alphabet) for _ in range(6)) for _ in range(4))
-                updates['password_hash'] = generate_password_hash(password)
+            if fresh or pending:
+                setup_url = admin_setup.public_setup_url(config)
+                setup_token = secrets.token_urlsafe(32)
+                updates['setup_pending'] = True
+                updates['setup'] = admin_setup.new_state(setup_token)
         if updates:
-            updated = _replace_admin_values(content, config, updates)
-            # No backup containing credentials; preserve unrelated configuration.
-            with path.open('r+', encoding='utf-8') as writable:
-                os.fchmod(writable.fileno(), 0o600)
-                writable.write(updated)
-                writable.truncate()
-                writable.flush()
-                os.fsync(writable.fileno())
+            updated_admin = dict(admin)
+            updated_admin.update(updates)
+            updated = admin_setup.render_admin(content, updated_admin)
+            atomic_write_config(path, updated)
             config = yaml.safe_load(updated)
-        if password:
-            print(f'WAMF temporary admin password: {password}\nSign in and change this password. It will not be displayed again.', flush=True)
+        if setup_token:
+            print(f'WAMF administrator setup (valid for 15 minutes): {setup_url}#token={setup_token}', flush=True)
+            if not config.get('webui', {}).get('public_base_url'):
+                print('For another machine, replace the loopback host and port with the reachable host and published port.', flush=True)
+            print('Remote password setup requires HTTPS or a trusted tunnel. Keep this one-use link private.', flush=True)
         return config
 
 
@@ -192,5 +170,5 @@ def prepare_native_startup():
     try:
         config = bootstrap_config()
         return preflight(config)
-    except (OSError, ValueError, yaml.YAMLError) as exc:
-        raise SystemExit(f'WAMF startup configuration error: {exc}') from None
+    except (OSError, TypeError, ValueError, yaml.YAMLError) as exc:
+        raise SystemExit(f'WAMF startup configuration error: {safe_exception_details(exc)}. Check configuration and writable directory mounts.') from None

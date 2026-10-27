@@ -128,12 +128,9 @@
   ) }}"
         alt="Thumbnail"
         class="wamf-detection-image"
-        onload="checkTransparentImage(this)"
-        onclick="showSnapshot(
-    '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
-    '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
-    '{{ record['frigate_event'] }}'
-  )"
+        data-snapshot-url="{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}"
+        data-clip-url="{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}"
+        data-frigate-event="{{ record.frigate_event }}"
       />
 
       {% else %}
