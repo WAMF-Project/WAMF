@@ -1,7 +1,11 @@
 import logging
 import time
+from urllib.parse import quote
 
 import requests
+
+from app.frigate_events import is_valid_frigate_event
+from app.logging_utils import safe_exception_details
 from app.system_events import log_system_event
 from wamf_paths import ensure_storage_paths, get_clips_path, get_snapshots_path
 
@@ -13,10 +17,13 @@ def archive_snapshot(
     frigate_event: str
 ) -> str | None:
 
+    if not is_valid_frigate_event(frigate_event):
+        logger.warning('Snapshot archive rejected an invalid Frigate event identifier')
+        return None
     ensure_storage_paths()
     snapshot_url = (
         f"{frigate_url}/api/events/"
-        f"{frigate_event}/snapshot.jpg"
+        f"{quote(frigate_event, safe='')}/snapshot.jpg"
     )
 
     destination = (
@@ -49,13 +56,13 @@ def archive_snapshot(
 
     except requests.exceptions.RequestException as e:
 
-        logger.warning("Snapshot archive request error: %s", e)
+        logger.warning("Snapshot archive request error: %s", safe_exception_details(e))
 
         return None
 
     except OSError as e:
 
-        logger.warning("Snapshot archive file error: %s", e)
+        logger.warning("Snapshot archive file error: %s", safe_exception_details(e))
 
         return None
 
@@ -65,10 +72,13 @@ def archive_clip(
     frigate_event: str
 ) -> str | None:
 
+    if not is_valid_frigate_event(frigate_event):
+        logger.warning('Clip archive rejected an invalid Frigate event identifier')
+        return None
     ensure_storage_paths()
     clip_url = (
         f"{frigate_url}/api/events/"
-        f"{frigate_event}/clip.mp4"
+        f"{quote(frigate_event, safe='')}/clip.mp4"
     )
 
     destination = (
@@ -144,12 +154,12 @@ def archive_clip(
 
     except requests.exceptions.RequestException as e:
 
-        logger.warning("Clip archive request error: %s", e)
+        logger.warning("Clip archive request error: %s", safe_exception_details(e))
 
         return None
 
     except OSError as e:
 
-        logger.warning("Clip archive file error: %s", e)
+        logger.warning("Clip archive file error: %s", safe_exception_details(e))
 
         return None

@@ -46,12 +46,9 @@ block date_picker %}
   ) }}"
   alt="Thumbnail"
   class="wamf-detection-image"
-  onload="checkTransparentImage(this)"
-  onclick="event.preventDefault(); event.stopPropagation(); showSnapshot(
-    '{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}',
-    '{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}',
-    '{{ record.frigate_event }}'
-  )"
+  data-snapshot-url="{{ url_for('media.wamf_snapshot', filename=record.snapshot_file) }}"
+  data-clip-url="{{ url_for('media.wamf_clip', filename=record.clip_file) if record.clip_file else '' }}"
+  data-frigate-event="{{ record.frigate_event }}"
 />
 {% endif %}
 
@@ -177,42 +174,6 @@ block date_picker %}
       );
     }
 
-    function buildRow(d) {
-      const thumbUrl = `/frigate/${d.frigate_event}/thumbnail.jpg`;
-      const snapUrl = `/frigate/${d.frigate_event}/snapshot.jpg`;
-      const clipUrl = `/frigate/${d.frigate_event}/clip.mp4`;
-
-      const card = document.createElement("div");
-
-      card.dataset.frigateEvent = d.frigate_event;
-      card.dataset.detectionTime = d.detection_time;
-
-      card.classList.add("wamf-detection-card", "new-detection");
-
-      card.innerHTML = `
-      <img
-        src="${thumbUrl}"
-        alt="Thumbnail"
-        class="wamf-detection-image"
-        onload="checkTransparentImage(this)"
-        onclick="showSnapshot('${snapUrl}','${clipUrl}','${d.frigate_event}')">
-
-      <div class="wamf-detection-content">
-        <h3>${d.common_name}</h3>
-
-        <div class="wamf-confidence">
-          ${Math.round(d.score * 100)}%
-        </div>
-
-        <div class="wamf-detection-time">
-          ${d.detection_time}
-        </div>
-      </div>
-    `;
-
-      return card;
-    }
-
     async function poll() {
       if (document.visibilityState === "hidden") return;
 
@@ -229,7 +190,7 @@ block date_picker %}
 
         if (fresh.length === 0) return;
 
-        [...fresh].reverse().forEach((d) => tbody.prepend(buildRow(d)));
+        [...fresh].reverse().forEach((d) => tbody.prepend(window.wamfDetections.buildRow(d)));
 
         while (tbody.children.length > LIMIT) {
           tbody.removeChild(tbody.lastElementChild);

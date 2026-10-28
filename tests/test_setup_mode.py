@@ -1,7 +1,5 @@
 """Setup UI, startup selection, and configuration activation regressions."""
 import os
-from pathlib import Path
-import re
 import shutil
 import subprocess
 import sys
@@ -93,12 +91,12 @@ from unittest.mock import MagicMock, patch
 for name in ('numpy', 'tflite_support', 'tflite_support.task', 'PIL', 'PIL.Image', 'PIL.ImageOps'):
     sys.modules[name] = MagicMock()
 from flask import Flask
-passwords = []
+tokens = []
 original_print = builtins.print
 
 def capture_password(*args, **kwargs):
-    if args and str(args[0]).startswith('WAMF temporary admin password: '):
-        passwords.append(str(args[0]).splitlines()[0].split(': ', 1)[1])
+    if args and str(args[0]).startswith('WAMF administrator setup '):
+        tokens.append(str(args[0]).split('#token=', 1)[1])
     original_print(*args, **kwargs)
 builtins.print = capture_password
 
@@ -111,9 +109,17 @@ def serve_admin(self, **kwargs):
     from pathlib import Path
     # This flag is set by the real run_webui before Flask.run.
     assert health._detection_worker_enabled is False
-    password = passwords[0] if passwords else os.environ['TEST_ADMIN_PASSWORD']
+    password = os.environ.get('TEST_ADMIN_PASSWORD', 'synthetic-personal-admin-password')
     self.config['TESTING'] = True
     with self.test_client() as client:
+        if tokens:
+            assert client.get('/login').location == '/setup'
+            assert client.get('/setup').status_code == 200
+            with client.session_transaction() as session:
+                setup_csrf = session['csrf_token']
+            response = client.post('/setup', data={'token': tokens[0], 'password': password, 'confirmation': password, 'csrf_token': setup_csrf})
+            assert response.status_code == 303, response.data
+            assert response.location == '/login'
         assert client.get('/login').status_code == 200
         response = client.post('/login', data={'password': password})
         assert response.status_code == 302
@@ -171,24 +177,24 @@ def test_fresh_native_start_serves_admin_then_accepts_configuration(tmp_path):
         shutil.copy2(bootstrap.REPO_ROOT / name, root / name)
     env = {key: value for key, value in os.environ.items() if key not in ('WHOSATMYFEEDER_CONFIG', 'WAMF_SECRET_KEY', 'PYTHONPATH')}
     command = [sys.executable, '-c', CLI_RUNNER]
-    first = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True, timeout=30)
+    first = subprocess.run(command, check=False, cwd=root, env=env, capture_output=True, text=True, timeout=30)
     assert first.returncode == 0, first.stderr
     assert 'SETUP_UI_VERIFIED' in first.stdout, first.stderr
     assert 'Created ' in first.stdout
-    assert first.stdout.count('WAMF temporary admin password:') == 1
-    assert 'MQTT/classification worker is disabled' in first.stderr
+    assert first.stdout.count('WAMF administrator setup (') == 1
+    assert 'operational workers are paused' in first.stderr
     assert (root / 'data/speciesid.db').is_file()
-    password = re.search(r'temporary admin password: (\S+)', first.stdout).group(1)
+    password = 'synthetic-personal-admin-password'
     env.update(TEST_ADMIN_PASSWORD=password, TEST_APPLY_CONFIG='1')
-    second = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True, timeout=30)
+    second = subprocess.run(command, check=False, cwd=root, env=env, capture_output=True, text=True, timeout=30)
     assert second.returncode == 0, second.stderr
     assert 'SETUP_UI_VERIFIED' in second.stdout, second.stderr
-    assert 'temporary admin password:' not in second.stdout
+    assert '#token=' not in second.stdout
     assert bootstrap.preflight(yaml.safe_load((root / 'config/config.yml').read_text())) == []
 
     env['TEST_NORMAL_START'] = '1'
-    third = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True, timeout=30)
+    third = subprocess.run(command, check=False, cwd=root, env=env, capture_output=True, text=True, timeout=30)
     assert third.returncode == 0, third.stderr
     assert 'NORMAL_WORKERS_VERIFIED' in third.stdout
-    assert 'temporary admin password:' not in third.stdout
+    assert '#token=' not in third.stdout
     assert 'MQTT/classification worker is disabled' not in third.stderr

@@ -10,6 +10,7 @@ import shutil
 from app.config_editor import get_config_path
 from app.bootstrap import preflight
 from app.db import connect_db
+from app.logging_utils import safe_exception_details
 from wamf_paths import get_clips_path, get_snapshots_path
 from integrations.bridge import post_health_event
 
@@ -147,7 +148,7 @@ def calculate_system_health(config=None):
             health["frigate_online"] = response.status_code == 200
 
         except requests.exceptions.RequestException as exc:
-            logger.debug("Frigate health check failed: %s", exc)
+            logger.debug("Frigate health check failed: %s", safe_exception_details(exc))
 
             health["frigate_online"] = False
 
@@ -163,7 +164,7 @@ def calculate_system_health(config=None):
             health["mqtt_online"] = True
 
         except OSError as exc:
-            logger.debug("MQTT health check failed: %s", exc)
+            logger.debug("MQTT health check failed: %s", safe_exception_details(exc))
 
             health["mqtt_online"] = False
 
@@ -179,7 +180,7 @@ def calculate_system_health(config=None):
         health["database_healthy"] = True
 
     except sqlite3.Error as exc:
-        logger.debug("Database health check failed: %s", exc)
+        logger.debug("Database health check failed: %s", safe_exception_details(exc))
 
         health["database_healthy"] = False
 
@@ -233,7 +234,7 @@ def health_monitor_loop(stop_event=None):
             health = calculate_system_health(config)
             record_health_transition(health, config.get("bridge", {}))
         except Exception as exc:
-            logger.warning("Health monitor iteration failed: %s", exc)
+            logger.warning("Health monitor iteration failed: %s", safe_exception_details(exc))
 
         interval = _health_check_interval(config.get("bridge", {}))
         if stop_event.wait(interval):

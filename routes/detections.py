@@ -5,6 +5,7 @@ import sqlite3
 from flask import Blueprint, jsonify
 
 from app.db import connect_db
+from app.logging_utils import sanitize_log_value
 
 
 detections_bp = Blueprint('detections', __name__)
@@ -47,11 +48,19 @@ def delete_detection(frigate_event):
         conn.commit()
 
     except sqlite3.Error as e:
-        webui.logger.warning("Error deleting detection %s: %s", frigate_event, e)
+        webui.logger.warning(
+            "Error deleting detection %s: %s",
+            sanitize_log_value(frigate_event),
+            sanitize_log_value(e),
+        )
         return jsonify({"success": False, "message": "Unable to delete detection."}), 500
 
     except OSError as e:
-        webui.logger.warning("Error deleting media for detection %s: %s", frigate_event, e)
+        webui.logger.warning(
+            "Error deleting media for detection %s: %s",
+            sanitize_log_value(frigate_event),
+            sanitize_log_value(e),
+        )
         return jsonify({"success": False, "message": "Unable to delete detection media."}), 500
 
     finally:
