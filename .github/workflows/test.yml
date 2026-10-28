@@ -30,6 +30,9 @@ jobs:
       - name: Install test dependencies
         run: pip install -r requirements/test.txt
 
+      - name: Install Chromium headless shell
+        run: npx --yes playwright@1.63.0 install --with-deps --only-shell chromium
+
       - name: Run tests with coverage
         run: |
           pytest tests/ \

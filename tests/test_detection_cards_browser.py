@@ -83,9 +83,9 @@ def test_chromium_renders_hostile_detection_values_without_execution(tmp_path):
     installed = list((Path.home() / '.cache/ms-playwright').glob(
         'chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell'
     ))
-    browser = shutil.which('chromium') or shutil.which('chromium-browser')
-    if browser is None and installed:
-        browser = str(max(installed))
+    # Prefer the standalone shell for --dump-dom; desktop Chromium can hang on exit.
+    browser = (str(max(installed)) if installed else
+               shutil.which('chromium') or shutil.which('chromium-browser'))
     if browser is None:
         pytest.skip('An installed Chromium is needed for the real browser regression')
     payload = json.dumps(PAYLOAD).replace('<', '\\u003c')
