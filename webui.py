@@ -4,6 +4,7 @@ from datetime import datetime
 import yaml
 from pathlib import Path
 from app import security
+from app import admin_setup
 from app.queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
 from app.queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from app.queries import get_activity_by_hour, get_top_species, get_latest_visitor, get_species_peak_hours, get_species_stats
@@ -52,6 +53,29 @@ CSRF_PROTECTED_ENDPOINTS = {
     'admin.refresh_all_species',
     'detections.delete_detection',
 }
+
+
+def start_runtime_services():
+    """Native web worker installs its idempotent runtime starter here."""
+
+
+@app.before_request
+def require_completed_setup():
+    if admin_setup.is_pending(config) and request.endpoint not in {'auth.setup', 'static'}:
+        return redirect('/setup', code=303)
+
+
+@app.after_request
+def setup_security_headers(response):
+    if request.path == '/setup':
+        response.headers.update({
+            'Cache-Control': 'no-store',
+            'Referrer-Policy': 'no-referrer',
+            'X-Frame-Options': 'DENY',
+            'X-Content-Type-Options': 'nosniff',
+            'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+        })
+    return response
 
 
 def is_admin_auth_enabled():

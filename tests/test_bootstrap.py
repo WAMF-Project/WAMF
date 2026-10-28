@@ -5,7 +5,7 @@ import pytest
 import yaml
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app import bootstrap, config_editor
+from app import admin_setup, bootstrap, config_editor
 
 
 @pytest.fixture
@@ -20,8 +20,8 @@ def write_admin(path, **admin):
     path.write_text(yaml.safe_dump({'admin': {'auth_enabled': True, **admin}, 'api': {'token_hash': ''}}))
 
 
-def temporary_password(output):
-    return re.search(r'temporary admin password: (\S+)', output).group(1)
+def setup_token(output):
+    return re.search(r'#token=([A-Za-z0-9_-]{43})', output).group(1)
 
 
 def test_missing_default_config_is_copied(tmp_path, monkeypatch, capsys):
@@ -47,20 +47,21 @@ def test_missing_override_fails_without_creation(config_path):
 
 @pytest.mark.parametrize('secret', [None, '', '  ', '<long random session secret>'])
 @pytest.mark.parametrize('password_hash', [None, '', '<generated werkzeug password hash>'])
-def test_fresh_credentials_bootstrap_once(config_path, capsys, secret, password_hash):
+def test_fresh_credentials_bootstrap_rotates_pending_token(config_path, capsys, secret, password_hash):
     write_admin(config_path, session_secret=secret, password_hash=password_hash)
     config = bootstrap.bootstrap_config()
     output = capsys.readouterr().out
-    password = temporary_password(output)
+    token = setup_token(output)
     admin = config['admin']
     assert len(admin['session_secret']) == 64
-    assert check_password_hash(admin['password_hash'], password)
-    assert password not in config_path.read_text()
+    assert admin_setup.is_pending(config)
+    assert token not in config_path.read_text()
     assert config['api'] == {'token_hash': ''}
     persisted = config_path.read_bytes()
-    assert bootstrap.bootstrap_config() == config
-    assert config_path.read_bytes() == persisted
-    assert capsys.readouterr().out == ''
+    restarted = bootstrap.bootstrap_config()
+    assert restarted['admin']['session_secret'] == admin['session_secret']
+    assert config_path.read_bytes() != persisted
+    assert setup_token(capsys.readouterr().out) != token
 
 
 def test_valid_credentials_preserved_byte_for_byte(config_path, capsys):
@@ -108,13 +109,13 @@ def test_fresh_installation_with_environment_secret(config_path, monkeypatch, ca
     write_admin(config_path, session_secret=None, password_hash=None)
     monkeypatch.setenv('WAMF_SECRET_KEY', 'synthetic-first-run-environment-secret')
     config = bootstrap.bootstrap_config()
-    password = temporary_password(capsys.readouterr().out)
-    assert check_password_hash(config['admin']['password_hash'], password)
+    token = setup_token(capsys.readouterr().out)
+    assert admin_setup.is_pending(config)
     assert config['admin']['session_secret'] is None
-    original = config_path.read_bytes()
-    assert bootstrap.bootstrap_config() == config
-    assert config_path.read_bytes() == original
-    assert capsys.readouterr().out == ''
+    assert token not in config_path.read_text()
+    assert bootstrap.bootstrap_config()['admin']['session_secret'] is None
+    assert setup_token(capsys.readouterr().out) != token
+
 
 
 @pytest.mark.parametrize('content', [
@@ -125,7 +126,7 @@ def test_missing_admin_keys_are_inserted(config_path, content):
     config_path.write_text(content)
     config = bootstrap.bootstrap_config()
     assert config['admin']['auth_enabled'] is True
-    assert bootstrap.valid_password_hash(config['admin']['password_hash'])
+    assert admin_setup.is_pending(config)
     assert config['api']['token_hash'] == ''
 
 
@@ -133,8 +134,10 @@ def test_example_comments_and_unrelated_values_preserved(config_path):
     content = (bootstrap.REPO_ROOT / 'config/config.yml.example').read_text()
     config_path.write_text(content)
     config = bootstrap.bootstrap_config()
-    expected = content.replace('<long random session secret>', config['admin']['session_secret']).replace('<generated werkzeug password hash>', config['admin']['password_hash'])
-    assert config_path.read_text() == expected
+    original = yaml.safe_load(content)
+    for key in original.keys() - {'admin'}:
+        assert config[key] == original[key]
+    assert '# Frigate' in config_path.read_text()
 
 
 def configured():
@@ -163,9 +166,9 @@ def test_preflight_requires_mqtt_credentials_when_enabled():
 def test_native_preflight_returns_setup_issues(config_path, capsys):
     config_path.write_text((bootstrap.REPO_ROOT / 'config/config.yml.example').read_text())
     assert 'frigate.mqtt_server' in bootstrap.prepare_native_startup()
-    assert 'temporary admin password' in capsys.readouterr().out
+    assert '#token=' in capsys.readouterr().out
     assert 'frigate.camera' in bootstrap.prepare_native_startup()
-    assert capsys.readouterr().out == ''
+    assert '#token=' in capsys.readouterr().out
 
 
 def test_default_paths_are_independent_of_cwd(tmp_path, monkeypatch):
@@ -187,13 +190,15 @@ def test_native_example_port():
     assert config['webui']['port'] == bootstrap.DEFAULT_PORT == 7767
 
 
-def test_generated_password_can_login_and_be_changed(config_path, capsys, flask_client, monkeypatch):
+def test_setup_password_can_login_and_be_changed(config_path, capsys, flask_client, monkeypatch):
     import webui
     monkeypatch.setenv('WHOSATMYFEEDER_CONFIG', str(config_path))
     monkeypatch.setitem(webui.app.config, 'SECRET_KEY', webui.app.secret_key)
     write_admin(config_path, session_secret='<long random session secret>', password_hash='<generated werkzeug password hash>')
     bootstrap.bootstrap_config()
-    password = temporary_password(capsys.readouterr().out)
+    token = setup_token(capsys.readouterr().out)
+    password = 'synthetic-personal-password'
+    assert admin_setup.complete_setup(token, password, password) == 'success'
     monkeypatch.setattr(webui, 'config', webui.config)
     webui.load_config()
     with flask_client.session_transaction() as session:
@@ -220,12 +225,9 @@ def test_generated_password_can_login_and_be_changed(config_path, capsys, flask_
 def test_no_password_disclosed_if_persistence_fails(config_path, monkeypatch, capsys):
     write_admin(config_path, session_secret='<long random session secret>', password_hash='<generated werkzeug password hash>')
     original = config_path.read_bytes()
-    real_open = Path.open
-    def open_file(path, mode='r', *args, **kwargs):
-        if path == config_path and mode == 'r+':
-            raise PermissionError('read-only config')
-        return real_open(path, mode, *args, **kwargs)
-    monkeypatch.setattr(Path, 'open', open_file)
+    def fail_write(*args):
+        raise PermissionError('read-only config')
+    monkeypatch.setattr(bootstrap, 'atomic_write_config', fail_write)
     with pytest.raises(PermissionError):
         bootstrap.bootstrap_config()
     assert capsys.readouterr().out == ''

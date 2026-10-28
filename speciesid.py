@@ -11,6 +11,8 @@ import numpy as np
 from datetime import datetime
 import time
 import multiprocessing
+from urllib.parse import quote
+import threading
 
 from tflite_support.task import core
 from tflite_support.task import processor
@@ -32,6 +34,10 @@ from app.system_events import log_system_event
 from version import VERSION
 from app.db import connect_db, ensure_schema
 from app.config_editor import get_config_path
+from app.logging_utils import safe_exception_details
+from app import admin_setup
+from app.credentials import valid_credential_hash
+from app.frigate_events import is_valid_frigate_event
 from app.process_control import WorkerSupervisor, configure_worker_signals
 from wamf_paths import ensure_storage_paths
 from integrations.bridge import post_observation_event
@@ -104,7 +110,7 @@ def on_disconnect(client, userdata, rc):
             except (OSError, RuntimeError) as e:
                 logger.warning(
                     "MQTT reconnection failed; retrying in 60 seconds: %s",
-                    e,
+                    safe_exception_details(e),
                 )
                 time.sleep(60)
     else:
@@ -112,6 +118,9 @@ def on_disconnect(client, userdata, rc):
 
 
 def publish_new_species(client, common_name, scientific_name, score, camera_name, frigate_event):
+    if not is_valid_frigate_event(frigate_event):
+        logger.warning('MQTT publication rejected an invalid Frigate event identifier')
+        return
     base = 'whosatmyfeeder/new_species'
 
     client.publish(
@@ -166,10 +175,13 @@ def publish_new_species(client, common_name, scientific_name, score, camera_name
 
 def set_sublabel(frigate_url, frigate_event, sublabel):
 
+    if not is_valid_frigate_event(frigate_event):
+        logger.warning('Sublabel request rejected an invalid Frigate event identifier')
+        return
     post_url = (
         frigate_url
         + "/api/events/"
-        + frigate_event
+        + quote(frigate_event, safe='')
         + "/sub_label"
     )
 
@@ -194,7 +206,7 @@ def set_sublabel(frigate_url, frigate_event, sublabel):
         )
 
     except requests.exceptions.RequestException as e:
-        logger.warning("Failed to set sublabel due to request error: %s", e)
+        logger.warning("Failed to set sublabel due to request error: %s", safe_exception_details(e))
         return
 
     if response.status_code == 200:
@@ -235,7 +247,7 @@ def on_message(client, userdata, message):
         AttributeError,
     ) as e:
 
-        logger.exception("ERROR in on_message: %s", e)
+        logger.error("ERROR in on_message: %s", safe_exception_details(e))
 
 
 def _on_message_inner(client, userdata, message):
@@ -267,19 +279,22 @@ def _on_message_inner(client, userdata, message):
             and after_data['label'] == 'bird'
         ):
 
-            frigate_event = after_data['id']
+            frigate_event = after_data.get('id')
+            if not is_valid_frigate_event(frigate_event):
+                logger.warning('Ignoring detection with invalid Frigate event identifier')
+                return
 
             frigate_url = config['frigate']['frigate_url']
 
             snapshot_url = (
                 frigate_url
                 + "/api/events/"
-                + frigate_event
+                + quote(frigate_event, safe='')
                 + "/snapshot.jpg"
             )
 
             logger.info("Getting image for event: %s", frigate_event)
-            logger.debug("Snapshot URL: %s", snapshot_url)
+            logger.debug("Frigate snapshot request prepared")
 
             params = {
                 "crop": 1,
@@ -298,7 +313,7 @@ def _on_message_inner(client, userdata, message):
 
             except requests.exceptions.RequestException as e:
 
-                logger.warning("Could not retrieve image due to request error: %s", e)
+                logger.warning("Could not retrieve image due to request error: %s", safe_exception_details(e))
 
                 return
 
@@ -754,8 +769,27 @@ def run_webui():
     configure_worker_signals()
     logger.info("Starting Flask app")
 
-    set_detection_worker_enabled(not preflight(config))
-    start_health_monitor()
+    import webui
+    activation_lock = threading.Lock()
+    activated = False
+
+    def activate():
+        nonlocal activated
+        with activation_lock:
+            if activated or admin_setup.is_pending(webui.config):
+                return
+            set_detection_worker_enabled(not preflight(webui.config))
+            start_health_monitor()
+            activated = True
+
+    webui.start_runtime_services = activate
+    if admin_setup.is_pending(config):
+        set_detection_worker_enabled(False)
+    else:
+        # Preserve the already-loaded native startup configuration.
+        set_detection_worker_enabled(not preflight(config))
+        start_health_monitor()
+        activated = True
 
     app.run(
         debug=False,
@@ -790,10 +824,7 @@ def run_mqtt_client():
     )
 
     logger.info("Classifier initialized in MQTT subprocess")
-    logger.info(
-        "Starting MQTT client. Connecting to: %s",
-        config['frigate']['mqtt_server'],
-    )
+    logger.info("Starting MQTT client")
 
     now = datetime.now()
 
@@ -863,25 +894,57 @@ def main():
 
     
 
-    log_system_event(
-        event_type="SYSTEM",
-        severity="INFO",
-        message=f"WAMF {VERSION} started"
-    )
-
-    ...
-
     logger.info("Time: %s", current_time)
     logger.info("Python version: %s", sys.version)
     logger.info("Version info: %s", sys.version_info)
 
     load_config()
 
+    pending_admin = admin_setup.is_pending(config)
+    if not pending_admin:
+        log_system_event(event_type="SYSTEM", severity="INFO", message=f"WAMF {VERSION} started")
     setup_issues = preflight(config)
     setupdb()
 
     with WorkerSupervisor(multiprocessing.Process) as workers:
-        if setup_issues:
+        if pending_admin:
+            logger.info('Administrator setup pending; operational workers are paused')
+            flask_process = workers.start(run_webui)
+            while not workers.stopping and flask_process.is_alive():
+                flask_process.join(timeout=0.5)
+                try:
+                    load_config()
+                except (OSError, ValueError, yaml.YAMLError) as error:
+                    logger.warning('Waiting for administrator configuration: %s', safe_exception_details(error))
+                    continue
+                if not admin_setup.is_pending(config):
+                    # Only a valid saved administrator credential authorizes
+                    # activation; a deleted/malformed marker is not completion.
+                    if not isinstance(config, dict) or not isinstance(config.get('admin'), dict):
+                        continue
+                    if not valid_credential_hash(config['admin'].get('password_hash')):
+                        continue
+                    setup_issues = preflight(config)
+                    log_system_event(event_type="SYSTEM", severity="INFO", message=f"WAMF {VERSION} started")
+                    break
+            if workers.stopping or not flask_process.is_alive():
+                return
+            if setup_issues:
+                # Frigate configuration still follows its existing Save &
+                # Restart workflow; administrator provisioning needs no restart.
+                while not workers.stopping and flask_process.is_alive():
+                    flask_process.join(timeout=0.5)
+                return
+            mqtt_process = workers.start(run_mqtt_client)
+            while not workers.stopping and flask_process.is_alive():
+                mqtt_process.join(timeout=0.5)
+                if workers.stopping or not flask_process.is_alive():
+                    break
+                if not mqtt_process.is_alive():
+                    workers.reap(mqtt_process)
+                    logger.warning("MQTT subprocess exited unexpectedly; restarting")
+                    mqtt_process = workers.start(run_mqtt_client)
+        elif setup_issues:
             logger.warning(
                 "WAMF setup/configuration required: %s. Starting web/admin UI on port %s; "
                 "MQTT/classification worker is disabled. Complete Configuration in the Admin UI "

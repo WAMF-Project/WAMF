@@ -4,6 +4,7 @@ import threading
 
 import requests
 
+from app.logging_utils import sanitize_log_value
 from app.queries import get_common_name, get_species_info, save_species_info
 from app.species_metadata import fetch_species_metadata
 from app.system_events import log_system_event
@@ -53,8 +54,8 @@ def _metadata_worker():
         except (requests.exceptions.RequestException, KeyError, ValueError) as exc:
             logger.warning(
                 "Metadata refresh failed for %s: %s",
-                scientific_name,
-                exc,
+                sanitize_log_value(scientific_name),
+                sanitize_log_value(exc),
             )
             log_system_event(
                 "WARN",

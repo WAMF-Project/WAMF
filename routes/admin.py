@@ -20,6 +20,18 @@ from app.process_control import INSTANCE_ID, schedule_restart
 admin_bp = Blueprint('admin', __name__)
 
 
+def _yaml_error_message(error):
+    """Expose parser coordinates without source names, excerpts or values."""
+    mark = getattr(error, 'problem_mark', None)
+    if mark is None:
+        mark = getattr(error, 'context_mark', None)
+    line = getattr(mark, 'line', None)
+    column = getattr(mark, 'column', None)
+    if type(line) is int and type(column) is int and line >= 0 and column >= 0:
+        return f"Invalid YAML configuration at line {line + 1}, column {column + 1}."
+    return "Invalid YAML configuration. Check the syntax and try again."
+
+
 @admin_bp.route('/admin')
 def admin_dashboard():
     import webui
@@ -207,7 +219,7 @@ def save_config():
     except yaml.YAMLError as e:
         return {
             "success": False,
-            "error": str(e)
+            "error": _yaml_error_message(e)
         }
 
 
@@ -227,8 +239,11 @@ def restart_wamf():
     )
     try:
         schedule_restart()
-    except RuntimeError as exc:
-        return {"success": False, "error": str(exc)}, 409
+    except RuntimeError:
+        return {
+            "success": False,
+            "error": "Unable to restart WAMF automatically. Restart WAMF manually.",
+        }, 409
 
     return {
         "success": True,
@@ -257,12 +272,15 @@ def save_and_restart_wamf():
             "success": True,
             "message": "Configuration saved. WAMF will restart shortly."
         }
-    except RuntimeError as exc:
-        return {"success": False, "error": str(exc)}, 409
+    except RuntimeError:
+        return {
+            "success": False,
+            "error": "Unable to restart WAMF automatically. Restart WAMF manually.",
+        }, 409
     except yaml.YAMLError as e:
         return {
             "success": False,
-            "error": str(e)
+            "error": _yaml_error_message(e)
         }
 
 

@@ -289,6 +289,7 @@ def test_browser_restart_waits_for_new_instance_without_reposting(scenario):
         pytest.skip('Node is needed to execute the browser restart regression')
     script = (Path(__file__).resolve().parent.parent / 'templates/admin_config.html').read_text().split('<script>')[1].split('</script>')[0]
     script = script.replace('{{ config_content|tojson }}', '"config"').replace('{{ csrf_token|tojson }}', '"csrf"').replace('{{ restart_instance_id|tojson }}', '"original"')
+    script = script.replace("{{ url_for('static', filename='vendor/monaco-editor/0.52.2/min/vs')|tojson }}", '"/static/vendor/monaco-editor/0.52.2/min/vs"')
     script = script.replace("          document\n              .getElementById('restart-btn')", "          globalThis.restartAction = postConfigAction;\n          document\n              .getElementById('restart-btn')")
     harness = r'''
 const fs = require('fs');
@@ -298,13 +299,13 @@ const scenario = process.argv[1];
 const elements = {};
 globalThis.document = {getElementById: id => elements[id] ||= {style: {}, addEventListener() {}}};
 let now = 0, posts = 0, polls = 0, reloads = 0, assigned = '';
-globalThis.window = {location: {reload() {reloads++;}, assign(url) {assigned = url;}}};
+globalThis.window = {location: {href: 'http://wamf.test/admin/config', reload() {reloads++;}, assign(url) {assigned = url;}}};
 Date.now = () => now;
 globalThis.setTimeout = (callback, delay) => { if (delay === 1000) {now += delay; queueMicrotask(callback);} return 1; };
 globalThis.clearTimeout = () => {};
 globalThis.monaco = {editor: {create: () => ({getValue: () => 'config'})}};
 const browserRequire = (deps, callback) => callback();
-browserRequire.config = () => {};
+browserRequire.config = options => assert.strictEqual(options.paths.vs, 'http://wamf.test/static/vendor/monaco-editor/0.52.2/min/vs');
 globalThis.require = browserRequire;
 globalThis.fetch = async (url, options) => {
   if (options.method === 'POST') {

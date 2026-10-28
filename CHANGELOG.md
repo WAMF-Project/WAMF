@@ -15,7 +15,43 @@ versioning for releases.
 
 ---
 
-## [0.4.1] - Pending release
+## [0.4.2] - Pending release
+
+Final planned v0.4 maintenance release.
+
+### Security
+
+- Prevent stored DOM XSS in detection cards and validate Frigate event identifiers
+  before ingestion, media requests and archiving.
+- Prevent forwarded-header login rate-limit bypasses and preserve limits across
+  concurrent attempts and overflow-bucket transitions.
+- Harden Frigate media proxying, login redirects, Wikipedia summary URLs and
+  YAML/exception/log diagnostics.
+- Serve Monaco Editor 0.52.2 locally with licence/provenance records; add SHA-384
+  integrity checks to the remaining external Bootstrap and jQuery assets.
+
+### Setup and interface
+
+- Replace first-run temporary-password output with a private, single-use setup
+  link that expires after 15 minutes. Preserve existing valid credentials.
+- Pause operational workers until administrator setup completes; use locked,
+  mode-0600 atomic configuration replacement.
+- Restore the mobile navigation hamburger and collapse controls.
+
+### Dependencies and operations
+
+- Update pytest to 9.0.3; retain the constrained Python 3.11 runtime and existing
+  Docker base, dependency checks and packaging-tool removal.
+- Carry forward the documented protobuf compatibility deferral and scoped F-006
+  packaging-tool/F-007 setup-token risk acceptances, including their conditions
+  and limitations. Final F-006/F-007 acceptance was recorded on 2026-10-27.
+- See [v0.4.2 release notes](docs/release-0.4.2.md) for upgrade guidance and
+  remaining release conditions. Current-tree Docker build/runtime verification
+  remains outstanding.
+
+---
+
+## [0.4.1] - 2026-10-26
 
 Security maintenance release for existing WAMF 0.4.0 installations.
 

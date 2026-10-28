@@ -4,6 +4,8 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 
+from app.logging_utils import sanitize_log_value
+
 
 public_bp = Blueprint('public', __name__)
 
@@ -76,8 +78,8 @@ def show_detections_by_scientific_name(scientific_name, date, end_date):
         1,
         type=int
     )
-    webui.logger.debug("scientific_name = [%s]", scientific_name)
-    webui.logger.debug("date = [%s]", date)
+    webui.logger.debug("scientific_name = [%s]", sanitize_log_value(scientific_name))
+    webui.logger.debug("date = [%s]", sanitize_log_value(date))
 
     if end_date is not None:
         return jsonify({"error": "Date range queries are not yet implemented."}), 501

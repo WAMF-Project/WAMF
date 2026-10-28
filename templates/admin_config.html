@@ -55,7 +55,8 @@ endblock %} {% block content %}
   <div id="editor"></div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/monaco-editor/0.52.2/min/vs/loader.js') }}"
+      integrity="sha384-pHG02SG8pId94Np3AbPmBEJ1yPqaH0IkJGLSNGXYmuGhkazT8Lr/57WYpbkGjJtu"></script>
 
 <script>
           let messageTimer;
@@ -96,7 +97,7 @@ endblock %} {% block content %}
 
           require.config({
               paths: {
-                  vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs'
+                  vs: new URL({{ url_for('static', filename='vendor/monaco-editor/0.52.2/min/vs')|tojson }}, window.location.href).href
               }
           });
 

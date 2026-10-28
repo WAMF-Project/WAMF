@@ -11,10 +11,22 @@ The example Compose file builds this checkout. `docker-compose.yml` uses its
 configured registry image; that image must include these packaging changes before
 it can provide the same behaviour.
 
-Open `http://<docker-host>:7767/login`. On first startup WAMF creates missing
-configuration and generates a session secret and temporary admin password using
-its existing bootstrap. The password is printed once to the container logs;
-sign in and change it. Valid existing credentials are preserved.
+On first startup WAMF creates missing configuration and prints a private
+`/setup#token=...` link once to the container logs. Open it within 15 minutes,
+choose a password, then use the normal login page. Operational workers remain
+paused until administrator setup succeeds. Valid existing credentials are preserved.
+Restarting before completion replaces the link; old links stop working.
+
+Set the optional `webui.public_base_url` to the external origin, such as
+`https://wamf.example`, to print a directly usable link. Otherwise replace the
+printed loopback host and port with the Docker host and published port. Remote
+password setup requires HTTPS or a trusted tunnel. Protect the startup log and
+disable proxy request-body logging for setup. The page requires JavaScript and
+does not put its token in HTTP request URLs or browser storage.
+
+Mount a writable configuration directory, as in the Compose examples. Read-only
+configuration and single-file config mounts cannot support atomic replacement;
+WAMF fails safely without falling back to an in-place write.
 
 Incomplete Frigate/MQTT settings start the Admin UI in setup mode without the
 detection worker. Use Configuration to enter the Frigate URL, MQTT host/topic,
@@ -55,27 +67,30 @@ UID, give that user write access to the three mounted directories first.
 
 ## Existing Docker installations
 
-### Upgrading v0.4.0 to v0.4.1
+<a id="upgrading-v040-to-v041"></a>
+
+### Upgrading v0.4.0 or v0.4.1 to v0.4.2
 
 Stop WAMF cleanly and back up the complete configuration, database and media
 directories together before upgrading. Keep the existing image available for
-rollback. Recreate the container with the v0.4.1 image and the same mounts,
+rollback. Recreate the container with the v0.4.2 image and the same mounts,
 configuration, port mapping and `WAMF_SECRET_KEY` environment value, if used.
 For a local checkout build, use the example Compose commands above. Registry
-tag `0.4.1` is usable only after the release has been published.
+tag `0.4.2` is usable only after the release has been published.
 
-No configuration, database or media migration is required for v0.4.0. Preserve
+No configuration, database or media migration is required for existing v0.4.0
+or v0.4.1 installations with valid credentials. Preserve
 any additional `/data` or `/media` compatibility mounts already in use. Existing
 credentials are verified without automatic rehashing, including supported legacy
 Werkzeug formats. Malformed or unsupported configured hashes stop startup with a
 configuration error and are never replaced automatically. Only a genuinely
-unconfigured installation receives first-run credentials.
+unconfigured installation receives the private first-run setup link.
 
 After upgrading, check login, API access, archived media, MQTT detection and
 restart persistence. To roll back, stop the candidate cleanly and recreate the
-v0.4.0 container using the same mounts and session-secret environment value.
+previous container using the same mounts and session-secret environment value.
 Avoid simultaneous writers to the database.
-See [v0.4.1 release notes](release-0.4.1.md) for validation and security limitations.
+See [v0.4.2 release notes](release-0.4.2.md) for validation and security limitations.
 
 ### Older path conventions
 
@@ -94,7 +109,9 @@ for that installation. A fresh installation needs only the supplied mounts.
 
 - Build succeeds and `docker compose -f docker-compose.yml.example ps` shows WAMF running.
 - Starting with an empty config directory creates the example and configuration,
-  prints a temporary password, and serves the setup/admin UI on port 7767.
+  prints a single-use setup link, and serves the setup page on port 7767.
+- Before password setup, operational workers remain paused; successful setup
+  starts them automatically when Frigate configuration is already complete.
 - Login, password changes, config saves/backups, and Admin Restart work.
 - After configuration, logs report `MQTT event subscription ready`; the first
   qualifying live bird event is classified and appears in the UI.
