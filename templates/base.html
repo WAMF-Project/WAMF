@@ -164,14 +164,17 @@
 
         const withEmbed = (href) => {
           try {
-            const parsed = new URL(href, window.location.origin);
-            if (parsed.origin !== window.location.origin) {
+            const parsed = new URL(href, document.baseURI);
+            if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+              return null;
+            }
+            if (href.startsWith("#") || parsed.origin !== window.location.origin) {
               return href;
             }
             parsed.searchParams.set("embed", "ha");
             return parsed.pathname + parsed.search + parsed.hash;
           } catch (_err) {
-            return href;
+            return null;
           }
         };
 
@@ -179,14 +182,16 @@
           document.body.classList.add("ha-embed");
           document.querySelectorAll("a[href]").forEach((anchor) => {
             const href = anchor.getAttribute("href");
-            if (
-              !href ||
-              href.startsWith("javascript:") ||
-              href.startsWith("#")
-            ) {
+            if (!href) {
               return;
             }
-            anchor.setAttribute("href", withEmbed(href));
+            const destination = withEmbed(href);
+            if (destination === null) {
+              // Leaving an unsafe href intact would still allow native navigation.
+              anchor.removeAttribute("href");
+              return;
+            }
+            anchor.setAttribute("href", destination);
           });
         });
       })();
