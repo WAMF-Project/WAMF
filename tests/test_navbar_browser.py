@@ -6,7 +6,6 @@ Set WAMF_CDN_ASSET_DIR to the public downloads used by test_cdn_integrity.py.
 import base64
 import hashlib
 import json
-import mimetypes
 import os
 import re
 import shutil
@@ -106,15 +105,26 @@ def test_chromium_navbar_visibility_and_collapse(navbar_page, tmp_path, width):
             path = urlsplit(self.path).path
             if path == '/':
                 body = document
+                content_type = 'text/html'
             elif path in assets:
                 body = assets[path]
+                content_type = 'text/css' if path.endswith('.css') else 'text/javascript'
             elif path.startswith('/static/') and '..' not in path.split('/'):
                 file = ROOT / path.lstrip('/')
                 body = file.read_bytes() if file.is_file() else b''
+                content_type = {
+                    '.css': 'text/css',
+                    '.js': 'text/javascript',
+                    '.svg': 'image/svg+xml',
+                    '.png': 'image/png',
+                    '.ico': 'image/vnd.microsoft.icon',
+                    '.webmanifest': 'application/manifest+json',
+                }.get(file.suffix, 'application/octet-stream')
             else:
                 body = b''
+                content_type = 'text/html'
             self.send_response(200)
-            self.send_header('Content-Type', mimetypes.guess_type(path)[0] or 'text/html')
+            self.send_header('Content-Type', content_type)
             self.end_headers()
             self.wfile.write(body)
 
