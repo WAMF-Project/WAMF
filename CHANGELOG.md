@@ -15,6 +15,33 @@ versioning for releases.
 
 ---
 
+## [0.4.3] - Pending release
+
+Security maintenance release for existing WAMF v0.4.x installations.
+
+### Security
+
+- Validate embedded-navigation URLs with the browser URL API and permit only
+  HTTP/HTTPS destinations. Remove unsafe or malformed link destinations while
+  preserving internal, fragment, external HTTP/HTTPS and Home Assistant navigation.
+
+### Testing and CI
+
+- Add security regression coverage for URL formats, daily-summary navigation,
+  login redirects and browser history, including Home Assistant embed parameters.
+- Install a pinned Chromium headless shell in CI and prefer it in the affected
+  browser tests, retaining security assertions and existing timeouts.
+- Replace regex-based HTML extraction with standard-library HTMLParser helpers
+  and case-variation tests, resolving the test-only CodeQL findings.
+
+### Compatibility
+
+- Retain Python 3.11 and all application dependency pins, configuration, database
+  and media formats. See [v0.4.3 release notes](docs/release-0.4.3.md) for upgrade
+  guidance, retained security risks and publication requirements.
+
+---
+
 ## [0.4.2] - Pending release
 
 Final planned v0.4 maintenance release.

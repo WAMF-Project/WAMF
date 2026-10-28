@@ -259,8 +259,8 @@ webui:
 
 # Docker Compose
 
-For v0.4.2 upgrade guidance and known security limitations, see the
-[security maintenance release notes](docs/release-0.4.2.md).
+For v0.4.3 upgrade guidance and known security limitations, see the
+[security maintenance release notes](docs/release-0.4.3.md).
 
 Build and run the current checkout:
 

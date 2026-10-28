@@ -67,6 +67,22 @@ UID, give that user write access to the three mounted directories first.
 
 ## Existing Docker installations
 
+### Upgrading v0.4.2 to v0.4.3
+
+Stop WAMF cleanly and back up configuration, database and media together. Retain
+the previous image for rollback, and preserve mounts, ports, credentials and
+the session-secret environment setting. No data-format migration is introduced.
+
+The example Compose file builds the current checkout as `wamf:0.4.3`. For a
+registry deployment, select `ghcr.io/wamf-project/wamf:0.4.3` only after that image
+has been published; `docker-compose.yml` still uses its existing `latest` tag.
+Release preparation alone does not publish or update either registry tag.
+
+After upgrading, verify internal links, date selection, browser back/forward,
+Home Assistant embed navigation, login, media access, MQTT detection and restart
+persistence. See [v0.4.3 release notes](release-0.4.3.md) for retained security
+risks and validation scope. Earlier upgrade instructions remain below.
+
 <a id="upgrading-v040-to-v041"></a>
 
 ### Upgrading v0.4.0 or v0.4.1 to v0.4.2

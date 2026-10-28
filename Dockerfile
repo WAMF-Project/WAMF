@@ -1,7 +1,7 @@
 # Retain Debian 13 and CPython 3.11; refresh this reviewed digest for security updates.
 FROM python:3.11.17-slim-trixie@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377
 
-LABEL org.opencontainers.image.version="0.4.2"
+LABEL org.opencontainers.image.version="0.4.3"
 
 WORKDIR /app
 
