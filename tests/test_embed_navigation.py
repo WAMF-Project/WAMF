@@ -1,7 +1,6 @@
 """Exercise the actual embed link rewriter, including native browser clicks."""
 
 import json
-import re
 import shutil
 import subprocess
 import threading
@@ -9,6 +8,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+
+from tests.html_helpers import NavigationHTML
 
 ROOT = Path(__file__).resolve().parents[1]
 REJECTED = [
@@ -47,8 +48,7 @@ PERMITTED = [
 
 @pytest.fixture
 def embed_script():
-    scripts = re.findall(r'<script>(.*?)</script>',
-                         (ROOT / 'templates/base.html').read_text(), re.S)
+    scripts = NavigationHTML((ROOT / 'templates/base.html').read_text()).scripts
     return next(script for script in scripts if 'const withEmbed' in script)
 
 
@@ -90,9 +90,9 @@ def test_chromium_native_clicks_and_fragment_history(embed_script, tmp_path):
     installed = sorted((Path.home() / '.cache/ms-playwright').glob(
         'chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell'
     ))
-    browser = shutil.which('chromium') or shutil.which('chromium-browser')
-    if browser is None and installed:
-        browser = str(installed[-1])
+    # Prefer the standalone shell for --dump-dom; desktop Chromium can hang on exit.
+    browser = (str(installed[-1]) if installed else
+               shutil.which('chromium') or shutil.which('chromium-browser'))
     if browser is None:
         pytest.skip('An installed Chromium is needed for native navigation regressions')
 
@@ -172,9 +172,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             f'http://127.0.0.1:{server.server_port}/nested/page?embed=ha',
         ], capture_output=True, text=True, timeout=20, check=False)
         assert result.returncode == 0, result.stderr
-        outcome = re.search(r'data-result="([^"]*)"', result.stdout)
+        outcome = NavigationHTML(result.stdout).body_attributes.get('data-result')
         assert outcome is not None, result.stderr
-        assert outcome.group(1) == 'passed', outcome.group(1)
+        assert outcome == 'passed', outcome
     finally:
         server.shutdown()
         server.server_close()

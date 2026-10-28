@@ -4,7 +4,6 @@ Use NODE_PATH when Playwright is installed outside the default Node search path.
 """
 
 import json
-import re
 import shutil
 import subprocess
 import threading
@@ -13,6 +12,8 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 import pytest
+
+from tests.html_helpers import NavigationHTML
 
 ROOT = Path(__file__).resolve().parents[1]
 VALID_DATES = ['2024-06-01', '2024-02-29', '2000-02-29']
@@ -31,7 +32,7 @@ PAYLOADS = [
 @pytest.fixture(params=['index.html', 'daily_summary.html'])
 def navigation_script(request):
     template = (ROOT / 'templates' / request.param).read_text()
-    return next(script for script in re.findall(r'<script>(.*?)</script>', template, re.S)
+    return next(script for script in NavigationHTML(template).scripts
                 if 'function navigateToDailySummary' in script)
 
 
@@ -132,8 +133,10 @@ def test_chromium_date_input_navigation_and_history(flask_client, initial, query
         response = flask_client.get(path + query)
         assert response.status_code == 200
         html = response.get_data(as_text=True)
-        picker = re.search(r'<input\b[^>]*id="date-picker"[^>]*/>', html).group()
-        script = next(script for script in re.findall(r'<script>(.*?)</script>', html, re.S)
+        parsed = NavigationHTML(html)
+        picker = parsed.date_picker
+        assert picker is not None
+        script = next(script for script in parsed.scripts
                       if 'function navigateToDailySummary' in script)
         pages[path] = f'<!doctype html><body>{picker}<script>{script}</script></body>'.encode()
 
