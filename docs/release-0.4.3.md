@@ -1,4 +1,4 @@
-# WAMF v0.4.3 security maintenance release (candidate)
+# WAMF v0.4.3 security maintenance release 
 
 Pending release review and publication. Prepared from PR #4's merge into main
 (`f397eea`). Retains Python 3.11, the CPU TFLite classifier, application dependency
