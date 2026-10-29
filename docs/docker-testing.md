@@ -1,15 +1,24 @@
 # Docker installation and testing
 
-Run these commands from a WAMF checkout on the Docker host:
+For a local source build, run these commands from a WAMF checkout on the Docker host:
 
 ```bash
 docker compose -f docker-compose.yml.example up -d --build
 docker compose -f docker-compose.yml.example logs -f
 ```
 
-The example Compose file builds this checkout. `docker-compose.yml` uses its
-configured registry image; that image must include these packaging changes before
-it can provide the same behaviour.
+The example Compose file builds this checkout. For a registry installation, set
+the `wamf` service's `image` in your deployment's `docker-compose.yml` to the
+published `ghcr.io/wamf-project/wamf:0.4.3` image. The supplied registry Compose
+file uses `latest`, which the release publishing workflow does not update.
+Existing installations must first follow the stop and backup steps in
+[Upgrading v0.4.2 to v0.4.3](#upgrading-v042-to-v043).
+
+```bash
+docker compose -f docker-compose.yml pull wamf
+docker compose -f docker-compose.yml up -d wamf
+docker compose -f docker-compose.yml logs -f wamf
+```
 
 On first startup WAMF creates missing configuration and prints a private
 `/setup#token=...` link once to the container logs. Open it within 15 minutes,
@@ -73,10 +82,19 @@ Stop WAMF cleanly and back up configuration, database and media together. Retain
 the previous image for rollback, and preserve mounts, ports, credentials and
 the session-secret environment setting. No data-format migration is introduced.
 
-The example Compose file builds the current checkout as `wamf:0.4.3`. For a
-registry deployment, select `ghcr.io/wamf-project/wamf:0.4.3` only after that image
-has been published; `docker-compose.yml` still uses its existing `latest` tag.
-Release preparation alone does not publish or update either registry tag.
+The example Compose file builds the current checkout as `wamf:0.4.3`. The
+registry image `ghcr.io/wamf-project/wamf:0.4.3` is published. After stopping and
+backing up the installation, set your registry deployment's `wamf` service image
+to that explicit version, then pull and recreate the service:
+
+```bash
+docker compose -f docker-compose.yml pull wamf
+docker compose -f docker-compose.yml up -d --force-recreate wamf
+```
+
+Use your existing deployment's Compose file and environment settings if they
+differ from these examples. The supplied `docker-compose.yml` uses `latest`;
+the release publishing workflow does not update that tag.
 
 After upgrading, verify internal links, date selection, browser back/forward,
 Home Assistant embed navigation, login, media access, MQTT detection and restart
@@ -85,14 +103,28 @@ risks and validation scope. Earlier upgrade instructions remain below.
 
 <a id="upgrading-v040-to-v041"></a>
 
+### Historical upgrade from v0.4.0 to v0.4.1
+
+For a deliberate v0.4.1 deployment, stop WAMF cleanly, back up configuration,
+database and media together, and retain the previous image for rollback. Use the
+v0.4.1 image or build from the immutable `v0.4.1` source tag, preserving mounts,
+ports, credentials and the session-secret environment setting. No data-format
+migration is required for the validated paths. Check login, API access, media,
+MQTT detection and restart persistence. See the
+[v0.4.1 credential compatibility and upgrade record](release-0.4.1.md#credential-compatibility-and-upgrade)
+for historical validation and recovery limitations. This section retains the
+original link anchor; v0.4.3 is the current stable release.
+
 ### Upgrading v0.4.0 or v0.4.1 to v0.4.2
 
 Stop WAMF cleanly and back up the complete configuration, database and media
 directories together before upgrading. Keep the existing image available for
 rollback. Recreate the container with the v0.4.2 image and the same mounts,
 configuration, port mapping and `WAMF_SECRET_KEY` environment value, if used.
-For a local checkout build, use the example Compose commands above. Registry
-tag `0.4.2` is usable only after the release has been published.
+For deliberate v0.4.2 recovery, use the published
+`ghcr.io/wamf-project/wamf:0.4.2` image or build from the immutable `v0.4.2` source
+tag using its Compose example. Building the current `main` checkout does not
+reproduce v0.4.2.
 
 No configuration, database or media migration is required for existing v0.4.0
 or v0.4.1 installations with valid credentials. Preserve
@@ -103,7 +135,7 @@ configuration error and are never replaced automatically. Only a genuinely
 unconfigured installation receives the private first-run setup link.
 
 After upgrading, check login, API access, archived media, MQTT detection and
-restart persistence. To roll back, stop the candidate cleanly and recreate the
+restart persistence. To roll back, stop the upgraded container cleanly and recreate the
 previous container using the same mounts and session-secret environment value.
 Avoid simultaneous writers to the database.
 See [v0.4.2 release notes](release-0.4.2.md) for validation and security limitations.

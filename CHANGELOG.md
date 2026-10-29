@@ -15,7 +15,7 @@ versioning for releases.
 
 ---
 
-## [0.4.3] - Pending release
+## [0.4.3] - 2026-10-28
 
 Security maintenance release for existing WAMF v0.4.x installations.
 
@@ -38,13 +38,14 @@ Security maintenance release for existing WAMF v0.4.x installations.
 
 - Retain Python 3.11 and all application dependency pins, configuration, database
   and media formats. See [v0.4.3 release notes](docs/release-0.4.3.md) for upgrade
-  guidance, retained security risks and publication requirements.
+  guidance, retained security risks and validation and publication details.
 
 ---
 
-## [0.4.2] - Pending release
+## [0.4.2] - 2026-10-27
 
-Final planned v0.4 maintenance release.
+Originally planned as the final v0.4 maintenance release; subsequently superseded
+by v0.4.3.
 
 ### Security
 
@@ -73,8 +74,8 @@ Final planned v0.4 maintenance release.
   packaging-tool/F-007 setup-token risk acceptances, including their conditions
   and limitations. Final F-006/F-007 acceptance was recorded on 2026-10-27.
 - See [v0.4.2 release notes](docs/release-0.4.2.md) for upgrade guidance and
-  remaining release conditions. Current-tree Docker build/runtime verification
-  remains outstanding.
+  historical release-preparation conditions. Docker build/runtime verification
+  was outstanding at the time of that preparation record.
 
 ---
 

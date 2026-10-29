@@ -1,7 +1,9 @@
 # WAMF v0.4.2 maintenance release
 
-Final planned v0.4 maintenance release, pending final release review and
-publication. Retains Python 3.11, the existing CPU TFLite classifier and AMD64
+Published as [v0.4.2](https://github.com/WAMF-Project/WAMF/releases/tag/v0.4.2)
+on 2026-10-27. Originally planned as the final v0.4 maintenance release;
+superseded by [v0.4.3](release-0.4.3.md) on 2026-10-28.
+Retains Python 3.11, the existing CPU TFLite classifier and AMD64
 deployment scope. No Kingfisher features or unrelated improvements are included.
 
 ## Security fixes
@@ -73,6 +75,10 @@ persistence after upgrading. See [Docker upgrade instructions](docker-testing.md
   [v0.4.1 security limitations](release-0.4.1.md#known-security-limitations).
 
 ## Validation and release conditions
+
+The following is the historical release-preparation record, retained to document
+its validation scope and the conditions outstanding at that time. It does not
+describe the current publication status or incorporate later v0.4.3 validation.
 
 The consolidated pre-metadata audit passed 1,344 full-suite tests and 1,220
 overlapping targeted security tests using `.venv311`, with no failures, skips or
