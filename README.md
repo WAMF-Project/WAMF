@@ -259,10 +259,25 @@ webui:
 
 # Docker Compose
 
+Latest stable: [v0.4.3](https://github.com/WAMF-Project/WAMF/releases/tag/v0.4.3),
+published 2026-10-28.
+
 For v0.4.3 upgrade guidance and known security limitations, see the
 [security maintenance release notes](docs/release-0.4.3.md).
 
-Build and run the current checkout:
+For a registry installation, set the `wamf` service's `image` in your deployment's
+`docker-compose.yml` to `ghcr.io/wamf-project/wamf:0.4.3`. The supplied file uses
+`latest`, which the release publishing workflow does not update. Existing
+installations should first follow the [stop and backup steps](docs/docker-testing.md#upgrading-v042-to-v043).
+Then pull and start the published image:
+
+```bash
+docker compose -f docker-compose.yml pull wamf
+docker compose -f docker-compose.yml up -d wamf
+docker compose -f docker-compose.yml logs -f wamf
+```
+
+Alternatively, build and run the current checkout:
 
 ```bash
 docker compose -f docker-compose.yml.example up -d --build

@@ -1,8 +1,10 @@
-# WAMF v0.4.3 security maintenance release 
+# WAMF v0.4.3 security maintenance release
 
-Pending release review and publication. Prepared from PR #4's merge into main
-(`f397eea`). Retains Python 3.11, the CPU TFLite classifier, application dependency
-pins and AMD64 deployment scope.
+[v0.4.3](https://github.com/WAMF-Project/WAMF/releases/tag/v0.4.3) was published
+on 2026-10-28 and is the latest stable release. The release tag points to
+`eb6d298357fd481f4c82257adc41c211d6e6fa1c`, incorporating the security fixes in
+PR #4 and release preparation in PR #5. Retains Python 3.11, the CPU TFLite
+classifier, application dependency pins and AMD64 deployment scope.
 
 ## Changes
 
@@ -26,9 +28,10 @@ previous image or checkout for rollback. Preserve existing mounts, ports,
 credentials and session secrets. No configuration, database or media migration
 is introduced. See [Docker upgrade guidance](docker-testing.md#upgrading-v042-to-v043).
 
-The local-build Compose example names `wamf:0.4.3`. The registry image
-`ghcr.io/wamf-project/wamf:0.4.3` is usable only after publication; the existing
-registry Compose file's `latest` tag is not a guarantee of this version.
+The local-build Compose example names `wamf:0.4.3`. The published registry image
+is `ghcr.io/wamf-project/wamf:0.4.3`. Select that explicit version in your
+deployment's Compose file. The supplied registry Compose file uses `latest`,
+which the release publishing workflow does not update.
 
 ## Retained security risks
 
@@ -49,15 +52,35 @@ release or its dependencies are vulnerability-free:
 
 ## Validation and publication
 
+### Release-preparation record
+
 Post-merge pytest and CodeQL checks passed for PR #4. Local release-preparation
 verification on 2026-10-28 passed all 1,860 tests with `.venv311` (Python 3.11),
 including browser tests using the existing Playwright and verified CDN assets;
-there were no skips. Version metadata agrees, dependency declarations are
-unchanged, and `git diff --check` passes. No v0.4.3 image build, runtime smoke
-test or image-security scan has been performed during this preparation.
+there were no skips. Version metadata agreed, dependency declarations were
+unchanged, and `git diff --check` passed. That preparation step did not build,
+smoke-test, scan or publish a v0.4.3 image.
 
-Review the retained risks and validate any release image before publication.
-The tag-triggered publishing workflow derives the version from the new tag;
-manual workflow dispatch remains intentionally pinned to the immutable v0.4.2
-source and must not be used to publish v0.4.3. No tag, release or image has been
-created or published by preparing these files.
+### Release validation and publication
+
+The [published release record](https://github.com/WAMF-Project/WAMF/releases/tag/v0.4.3)
+records a successful isolated Linux/AMD64 candidate build and smoke test:
+OCI labels, runtime, Admin UI and health API reported version `0.4.3`; the web
+interface and authenticated health endpoint returned HTTP 200, while
+unauthenticated health access returned HTTP 401. Database and archive storage
+health checks passed with no unexpected startup errors. The isolated smoke test
+did not exercise live Frigate or MQTT connectivity and did not establish a
+separate comprehensive image-security scan.
+
+All release PR and post-merge pytest and CodeQL checks passed. The
+[tag-triggered Docker publishing run](https://github.com/WAMF-Project/WAMF/actions/runs/40775804843)
+for source `eb6d298357fd481f4c82257adc41c211d6e6fa1c` successfully built the image,
+ran the configured Trivy scan and published the versioned image tags. The scan
+gate covered CRITICAL severity with `ignore-unfixed: true`; passing it does not
+establish that lower-severity or unfixed vulnerabilities are absent. Retained
+security risks above remain applicable.
+
+The tag and GitHub release are published as `v0.4.3`. The publishing workflow
+derives image versions from the release tag and does not update `latest`.
+Manual workflow dispatch remains intentionally pinned to the immutable v0.4.2
+source and must not be used to publish v0.4.3.
