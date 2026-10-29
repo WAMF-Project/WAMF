@@ -8,6 +8,7 @@ import pytest
 from app import health
 from app.mqtt_presentation import build_mqtt_presentation
 from app.mqtt_runtime import MqttRuntimeSnapshot
+from app.review_runtime import ReviewRuntimeSnapshot
 
 
 def config():
@@ -26,6 +27,40 @@ def connected(**changes):
         last_connected_at='2026-07-18T11:01:00+00:00',
         updated_at='2026-07-18T11:01:01+00:00',
     ), **changes)
+
+
+@pytest.mark.parametrize('api,observed,expected', [
+    ('unknown', None, 'Unknown'), ('unknown', '2026-07-18T11:00:00Z', 'Available'),
+    ('available', None, 'Available'), ('degraded', None, 'Degraded'),
+    ('unsupported', None, 'Unavailable'), ('unsupported', '2026-07-18T11:00:00Z', 'Degraded'),
+])
+def test_review_capability_distinguishes_silence_api_and_subscription(api, observed, expected):
+    view = build_mqtt_presentation(connected(
+        review_subscription_state='subscribed', last_review_message_at=observed,
+        reviews=ReviewRuntimeSnapshot(worker_state='running', api_state=api, unmatched_events=3),
+    ), config())
+    fields = dict(view['details'])
+    assert fields['Configured review topic'] == 'frigate/reviews'
+    assert fields['Review capability'] == expected
+    assert fields['Unmatched tracked events'] == 3
+    assert view['online'] is True
+
+
+def test_review_diagnostics_never_render_arbitrary_error_text():
+    view = build_mqtt_presentation(connected(
+        review_last_issue='PRIVATE-EXCEPTION',
+        reviews=ReviewRuntimeSnapshot(worker_state='running', error_code='PRIVATE-PAYLOAD'),
+    ), config())
+    assert 'PRIVATE' not in repr(view)
+
+
+def test_terminal_evidence_status_is_compact_and_safe():
+    fields = dict(build_mqtt_presentation(connected(reviews=ReviewRuntimeSnapshot(
+        worker_state='running', api_state='available', terminal_pending=3, terminal_retrying=1,
+        terminal_classified=4, terminal_rejected=2, terminal_failed=1,
+    )), config())['details'])
+    assert fields['Terminal classification pending / retrying'] == '3 / 1'
+    assert fields['Terminal classified / rejected / failed'] == '4 / 2 / 1'
 
 
 @pytest.mark.parametrize('connection,subscription,current,status,online', [

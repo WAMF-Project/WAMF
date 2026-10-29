@@ -1,10 +1,10 @@
 """Isolated browser QA app: temporary saved config/secrets/DB, no live services."""
 
 import os
-from pathlib import Path
 import sys
-from tempfile import TemporaryDirectory
 from dataclasses import replace
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 import yaml
@@ -35,13 +35,15 @@ def main():
         wamf_paths.REPO_ROOT = root  # Database artifacts must never use Bird-Lab storage.
         import webui
         webui.initialize_app()
-        from flask import session, request, g
+        from flask import g, request, session
+
         from app import health
-        from app.config_loader import load_runtime_config
-        from app.mqtt_runtime import MqttRuntimeSnapshot
         from app.classifier_runtime import ClassifierRuntimeSnapshot
+        from app.config_loader import load_runtime_config
         from app.model_install import install_result
         from app.mqtt_connection import MESSAGES, MqttProbeResult
+        from app.mqtt_runtime import MqttRuntimeSnapshot
+        from app.review_runtime import ReviewRuntimeSnapshot
         from routes import admin
         admin.install_model = lambda *args, **kwargs: install_result('connection_error')
 
@@ -50,7 +52,8 @@ def main():
             False, 'refused', MESSAGES['refused'], 0, '2026-10-18T12:00:00+00:00',
         )
         # Frigate diagnostics must also remain isolated if interception is missing.
-        from app.frigate_connection import FrigateProbeResult, MESSAGES as FRIGATE_MESSAGES
+        from app.frigate_connection import MESSAGES as FRIGATE_MESSAGES
+        from app.frigate_connection import FrigateProbeResult
         admin.probe_frigate_connection = lambda base_url: FrigateProbeResult(
             False, 'connection_error', FRIGATE_MESSAGES['connection_error'], 0,
             '2026-10-19T12:00:00+00:00',
@@ -86,6 +89,12 @@ def main():
             connection_state='connected', subscription_state='subscribed',
             worker_started_at='2026-10-18T11:00:00Z', last_connected_at='2026-10-18T11:01:00Z',
             last_event_message_at='2026-10-18T11:02:00Z', updated_at='2026-10-18T11:02:00Z',
+            review_subscription_state='subscribed', last_review_message_at='2026-10-18T11:02:00Z',
+            reviews=ReviewRuntimeSnapshot(worker_state='running', api_state='available',
+                                          active_reviews=2, closing_reviews=1, unmatched_events=3, backlog=4,
+                                          aggregation_ready=1, finalized_reviews=5, grouped_observations=7,
+                                          terminal_pending=3, terminal_retrying=1, terminal_classified=4,
+                                          terminal_rejected=2, terminal_failed=1),
             classifier=ClassifierRuntimeSnapshot(
                 state='ready', path=str(Path(__file__).resolve().parents[2] / 'model.tflite'),
                 sha256='95f59df4cff9053355abcd0b6e5e7e740f6eae19ed8cded32e2c3e8068195093',
@@ -94,15 +103,20 @@ def main():
         def read_runtime():
             mode = g.mqtt_fixture_state
             changes = {
-                'starting': dict(connection_state='starting', subscription_state='unknown'),
-                'subscribing': dict(connection_state='subscribing', subscription_state='pending'),
-                'reconnecting': dict(connection_state='reconnecting', subscription_state='unknown',
-                                     last_disconnected_at='2026-10-18T11:03:00Z',
-                                     last_disconnect_reason='unexpected_disconnect'),
-                'disconnected': dict(connection_state='disconnected', subscription_state='unknown'),
-                'failed': dict(connection_state='subscribing', subscription_state='failed'),
-                'stale': dict(connection_state='stopped', subscription_state='unknown', is_current=False),
-                'quiet': dict(last_event_message_at=None),
+                'starting': {'connection_state': 'starting', 'subscription_state': 'unknown'},
+                'subscribing': {'connection_state': 'subscribing', 'subscription_state': 'pending'},
+                'reconnecting': {'connection_state': 'reconnecting', 'subscription_state': 'unknown',
+                                     'last_disconnected_at': '2026-10-18T11:03:00Z',
+                                     'last_disconnect_reason': 'unexpected_disconnect'},
+                'disconnected': {'connection_state': 'disconnected', 'subscription_state': 'unknown'},
+                'failed': {'connection_state': 'subscribing', 'subscription_state': 'failed'},
+                'stale': {'connection_state': 'stopped', 'subscription_state': 'unknown', 'is_current': False},
+                'quiet': {'last_event_message_at': None},
+                'reviews-api-only': {'last_review_message_at': None},
+                'reviews-degraded': {'reviews': ReviewRuntimeSnapshot(
+                    worker_state='running', api_state='degraded', deferred_reviews=1, error_code='timeout')},
+                'reviews-unavailable': {'last_review_message_at': None, 'reviews': ReviewRuntimeSnapshot(
+                    worker_state='running', api_state='unsupported', error_code='unsupported')},
             }
             if mode == 'unknown':
                 return MqttRuntimeSnapshot()

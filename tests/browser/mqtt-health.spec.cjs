@@ -27,6 +27,7 @@ for (const [mode, label] of [
     await expect(field('Runtime status')).toHaveText(label);
     if (mode !== 'setup') await expect(field('Configured broker')).toHaveText('saved-broker:1883');
     await expect(field('Configured event topic')).toHaveText('frigate/events');
+    await expect(field('Configured review topic')).toHaveText('frigate/reviews');
     if (mode === 'quiet' || mode === 'unknown') {
       await expect(field('Last event message received')).toHaveText('No events received yet');
     } else {
@@ -43,5 +44,32 @@ for (const [mode, label] of [
     await summary.focus();
     await page.keyboard.press('Space');
     await expect(details).not.toHaveAttribute('open', '');
+  });
+}
+
+for (const [mode, capability] of [
+  ['reviews-api-only', 'Available'], ['reviews-degraded', 'Degraded'],
+  ['reviews-unavailable', 'Unavailable'],
+]) {
+  test(`review ingestion ${mode} diagnostics`, async ({ page }) => {
+    await page.setExtraHTTPHeaders({ 'X-WAMF-Test-MQTT-State': mode });
+    await openAdmin(page);
+    await expect(page.locator('#mqtt-runtime-tile')).toContainText('Connected');
+    const details = page.locator('.admin-mqtt-details');
+    await details.locator('summary').click();
+    const field = name => details.locator('dl > div').filter({ has: page.getByText(name, { exact: true }) }).locator('dd');
+    await expect(field('Review capability')).toHaveText(capability);
+    await expect(field('Review subscription')).toHaveText('subscribed');
+    if (mode === 'reviews-api-only') {
+      await expect(field('Last review message received')).toHaveText('No reviews received yet');
+      await expect(field('Active reviews')).toHaveText('2');
+      await expect(field('Unmatched tracked events')).toHaveText('3');
+      await expect(field('Terminal classification pending / retrying')).toHaveText('3 / 1');
+      await expect(field('Terminal classified / rejected / failed')).toHaveText('4 / 2 / 1');
+      await expect(field('Reviews ready / finalized / aggregation failures')).toHaveText('1 / 5 / 0');
+      await expect(field('Grouped species observations')).toHaveText('7');
+    }
+    expect(await page.content()).not.toContain('M2-SECRET-');
+    await noHorizontalOverflow(page);
   });
 }

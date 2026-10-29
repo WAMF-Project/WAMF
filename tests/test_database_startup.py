@@ -186,7 +186,7 @@ def test_consumers_remain_bound_when_saved_config_changes_or_disappears(tmp_path
     for target in (speciesid.DBPATH, webui.DBPATH, queries.DBPATH, health.DB_PATH, system_events.DB_PATH):
         assert target == path
         with db.connect_db(target) as conn:
-            assert conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0] == 6
+            assert conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0] == 7
     config_path.unlink()
     # These APIs previously resolved paths dynamically; production now pins them.
     assert queries.get_detection_count() == 0
@@ -232,7 +232,7 @@ def _web_worker_check(candidate, path, send):
             assert speciesid.DBPATH == path
             assert webui.DBPATH == queries.DBPATH == health.DB_PATH == system_events.DB_PATH == path
             with db.connect_db(queries.DBPATH) as conn:
-                assert conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0] == 6
+                assert conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0] == 7
             send.send('health')
         def serve(**kwargs):
             send.send('flask')
@@ -262,6 +262,7 @@ def _mqtt_worker_check(candidate, path, send):
         with patch('speciesid.ensure_schema', side_effect=AssertionError('child migration')), \
              patch('speciesid.load_runtime_config', side_effect=AssertionError('child reload')), \
              patch('speciesid.initialize_worker_classifier', side_effect=classifier), \
+             patch('app.frigate_client.FrigateClient._review_request', side_effect=RuntimeError('network disabled')), \
              patch('speciesid.mqtt.Client', return_value=client):
             speciesid.run_mqtt_client(None, candidate, path)
     finally:

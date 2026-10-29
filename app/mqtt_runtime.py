@@ -21,17 +21,19 @@ the native fork lifecycle: spawn would introduce a resource-tracker helper
 which survives until exec and can become an unreaped child after re-exec.
 """
 
+import uuid
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from multiprocessing import ProcessError
 from multiprocessing.managers import BaseManager
 from threading import Lock
-import uuid
 
 from app.classifier_runtime import ClassifierRuntimeSnapshot
+from app.review_runtime import ISSUE_CODES, ReviewRuntimeSnapshot
 
 
 def _now():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,11 @@ class MqttRuntimeSnapshot:
     updated_at: str | None = None
     is_current: bool = False
     classifier: ClassifierRuntimeSnapshot = field(default_factory=ClassifierRuntimeSnapshot)
+    review_subscription_state: str = 'unknown'
+    last_review_message_at: str | None = None
+    review_issue_count: int = 0
+    review_last_issue: str | None = None
+    reviews: ReviewRuntimeSnapshot = field(default_factory=ReviewRuntimeSnapshot)
 
     @property
     def is_operational(self):
@@ -103,6 +110,8 @@ class _RuntimeStore:
                     subscription_state="unknown", reason_code="worker_stopped",
                     is_current=False, updated_at=_now(),
                     classifier=ClassifierRuntimeSnapshot(state="stopped"),
+                    review_subscription_state='unknown',
+                    reviews=replace(self._snapshot.reviews, worker_state='stopped'),
                 )
 
     def record_classifier(self, generation, classifier):
@@ -110,6 +119,20 @@ class _RuntimeStore:
             if (self._snapshot.worker_generation == generation and self._snapshot.is_current
                     and isinstance(classifier, ClassifierRuntimeSnapshot)):
                 self._snapshot = replace(self._snapshot, classifier=classifier, updated_at=_now())
+
+    def record_reviews(self, generation, snapshot):
+        with self._lock:
+            if (self._snapshot.worker_generation == generation and self._snapshot.is_current
+                    and isinstance(snapshot, ReviewRuntimeSnapshot) and snapshot.valid()):
+                self._snapshot = replace(self._snapshot, reviews=snapshot, updated_at=_now())
+
+    def review_issue(self, generation, code):
+        with self._lock:
+            if (self._snapshot.worker_generation == generation and self._snapshot.is_current
+                    and code in ISSUE_CODES):
+                self._snapshot = replace(self._snapshot, review_last_issue=code,
+                                         review_issue_count=min(self._snapshot.review_issue_count + 1, 2147483647),
+                                         updated_at=_now())
 
     def record(self, generation, action, wire_code):
         with self._lock:
@@ -124,11 +147,13 @@ class _RuntimeStore:
                 changes.update(
                     connection_state="subscribing", subscription_state="pending",
                     last_connected_at=now, reason_code=None,
+                    review_subscription_state='pending',
                 )
             elif action == "connack_rejected":
                 changes.update(
                     connection_state="disconnected", subscription_state="unknown",
                     reason_code="auth_rejected" if wire_code in (134, 135) else "connection_rejected",
+                    review_subscription_state='unknown',
                 )
             elif action == "subscribed":
                 changes.update(
@@ -147,7 +172,14 @@ class _RuntimeStore:
                     subscription_state="unknown", last_disconnected_at=now,
                     last_disconnect_code=wire_code, last_disconnect_reason=reason,
                     reason_code=reason,
+                    review_subscription_state='unknown',
                 )
+            elif action == 'reviews_subscribed':
+                changes['review_subscription_state'] = 'subscribed'
+            elif action == 'reviews_subscription_failed':
+                changes['review_subscription_state'] = 'failed'
+            elif action == 'review_received':
+                changes['last_review_message_at'] = now
             elif action == "event_received":
                 changes["last_event_message_at"] = now
             else:
@@ -173,7 +205,7 @@ def get_mqtt_runtime_status(reader):
         return MqttRuntimeSnapshot()
     try:
         return reader._store.read()
-    except Exception:
+    except (EOFError, OSError, RuntimeError, AttributeError, TypeError, ValueError, ProcessError):
         return MqttRuntimeSnapshot(reason_code="diagnostics_unavailable")
 
 
@@ -185,14 +217,26 @@ class MqttRuntimeWriter(MqttRuntimeReader):
     def record(self, action, reason=None):
         try:
             self._store.record(self.generation, action, _wire_code(reason))
-        except Exception:
-            pass  # Observations must never change production processing.
+        except (EOFError, OSError, RuntimeError, AttributeError, TypeError, ValueError, ProcessError):
+            return  # Observations must never change production processing.
 
     def record_classifier(self, classifier):
         try:
             self._store.record_classifier(self.generation, classifier)
         except (EOFError, OSError, RuntimeError):
             return  # Diagnostic transport failure must not interrupt inference.
+
+    def record_reviews(self, snapshot):
+        try:
+            self._store.record_reviews(self.generation, snapshot)
+        except (EOFError, OSError, RuntimeError, AttributeError, TypeError, ValueError, ProcessError):
+            return
+
+    def review_issue(self, code):
+        try:
+            self._store.review_issue(self.generation, code)
+        except (EOFError, OSError, RuntimeError, AttributeError, TypeError, ValueError, ProcessError):
+            return
 
 
 class MqttRuntimeDiagnostics:
@@ -210,8 +254,8 @@ class MqttRuntimeDiagnostics:
     def stop_worker(self, writer):
         try:
             self._store.stop(writer.generation)
-        except Exception:
-            pass
+        except (EOFError, OSError, RuntimeError, AttributeError, TypeError, ValueError, ProcessError):
+            return
 
     def close(self):
         self._manager.shutdown()

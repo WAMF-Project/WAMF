@@ -139,7 +139,7 @@ def test_source_preflight_refusals(source, tmp_path, kind, code):
     elif kind == 'corrupt':
         source.write_bytes(b'not sqlite')
     elif kind == 'newer':
-        add_history(source, ['007_future'])
+        add_history(source, ['008_future'])
     elif kind == 'legacy':
         source.unlink()
         legacy_database(source)
@@ -479,7 +479,7 @@ def test_enumeration_preserves_rejected_schema_classification(source):
     from tests.test_database_backup import package as write_package
 
     manifest = manifest_for(source)
-    add_history(source, ['007_future'])
+    add_history(source, ['008_future'])
     payload = source.read_bytes()
     manifest = replace(manifest, database_size=len(payload),
                        database_sha256=hashlib.sha256(payload).hexdigest())

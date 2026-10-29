@@ -21,16 +21,16 @@ def test_restart_joins_all_workers_before_exec_and_stop_overrides_restart(ordina
     for i, child in enumerate(children):
         child.terminate.side_effect = lambda i=i: events.append(('terminate', i))
         child.join.side_effect = lambda i=i: events.append(('join', i))
-    with patch('app.process_control.reexec_application', side_effect=lambda: events.append(('exec',))) as reexec:
-        with WorkerSupervisor(MagicMock(side_effect=children)) as workers:
-            workers.start(lambda: None)
-            workers.start(lambda: None)
+    with (patch('app.process_control.reexec_application', side_effect=lambda: events.append(('exec',))) as reexec,
+          WorkerSupervisor(MagicMock(side_effect=children)) as workers):
+        workers.start(lambda: None)
+        workers.start(lambda: None)
+        workers._request_shutdown(signal.SIGUSR1, None)
+        workers._request_shutdown(signal.SIGUSR1, None)  # Duplicate is coalesced.
+        assert workers.start(lambda: None) is None
+        if ordinary_stop:
+            workers._request_shutdown(ordinary_stop, None)
             workers._request_shutdown(signal.SIGUSR1, None)
-            workers._request_shutdown(signal.SIGUSR1, None)  # Duplicate is coalesced.
-            assert workers.start(lambda: None) is None
-            if ordinary_stop:
-                workers._request_shutdown(ordinary_stop, None)
-                workers._request_shutdown(signal.SIGUSR1, None)
     expected = [('terminate', 0), ('terminate', 1), ('join', 0), ('join', 1)]
     if ordinary_stop is None:
         expected.append(('exec',))
@@ -56,10 +56,10 @@ def test_restart_reaps_scheduler_with_bounded_grace_before_reexec():
 
 @pytest.mark.parametrize('signum', [signal.SIGINT, signal.SIGTERM])
 def test_stop_can_cancel_restart_after_children_have_been_joined(signum):
-    with pytest.raises(SystemExit), patch('app.process_control.reexec_application') as reexec:
-        with WorkerSupervisor(MagicMock()) as workers:
-            workers._request_shutdown(signal.SIGUSR1, None)
-            reexec.side_effect = lambda: workers._request_shutdown(signum, None)
+    with (pytest.raises(SystemExit), patch('app.process_control.reexec_application') as reexec,
+          WorkerSupervisor(MagicMock()) as workers):
+        workers._request_shutdown(signal.SIGUSR1, None)
+        reexec.side_effect = lambda: workers._request_shutdown(signum, None)
 
 
 def test_reexec_preserves_python_flags_arguments_and_environment(monkeypatch):
@@ -177,6 +177,10 @@ class Client:
         record('worker', role='mqtt')
         while True: time.sleep(1)
 mqtt.Client = Client
+from app.frigate_client import FrigateClient, FrigateReviewError
+def no_review_network(*args, **kwargs):
+    raise FrigateReviewError('connection_error')
+FrigateClient._review_request = no_review_network
 from app import health
 health.start_health_monitor = lambda **kwargs: None
 health.frigate_health_cache.get = lambda *args, **kwargs: {'online': True, 'degraded': False}
@@ -366,5 +370,6 @@ vm.runInThisContext(fs.readFileSync(0, 'utf8'));
   }
 })().catch(error => {console.error(error); process.exitCode = 1;});
 '''
-    result = subprocess.run([node, '-e', harness, scenario], input=script, text=True, capture_output=True, timeout=10)
+    result = subprocess.run([node, '-e', harness, scenario], input=script, text=True, capture_output=True, timeout=10,
+                            check=False)
     assert result.returncode == 0, result.stderr

@@ -123,7 +123,7 @@ def test_validate_managed_package(current):
 def test_actual_database_is_authoritative(current, kind, compatibility, code):
     manifest = asdict(manifest_for(current))
     if kind == 'newer':
-        add_history(current, ['007_future_schema'])
+        add_history(current, ['008_future_schema'])
     elif kind == 'invalid':
         with sqlite3.connect(current) as conn:
             conn.execute("DELETE FROM schema_migrations WHERE version = '002_detection_media_columns'")

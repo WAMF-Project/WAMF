@@ -14,6 +14,14 @@ class ClassifierRuntimeSnapshot:
     loaded_at: str | None = None
 
 
+def terminal_model_identity(snapshot):
+    """Use the actually loaded model, never a newly saved Settings selection."""
+    if not isinstance(snapshot, ClassifierRuntimeSnapshot) or snapshot.state != 'ready' or not snapshot.sha256:
+        return None
+    label = f'{snapshot.model_id}@{snapshot.model_version}' if snapshot.model_id else 'custom'
+    return f'{label}:sha256:{snapshot.sha256}'
+
+
 def loaded_classifier(selection):
     """Called only after successful initialization, never from saved config."""
     from datetime import UTC, datetime

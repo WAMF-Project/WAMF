@@ -83,7 +83,7 @@ def test_fresh_replays_chain_with_exact_schema_and_constraints(tmp_path):
         assert conn.execute('PRAGMA journal_mode').fetchone() == ('delete',)
         assert conn.execute('SELECT COUNT(*) FROM retention_status').fetchone() == (0,)
         assert len(conn.execute('PRAGMA table_info(retention_status)').fetchall()) == 25
-        assert len(conn.execute("SELECT name FROM sqlite_schema WHERE type = 'index' AND sql IS NOT NULL").fetchall()) == 5
+        assert len(conn.execute("SELECT name FROM sqlite_schema WHERE type = 'index' AND sql IS NOT NULL").fetchall()) == 10
         for sql in (
             'INSERT INTO retention_status (id, record_version) VALUES (2, 1)',
             'INSERT INTO retention_status (id, record_version) VALUES (1, 2)',
@@ -95,7 +95,8 @@ def test_fresh_replays_chain_with_exact_schema_and_constraints(tmp_path):
                 conn.execute(sql)
 
 
-def test_current_kingfisher_preserves_every_application_row_and_sequence(tmp_path):
+def test_current_kingfisher_preserves_every_application_row_and_sequence(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, 'MIGRATIONS', db.MIGRATIONS[:6])
     path = tmp_path / 'current.db'
     current_prebaseline(path)
     before = snapshot(path)
@@ -121,11 +122,12 @@ def test_legacy_omissions_repaired_even_when_marked_and_history_preserved(tmp_pa
     if markers:
         add_history(path, markers)
     db.ensure_schema(path)
-    assert len(history(path)) == 6
+    assert len(history(path)) == 7
     assert all(history(path)[marker] == OLD_TIME for marker in markers)
     with sqlite3.connect(path) as conn:
         assert conn.execute('SELECT * FROM detections').fetchone() == (
-            41, '2025-01-01', 3, .9, 'bird', 'bird', 'event', 'camera', None, None)
+            41, '2025-01-01', 3, .9, 'bird', 'bird', 'event', 'camera', None, None,
+            None, None, None, None)
         assert conn.execute('SELECT * FROM species_info').fetchone() == (
             'bird', 'Bird', 'metadata', 'wiki', 'ebird', 'inat', 'gbif', 'then', None)
         assert conn.execute('SELECT * FROM system_events').fetchone() == (
@@ -158,15 +160,15 @@ def test_ordered_registry_and_pending_prefix(tmp_path, monkeypatch):
     # Registry order is explicit, independent of declaration/iteration order.
     monkeypatch.setattr(db, 'MIGRATIONS', tuple(reversed(wrapped)))
     db.ensure_schema(path)
-    assert calls == [1, 2, 3, 4, 5, 6]
+    assert calls == [1, 2, 3, 4, 5, 6, 7]
     calls.clear()
-    extra = db.Migration(7, '007_test_upgrade', lambda conn: (
-        calls.append(7), conn.execute("UPDATE system_events SET message = 'upgraded'")))
+    extra = db.Migration(8, '008_test_upgrade', lambda conn: (
+        calls.append(8), conn.execute("UPDATE system_events SET message = 'upgraded'")))
     monkeypatch.setattr(db, 'MIGRATIONS', tuple(wrapped) + (extra,))
     db.ensure_schema(path)
-    assert calls == [7]
+    assert calls == [8]
     db.ensure_schema(path)
-    assert calls == [7]
+    assert calls == [8]
 
 
 @pytest.mark.parametrize('fresh', [False, True])
@@ -189,7 +191,7 @@ def test_failure_rolls_back_entire_batch_including_ledger(tmp_path, monkeypatch,
 
 
 @pytest.mark.parametrize('version,error,match', [
-    ('007_future_schema', db.DatabaseNewerError, 'newer than this WAMF build'),
+    ('008_future_schema', db.DatabaseNewerError, 'newer than this WAMF build'),
     ('999_future_schema', db.DatabaseNewerError, 'newer than this WAMF build'),
     ('003_unknown_schema', db.SchemaMigrationError, 'Unknown'),
     ('bad', db.SchemaMigrationError, 'Malformed'),
@@ -414,28 +416,28 @@ def test_sequential_pending_upgrades_rollback_to_existing_baseline(tmp_path, mon
     before = snapshot(path)
     calls = []
     def seventh(conn):
-        calls.append(7)
+        calls.append(8)
         conn.execute("UPDATE system_events SET message = 'seventh'")
     def eighth(conn):
-        calls.append(8)
+        calls.append(9)
         assert conn.execute('SELECT message FROM system_events').fetchone() == ('seventh',)
         conn.execute("UPDATE species_info SET description = 'eighth'")
         raise RuntimeError('eighth failed')
     monkeypatch.setattr(db, 'MIGRATIONS', db.MIGRATIONS + (
-        db.Migration(7, '007_test_upgrade', seventh),
-        db.Migration(8, '008_test_upgrade', eighth),
+        db.Migration(8, '008_test_upgrade', seventh),
+        db.Migration(9, '009_test_upgrade', eighth),
     ))
     with pytest.raises(RuntimeError, match='eighth failed'):
         db.ensure_schema(path)
-    assert calls == [7, 8]
+    assert calls == [8, 9]
     assert snapshot(path) == before
     def successful_eighth(conn):
-        calls.append(8)
+        calls.append(9)
         conn.execute("UPDATE species_info SET description = 'eighth'")
-    monkeypatch.setattr(db, 'MIGRATIONS', db.MIGRATIONS[:7] + (
-        replace(db.MIGRATIONS[7], upgrade=successful_eighth),))
+    monkeypatch.setattr(db, 'MIGRATIONS', db.MIGRATIONS[:8] + (
+        replace(db.MIGRATIONS[8], upgrade=successful_eighth),))
     db.ensure_schema(path)
-    assert calls == [7, 8, 7, 8]
+    assert calls == [8, 9, 8, 9]
     with sqlite3.connect(path) as conn:
         assert conn.execute('SELECT message FROM system_events').fetchone() == ('seventh',)
         assert conn.execute('SELECT description FROM species_info').fetchone() == ('eighth',)

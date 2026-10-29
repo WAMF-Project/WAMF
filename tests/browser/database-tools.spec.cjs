@@ -48,7 +48,7 @@ test('backup catalog, validated download and corrupt artifact presentation', asy
   await page.getByRole('button', {name: 'Refresh backups'}).click();
   const panel = page.locator('#database-tools');
   await expect(panel).toContainText('Invalid: invalid_package');
-  await expect(panel).toContainText('006_versioned_schema_baseline');
+  await expect(panel).toContainText('007_review_grouping_model');
   const event = page.waitForEvent('download');
   await panel.locator(`a[href$="/${identifier}/download"]`).click();
   expect((await event).suggestedFilename()).toBe(identifier + '.zip');
@@ -143,7 +143,7 @@ with TemporaryDirectory() as directory:
     db.ensure_schema(path)
     manifest = manifest_for(path)
     with sqlite3.connect(path) as conn:
-        conn.execute("INSERT INTO schema_migrations(version) VALUES ('007_future')")
+        conn.execute("INSERT INTO schema_migrations(version) VALUES ('008_future')")
     payload = path.read_bytes()
     manifest = replace(manifest, database_size=len(payload), database_sha256=hashlib.sha256(payload).hexdigest())
     output = io.BytesIO()

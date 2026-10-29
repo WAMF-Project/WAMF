@@ -152,3 +152,82 @@ def archive_clip(
         logger.warning("Clip archive file error: %s", e)
 
         return None
+
+
+def archive_representative(client, event_id, stop):
+    """One bounded attempt per media type; only detection rows own these files.
+
+    Atomic replacement avoids leaving a partial playable archive on interruption.
+    A missing clip is optional, as in the legacy archive path.
+    """
+    from pathlib import Path
+
+    ensure_storage_paths()
+    paths = []
+    for root, suffix, media_name, limit in (
+        (get_snapshots_path(), '.jpg', 'snapshot.jpg', 4 * 1024 * 1024),
+        (get_clips_path(), '.mp4', 'clip.mp4', 64 * 1024 * 1024),
+    ):
+        destination = root / f'{event_id}{suffix}'
+        temporary = Path(str(destination) + '.pending')
+        try:
+            if stop.is_set():
+                paths.append(None)
+                continue
+            if destination.is_file():
+                paths.append(str(destination))
+                continue
+            response = client.stream_event_media(event_id, media_name, timeout=(2, 2))
+            try:
+                deadline, size = time.monotonic() + 5, 0
+                with temporary.open('wb') as stream:
+                    for chunk in response.iter_content(chunk_size=65536):
+                        size += len(chunk)
+                        if stop.is_set() or size > limit or time.monotonic() > deadline:
+                            raise OSError('Archive interrupted or exceeds bounds')
+                        stream.write(chunk)
+                if not size:
+                    raise OSError('Empty media')
+                temporary.replace(destination)
+                paths.append(str(destination))
+            finally:
+                response.close()
+        except (FrigateError, requests.exceptions.RequestException, OSError):
+            logger.warning('Representative media unavailable')
+            paths.append(None)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return tuple(paths)
+
+
+def cleanup_unreferenced_archive(stored):
+    """Caller checks DB references and holds media_activity_guard."""
+    from wamf_paths import delete_wamf_media_files
+
+    delete_wamf_media_files(stored, stored)
+
+
+def unreferenced_archive_paths(conn, candidates):
+    """Compare resolved paths too: historical references may be relative/absolute.
+
+    Stream current references once; memory is bounded by this review's candidates,
+    not the size of detection history. Caller holds the media guard.
+    """
+    from wamf_paths import contained_media_path
+
+    candidates = {stored for stored in candidates if stored}
+    by_path = {}
+    for stored in candidates:
+        for kind in ('snapshots', 'clips'):
+            path = contained_media_path(stored, kind)
+            if path is not None:
+                by_path.setdefault(path.resolve(), set()).add(stored)
+    protected = set()
+    for row in conn.execute('SELECT wamf_snapshot_path,wamf_clip_path FROM detections'):
+        for stored, kind in zip(row, ('snapshots', 'clips'), strict=True):
+            if not stored:
+                continue
+            path = contained_media_path(stored, kind)
+            if path is not None:
+                protected.update(by_path.get(path.resolve(), ()))
+    return candidates - protected

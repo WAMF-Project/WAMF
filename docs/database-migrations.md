@@ -5,6 +5,15 @@ ordered `MIGRATIONS` registry and records completion in `schema_migrations`.
 Database schema sequences are independent of the WAMF release, YAML config
 version, and retention status record version. `PRAGMA user_version` is unused.
 
+Latest schema: **007_review_grouping_model**. Version 006 remains an exact,
+supported upgrade source; its adoption definition is frozen. Inspection and the
+runner validate the schema belonging to the recorded sequence, including each
+post-baseline migration's target before recording completion. Partial 007
+structures are invalid, not repairable legacy schemas. See
+[Review grouping model](review-grouping-model.md) for the additive tables,
+relationships and repository contract. Backup/Restore uses this same versioned
+inspection boundary without its own schema rules.
+
 Each registry entry has a contiguous integer sequence, a stable
 `NNN_descriptive_name` ID, and an upgrade function accepting the runner's
 connection. Registry declaration order does not affect execution order.

@@ -157,7 +157,7 @@ def test_preview_compatibility_and_package_only_upload(admin_db, tmp_path, kind)
         db.ensure_schema(source)
     manifest = manifest_for(source)
     if kind == 'newer':
-        add_history(source, ['007_future'])
+        add_history(source, ['008_future'])
     payload = source.read_bytes() if kind != 'invalid' else b'not sqlite'
     import hashlib
     from dataclasses import replace

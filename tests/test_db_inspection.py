@@ -40,7 +40,7 @@ def create_foreign(path):
 
 def create_newer(path):
     create_current(path)
-    add_history(path, ['007_future_schema'])
+    add_history(path, ['008_future_schema'])
 
 
 def create_unknown(path):
@@ -77,8 +77,8 @@ def test_classifications_are_structured_and_leave_database_unchanged(
     assert result.automatic_upgrade_supported is automatic
     assert result.newer_than_build is (status is Compatibility.NEWER)
     assert result.path == path.resolve()
-    assert result.latest_sequence == 6
-    assert result.latest_migration_id == db.BASELINE_MIGRATION
+    assert result.latest_sequence == 7
+    assert result.latest_migration_id == db.MIGRATIONS[-1].migration_id
     assert result.integrity_checked
     assert (path.read_bytes(), snapshot(path), path.stat().st_mtime_ns) == before
     assert inspect_database(path, check_integrity=True) == result
@@ -88,8 +88,8 @@ def test_current_metadata_contains_complete_authoritative_history(tmp_path):
     path = tmp_path / 'current.db'
     create_current(path)
     result = inspect_database(path)
-    assert result.recognized_sequence == 6
-    assert result.recognized_migration_id == db.BASELINE_MIGRATION
+    assert result.recognized_sequence == 7
+    assert result.recognized_migration_id == db.MIGRATIONS[-1].migration_id
     assert result.migration_ids == tuple(migration.migration_id for migration in db.MIGRATIONS)
     assert all(isinstance(entry, MigrationHistoryEntry) and entry.applied_at for entry in result.history)
     assert not result.unversioned
@@ -153,15 +153,15 @@ def test_postbaseline_older_version_is_upgradeable(tmp_path, monkeypatch):
     def upgrade(conn):
         conn.execute("UPDATE system_events SET message = 'version7'")
     monkeypatch.setattr(db, 'MIGRATIONS', db.MIGRATIONS + (
-        db.Migration(7, '007_test_upgrade', upgrade),))
+        db.Migration(8, '008_test_upgrade', upgrade),))
     result = inspect_database(path)
     assert result.compatibility is Compatibility.UPGRADEABLE
-    assert result.recognized_sequence == 6
-    assert result.latest_sequence == 7
+    assert result.recognized_sequence == 7
+    assert result.latest_sequence == 8
     assert not result.legacy_recognized
     db.ensure_schema(path)
     assert inspect_database(path).compatibility is Compatibility.CURRENT
-    assert inspect_database(path).recognized_sequence == 7
+    assert inspect_database(path).recognized_sequence == 8
 
 
 @pytest.mark.parametrize('change,error', [
@@ -203,10 +203,10 @@ def test_future_history_is_exposed_without_claiming_recognized_version(tmp_path)
     create_newer(path)
     result = inspect_database(path)
     assert result.compatibility is Compatibility.NEWER
-    assert result.migration_ids[-1] == '007_future_schema'
+    assert result.migration_ids[-1] == '008_future_schema'
     assert result.recognized_sequence is None
     assert result.newer_than_build
-    assert result.latest_sequence == 6
+    assert result.latest_sequence == 7
 
 
 @pytest.mark.parametrize('contents', [b'not a SQLite database', b'SQLite format 3\x00' + b'broken' * 30])

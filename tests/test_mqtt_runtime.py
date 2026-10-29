@@ -1,18 +1,23 @@
 """Production diagnostics use real IPC, fake MQTT callbacks, and no broker."""
 
-from dataclasses import FrozenInstanceError, asdict
-from datetime import datetime, timezone
 import multiprocessing
 import signal
 import threading
+from dataclasses import FrozenInstanceError, asdict
+from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
+import paho.mqtt.client as paho_client
 import pytest
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.reasoncodes import ReasonCode
 
-from app.mqtt_runtime import MqttRuntimeDiagnostics, MqttRuntimeSnapshot, get_mqtt_runtime_status
+from app.mqtt_runtime import (
+    MqttRuntimeDiagnostics,
+    MqttRuntimeSnapshot,
+    get_mqtt_runtime_status,
+)
 from app.mqtt_settings import MqttSettings
 from app.process_control import WorkerSupervisor
 
@@ -30,6 +35,7 @@ def runtime():
 def consumer(runtime, monkeypatch):
     import speciesid
 
+    monkeypatch.setattr(speciesid, 'mqtt', paho_client)
     writer = runtime.begin_worker()
     writer.record('started')
     context = speciesid.MqttConsumerContext(
@@ -38,6 +44,11 @@ def consumer(runtime, monkeypatch):
     )
     client = MagicMock()
     client.subscribe.return_value = (0, 17)
+    client.subscribe.side_effect = lambda topic: (
+        client.subscribe.return_value[0],
+        (client.subscribe.return_value[1] or 0) + (100 if topic.endswith('/reviews') else 0),
+    )
+    monkeypatch.setattr(speciesid.mqtt, 'MQTT_ERR_SUCCESS', 0)
     monkeypatch.setattr(speciesid, 'log_system_event', MagicMock())
     return client, context
 
@@ -99,7 +110,7 @@ def test_connack_requires_matching_successful_suback(runtime, consumer):
     assert pending.subscription_state == 'pending'
     assert pending.last_connected_at is not None
     assert not pending.is_operational
-    client.subscribe.assert_called_once_with('custom/events')
+    assert client.subscribe.call_args_list == [call('custom/events'), call('custom/reviews')]
     subscribe(client, context, mid=99)
     assert get_mqtt_runtime_status(runtime.reader) == pending
     subscribe(client, context)
@@ -126,7 +137,7 @@ def test_immediate_subscribe_failure_is_observed_without_changing_behaviour(runt
     client.subscribe.return_value = (4, None)
     connect(client, context)
     assert get_mqtt_runtime_status(runtime.reader).subscription_state == 'failed'
-    client.subscribe.assert_called_once_with('custom/events')
+    assert client.subscribe.call_args_list == [call('custom/events'), call('custom/reviews')]
     client.reconnect.assert_not_called()
 
 
@@ -205,11 +216,11 @@ def test_receipt_precedes_filtering_decoding_and_processing(runtime, consumer, r
     speciesid.on_message(client, context, message)
     assert get_mqtt_runtime_status(runtime.reader).last_event_message_at is None
     message.topic = 'custom/events'
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     speciesid.on_message(client, context, message)
     state = get_mqtt_runtime_status(runtime.reader)
     assert datetime.fromisoformat(state.last_event_message_at) >= before
-    assert process.call_count == (0 if retained else 1)
+    assert process.call_count == 0  # Malformed input never reaches classification.
     assert 'PRIVATE' not in repr(state) + repr(asdict(state))
 
 
@@ -312,7 +323,7 @@ def test_abrupt_worker_exit_is_invalidated_by_supervisor(runtime, termination):
 
 
 def test_safe_reasons_and_secret_non_leakage(runtime, consumer, caplog):
-    client, context = consumer
+    _client, context = consumer
     context.runtime.record('PRIVATE-RAW-EXCEPTION', ValueError('PRIVATE-PASSWORD'))
     context.runtime.record('disconnect', SimpleNamespace(value='PRIVATE-PASSWORD'))
     state = get_mqtt_runtime_status(runtime.reader)
@@ -367,9 +378,8 @@ def test_classifier_failure_keeps_generation_start_visible_until_supervisor_with
     monkeypatch.setattr(speciesid, 'config', {'mqtt': {'host': 'broker'},
                                            'classification': {'model': 'missing.tflite'}})
     monkeypatch.setattr(speciesid, 'initialize_classifier', MagicMock(side_effect=ValueError('PRIVATE')))
-    with patch.object(speciesid.mqtt, 'Client') as factory:
-        with pytest.raises(ValueError):
-            speciesid.run_mqtt_client(writer)
+    with patch.object(speciesid.mqtt, 'Client') as factory, pytest.raises(ValueError):
+        speciesid.run_mqtt_client(writer)
     factory.assert_not_called()
     state = get_mqtt_runtime_status(runtime.reader)
     assert state.worker_started_at is not None
@@ -404,9 +414,41 @@ def test_worker_entry_wires_context_without_changing_client_setup(runtime, monke
         speciesid.run_mqtt_client(writer)
         assert factory.call_args.kwargs['callback_api_version'] is speciesid.mqtt.CallbackAPIVersion.VERSION2
         client.connect.assert_called_once_with('broker', 1883)
-        client.subscribe.assert_called_once_with('expected/events')
+        assert client.subscribe.call_args_list == [call('expected/events'), call('expected/reviews')]
         client.loop_forever.assert_called_once_with()
         assert get_mqtt_runtime_status(runtime.reader).is_operational
+
+
+def test_review_suback_is_independent_and_not_capability_evidence(runtime, consumer):
+    client, context = consumer
+    connect(client, context)
+    subscribe(client, context, mid=117)
+    state = get_mqtt_runtime_status(runtime.reader)
+    assert state.review_subscription_state == 'subscribed'
+    assert state.subscription_state == 'pending'
+    assert state.last_review_message_at is None
+    subscribe(client, context)
+    assert get_mqtt_runtime_status(runtime.reader).is_operational
+    subscribe(client, context, (128,), mid=117)
+    state = get_mqtt_runtime_status(runtime.reader)
+    assert state.review_subscription_state == 'failed'
+    assert state.is_operational  # Existing legacy event path remains operational.
+
+
+def test_review_snapshot_uses_generation_authority_and_safe_issues(runtime):
+    from app.review_runtime import ReviewRuntimeSnapshot
+
+    old = runtime.begin_worker()
+    old.record_reviews(ReviewRuntimeSnapshot(worker_state='running', api_state='available', active_reviews=2))
+    old.review_issue('membership_conflict')
+    assert get_mqtt_runtime_status(runtime.reader).reviews.active_reviews == 2
+    assert get_mqtt_runtime_status(runtime.reader).review_issue_count == 1
+    runtime.begin_worker()
+    old.record_reviews(ReviewRuntimeSnapshot(worker_state='failed'))
+    old.review_issue('PRIVATE-PAYLOAD')
+    state = get_mqtt_runtime_status(runtime.reader)
+    assert state.reviews.worker_state == 'unknown'
+    assert state.review_issue_count == 0
 
 
 def test_native_watchdog_withdraws_old_generation_before_starting_replacement(runtime, monkeypatch):
@@ -476,9 +518,9 @@ def test_start_failure_still_withdraws_generation_and_closes_resources(runtime):
     states = []
     def closed():
         states.append(get_mqtt_runtime_status(runtime.reader))
-    with pytest.raises(RuntimeError):
-        with WorkerSupervisor(MagicMock(return_value=child), on_workers_stopped=closed) as workers:
-            workers.start(lambda: None, on_exit=lambda: runtime.stop_worker(writer))
+    with (pytest.raises(RuntimeError),
+          WorkerSupervisor(MagicMock(return_value=child), on_workers_stopped=closed) as workers):
+        workers.start(lambda: None, on_exit=lambda: runtime.stop_worker(writer))
     assert states[0].connection_state == 'stopped'
     assert not states[0].is_current
     child.terminate.assert_not_called()

@@ -7,6 +7,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.database_lifecycle import database_consumer
+from app.review_schema import (
+    GROUPING_MIGRATION,
+    REVIEW_INDEX_SCHEMAS,
+    REVIEW_TABLE_SCHEMAS,
+    detection_schema_007,
+    upgrade_review_grouping,
+)
 from wamf_paths import get_database_path
 
 RETENTION_STATUS_MIGRATION = '005_retention_status_v2'
@@ -399,6 +406,7 @@ MIGRATIONS = (
     Migration(4, '004_system_events_timestamp_index', _timestamp_index),
     Migration(5, RETENTION_STATUS_MIGRATION, _migrate_retention_status),
     Migration(6, BASELINE_MIGRATION, _adopt_baseline),
+    Migration(7, GROUPING_MIGRATION, upgrade_review_grouping),
 )
 
 
@@ -475,7 +483,7 @@ def _schema_objects(conn):
     }
 
 
-def _validate_schema(conn, *, legacy):
+def _validate_schema(conn, *, legacy, sequence=6):
     """Accept only audited table definitions and known additive omissions.
 
     Pre-baseline installs may contain any nonempty subset of recognized WAMF
@@ -486,11 +494,16 @@ def _validate_schema(conn, *, legacy):
     """
     objects = _schema_objects(conn)
     expected_tables = dict(TABLE_SCHEMAS, retention_status=RETENTION_STATUS_SCHEMA)
+    expected_indexes = dict(INDEX_SCHEMAS)
+    if not legacy and sequence >= 7:
+        expected_tables.update(REVIEW_TABLE_SCHEMAS)
+        expected_tables['detections'] = detection_schema_007(TABLE_SCHEMAS['detections'])
+        expected_indexes.update(REVIEW_INDEX_SCHEMAS)
     if legacy:
         application_tables = set(expected_tables) - {'schema_migrations'}
         if objects and not application_tables.intersection(objects):
             raise SchemaMigrationError('Nonempty database is not a recognized WAMF schema')
-    elif set(objects) != set(expected_tables) | set(INDEX_SCHEMAS):
+    elif set(objects) != set(expected_tables) | set(expected_indexes):
         raise SchemaMigrationError('Database schema does not match the current WAMF baseline')
 
     for name, (kind, table, sql) in objects.items():
@@ -505,8 +518,8 @@ def _validate_schema(conn, *, legacy):
                 for missing in (('wamf_snapshot_path',), ('wamf_clip_path',),
                                 ('wamf_snapshot_path', 'wamf_clip_path')):
                     variants.append(_without_columns(TABLE_SCHEMAS[name], missing))
-        elif name in INDEX_SCHEMAS and kind == 'index':
-            variants = [INDEX_SCHEMAS[name]]
+        elif name in expected_indexes and kind == 'index':
+            variants = [expected_indexes[name]]
         if sql is None or _normalized_sql(sql) not in {
             _normalized_sql(variant) for variant in variants
         }:
@@ -572,19 +585,21 @@ def ensure_schema(db_path=None):
         conn.execute('BEGIN IMMEDIATE')
         history = _read_history(conn, migrations)
         legacy = BASELINE_MIGRATION not in history
-        _validate_schema(conn, legacy=legacy)
+        _validate_schema(conn, legacy=legacy, sequence=len(history))
         conn.execute(TABLE_SCHEMAS['schema_migrations'])
         for migration in migrations:
             if migration.migration_id in history and not legacy:
                 continue
             logger.info('Checking database migration %s', migration.migration_id)
             migration.upgrade(conn)
+            if migration.sequence >= 6:
+                _validate_schema(conn, legacy=False, sequence=migration.sequence)
             if migration.migration_id not in history:
                 conn.execute(
                     'INSERT INTO schema_migrations (version) VALUES (?)',
                     (migration.migration_id,),
                 )
-        _validate_schema(conn, legacy=False)
+        _validate_schema(conn, legacy=False, sequence=migrations[-1].sequence)
         _read_history(conn, migrations)
         conn.commit()
         logger.info('Database schema ready: %s', migrations[-1].migration_id)

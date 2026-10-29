@@ -76,8 +76,8 @@ def test_current_managed_preview_and_confirmation(backup, target, monkeypatch):
     plan = result.plan
     assert plan.compatibility is DatabaseCompatibility.CURRENT
     assert not plan.migration_required and not plan.automatic_upgrade_supported
-    assert plan.detected_sequence == plan.latest_sequence == 6
-    assert plan.detected_migration_id == plan.latest_migration_id == db.BASELINE_MIGRATION
+    assert plan.detected_sequence == plan.latest_sequence == 7
+    assert plan.detected_migration_id == plan.latest_migration_id == db.MIGRATIONS[-1].migration_id
     assert plan.source_backup_id == backup.backup_id
     assert plan.source_package_sha256 == hashlib.sha256(before[0]).hexdigest()
     assert plan.media_warning == restore.MEDIA_WARNING
@@ -120,7 +120,7 @@ def test_rejected_database_never_has_plan(tmp_path, target, kind, expected):
     db.ensure_schema(source)
     manifest = manifest_for(source)
     if kind == 'newer':
-        add_history(source, ['007_future'])
+        add_history(source, ['008_future'])
     elif kind == 'invalid':
         with sqlite3.connect(source) as conn:
             conn.execute('DROP TABLE species_info')
@@ -464,7 +464,7 @@ def test_plan_build_changes_invalidate_confirmation(backup, target, monkeypatch)
     original = restore._make_plan
 
     def changed(*args):
-        return replace(original(*args), latest_sequence=7, latest_migration_id='007_future')
+        return replace(original(*args), latest_sequence=8, latest_migration_id='008_future')
 
     monkeypatch.setattr(restore, '_make_plan', changed)
     checked = restore.revalidate_restore_plan(result.operation_id)

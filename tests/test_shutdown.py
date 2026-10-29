@@ -36,10 +36,10 @@ def test_startup_failure_cleans_up_already_started_children():
     running = MagicMock(pid=101)
     failed = MagicMock(pid=None)
     failed.start.side_effect = RuntimeError('failed to start')
-    with pytest.raises(RuntimeError, match='failed to start'):
-        with WorkerSupervisor(MagicMock(side_effect=[running, failed])) as workers:
-            workers.start(lambda: None)
-            workers.start(lambda: None)
+    with (pytest.raises(RuntimeError, match='failed to start'),
+          WorkerSupervisor(MagicMock(side_effect=[running, failed])) as workers):
+        workers.start(lambda: None)
+        workers.start(lambda: None)
     running.terminate.assert_called_once()
     running.join.assert_called_once()
     failed.terminate.assert_not_called()
@@ -102,7 +102,7 @@ def test_watchdog_does_not_respawn_when_shutdown_requested_during_wait(monkeypat
     flask.terminate.assert_called_once()
     flask.join.assert_called_once()
     # The already-exited MQTT child is also reaped during cleanup.
-    assert mqtt.join.call_args.kwargs == {}
+    assert mqtt.join.call_args.kwargs == {'timeout': 10}
 
 
 # Execute the actual native entry point and actual worker entry functions. Only
@@ -123,7 +123,8 @@ for name in ('PIL', 'PIL.Image', 'PIL.ImageOps'):
 
 def worker(role):
     assert signal.getsignal(signal.SIGINT) == signal.SIG_IGN
-    assert signal.getsignal(signal.SIGTERM) == signal.SIG_DFL
+    assert (callable(signal.getsignal(signal.SIGTERM)) if role == 'mqtt'
+            else signal.getsignal(signal.SIGTERM) == signal.SIG_DFL)
     record = json.dumps({'role': role, 'pid': os.getpid(), 'ppid': os.getppid()}) + '\n'
     fd = os.open(os.environ['WORKER_PIDS'], os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
     os.write(fd, record.encode())
@@ -152,6 +153,10 @@ class Client:
     def loop_forever(self):
         worker('mqtt')
 mqtt.Client = Client
+from app.frigate_client import FrigateClient, FrigateReviewError
+def no_review_network(*args, **kwargs):
+    raise FrigateReviewError('connection_error')
+FrigateClient._review_request = no_review_network
 from app import health
 health.start_health_monitor = lambda **kwargs: None
 runpy.run_path('speciesid.py', run_name='__main__')

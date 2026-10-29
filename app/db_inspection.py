@@ -118,7 +118,7 @@ def _inspect_connection(conn, result, migrations, check_integrity):
         return replace(result, error_category=InspectionError.NOT_WAMF)
     legacy = BASELINE_MIGRATION not in validated
     try:
-        _validate_schema(conn, legacy=legacy)
+        _validate_schema(conn, legacy=legacy, sequence=len(validated))
     except SchemaMigrationError:
         return replace(result, compatibility=DatabaseCompatibility.INVALID,
                        error_category=InspectionError.INVALID_SCHEMA)

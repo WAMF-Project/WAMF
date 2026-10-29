@@ -1,17 +1,18 @@
 """Safe, read-only presentation of the production MQTT consumer snapshot."""
 
-from datetime import datetime, timezone
 import re
+from datetime import UTC, datetime
 
 from app.config_normalization import normalize_config
 from app.config_validation import validate_config
 from app.mqtt_runtime import MqttRuntimeSnapshot
 from app.mqtt_settings import mqtt_settings_from_config
 from app.retention_schedule import parse_retention_schedule
+from app.review_runtime import ISSUE_CODES, ReviewRuntimeSnapshot
 
 
 def build_mqtt_presentation(snapshot, config):
-    zone = timezone.utc
+    zone = UTC
     timezone_note = 'Times shown in UTC (fallback)'
     try:
         schedule = parse_retention_schedule(config)
@@ -26,7 +27,7 @@ def build_mqtt_presentation(snapshot, config):
         if not isinstance(value, str):
             return 'Unknown'
         try:
-            parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            parsed = datetime.fromisoformat(value)
             if parsed.tzinfo is None:
                 return 'Unknown'
             return parsed.astimezone(zone).strftime('%d %b %Y · %H:%M %Z')
@@ -59,7 +60,7 @@ def build_mqtt_presentation(snapshot, config):
                 ready = False
             if safe_value(settings.topic_prefix):
                 topic = f'{settings.topic_prefix}/events'
-        except Exception:
+        except (AttributeError, TypeError, ValueError, OSError):
             ready = False
 
     valid = (
@@ -109,5 +110,37 @@ def build_mqtt_presentation(snapshot, config):
         ('Last event message received', timestamp(state.last_event_message_at, 'No events received yet')),
         ('Runtime freshness', freshness), ('Last runtime update', timestamp(state.updated_at)),
     ]
+    reviews = state.reviews
+    if not isinstance(reviews, ReviewRuntimeSnapshot) or not reviews.valid():
+        reviews = ReviewRuntimeSnapshot()
+    capability = 'Unknown'
+    if state.is_current and reviews.worker_state == 'running':
+        if reviews.api_state == 'unsupported' and not state.last_review_message_at:
+            capability = 'Unavailable'
+        elif reviews.api_state in ('degraded', 'unsupported') or reviews.deferred_reviews:
+            capability = 'Degraded'
+        elif reviews.api_state == 'available' or state.last_review_message_at:
+            capability = 'Available'
+        if state.review_subscription_state == 'failed' and capability == 'Available':
+            capability = 'Degraded'
+    issue = reviews.error_code or state.review_last_issue
+    details.extend([
+        ('Configured review topic', topic[:-len('/events')] + '/reviews' if topic.endswith('/events') else 'Unavailable'),
+        ('Review subscription', state.review_subscription_state
+         if state.review_subscription_state in ('unknown', 'pending', 'subscribed', 'failed') else 'unknown'),
+        ('Last review message received', timestamp(state.last_review_message_at, 'No reviews received yet')),
+        ('Review capability', capability), ('Review API', reviews.api_state),
+        ('Review reconciliation worker', reviews.worker_state),
+        ('Active reviews', reviews.active_reviews), ('Closing reviews', reviews.closing_reviews),
+        ('Deferred / incomplete reviews', reviews.deferred_reviews),
+        ('Unmatched tracked events', reviews.unmatched_events), ('Review reconciliation backlog', reviews.backlog),
+        ('Terminal classification pending / retrying', f'{reviews.terminal_pending} / {reviews.terminal_retrying}'),
+        ('Reviews ready / finalized / aggregation failures',
+         f'{reviews.aggregation_ready} / {reviews.finalized_reviews} / {reviews.aggregation_failed}'),
+        ('Grouped species observations', str(reviews.grouped_observations)),
+        ('Terminal classified / rejected / failed',
+         f'{reviews.terminal_classified} / {reviews.terminal_rejected} / {reviews.terminal_failed}'),
+        ('Review diagnostic', issue.replace('_', ' ') if isinstance(issue, str) and issue in ISSUE_CODES else 'None'),
+    ])
     return {'status': status, 'tone': tone, 'online': online, 'details': details,
             'timezone_note': timezone_note}

@@ -495,10 +495,10 @@ def test_completed_restore_does_not_block_future_schema_migrations(prepared, mon
     target, _, _ = prepared
     assert apply(prepared).success
     finish_startup(target)
-    next_migration = db.Migration(7, '007_future', lambda conn: None)
+    next_migration = db.Migration(8, '008_future', lambda conn: None)
     monkeypatch.setattr(db, 'MIGRATIONS', db.MIGRATIONS + (next_migration,))
     finish_startup(target)
-    assert inspect_database(target).recognized_sequence == 7
+    assert inspect_database(target).recognized_sequence == 8
 
 
 def test_standalone_flask_holds_a_lifetime_consumer_lease(prepared, tmp_path):

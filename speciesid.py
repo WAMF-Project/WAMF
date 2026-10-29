@@ -7,11 +7,13 @@ if __name__ == "__main__":
 import json
 import logging
 import multiprocessing
+import signal
 import sqlite3
 import sys
+import threading
 import time
+from contextlib import ExitStack, closing, nullcontext
 from dataclasses import dataclass, field
-from contextlib import ExitStack
 from datetime import datetime
 from functools import partial
 from io import BytesIO
@@ -21,22 +23,31 @@ import paho.mqtt.client as mqtt
 from ai_edge_litert.interpreter import Interpreter
 from PIL import Image
 
-from app.archive_media import archive_clip, archive_snapshot
-from app.config_editor import get_config_path
+from app.archive_media import (
+    archive_clip,
+    archive_representative,
+    archive_snapshot,
+    cleanup_unreferenced_archive,
+)
+from app.classifier_model import (
+    LEGACY_BACKGROUND_INDEX,
+    ModelValidationError,
+    prepare_classifier,
+)
+from app.classifier_runtime import terminal_model_identity
 from app.config_loader import load_runtime_config
 from app.config_normalization import normalize_config
-from app.classifier_model import LEGACY_BACKGROUND_INDEX, ModelValidationError, prepare_classifier
-from app.model_registry import resolve_classifier_model
-from app.model_validation import validate_model_artifact
-from app.db import DatabaseNewerError, SchemaMigrationError, connect_db, ensure_schema
 from app.database_lifecycle import maintenance_access
 from app.database_restore_application import database_startup
+from app.db import DatabaseNewerError, SchemaMigrationError, connect_db, ensure_schema
 from app.frigate_client import FrigateClient, FrigateError
 from app.health import set_detection_worker_enabled, start_health_monitor
 from app.media_coordination import media_activity_guard
-from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
+from app.model_registry import resolve_classifier_model
+from app.model_validation import validate_model_artifact
 from app.mqtt_connection import configure_mqtt_client
 from app.mqtt_runtime import MqttRuntimeDiagnostics, get_mqtt_runtime_status
+from app.mqtt_settings import MqttSettings, mqtt_settings_from_config
 from app.process_control import WorkerSupervisor, configure_worker_signals
 from app.queries import get_common_name, get_scientific_name
 from app.retention_schedule import parse_retention_schedule
@@ -47,7 +58,16 @@ from app.retention_scheduler import (
     build_scheduler_config_snapshot,
     run_scheduler_child,
 )
+from app.review_aggregation import ReviewAggregator
+from app.review_ingestion import (
+    ReviewInputError,
+    decode_payload,
+    ingest_event,
+    ingest_review,
+)
+from app.review_reconciliation import ReviewReconciler
 from app.system_events import log_system_event
+from app.terminal_classification import TerminalClassifier
 from integrations.bridge import post_observation_event
 from version import VERSION
 from wamf_paths import ensure_storage_paths, get_database_path, get_models_path
@@ -67,6 +87,7 @@ logger = logging.getLogger(__name__)
 DBPATH = None
 CLASSIFIER_MAX_RESULTS = 5
 CLASSIFIER_SCORE_THRESHOLD = 0.05
+CLASSIFIER_LOCK = threading.Lock()
 SCHEDULER_RESTART_INITIAL_SECONDS = 5.0
 SCHEDULER_RESTART_MAX_SECONDS = 60.0
 SCHEDULER_RESTART_STABLE_SECONDS = 300.0
@@ -97,17 +118,31 @@ class MqttConsumerContext:
     settings: MqttSettings = field(repr=False)
     runtime: object = field(repr=False)
     subscription_mid: int | None = None
+    review_subscription_mid: int | None = None
+    reconciler: object = field(default=None, repr=False)
 
 
 def _record_mqtt_runtime(userdata, action, reason=None):
-    if isinstance(userdata, MqttConsumerContext):
+    if isinstance(userdata, MqttConsumerContext) and userdata.runtime is not None:
         userdata.runtime.record(action, reason)
+
+
+def _review_issue(userdata, code):
+    if isinstance(userdata, MqttConsumerContext) and userdata.runtime is not None:
+        userdata.runtime.review_issue(code)
+    logger.warning('Review ingestion diagnostic: %s', code)
+
+
+def _wake_reviews(userdata):
+    if isinstance(userdata, MqttConsumerContext) and userdata.reconciler is not None:
+        userdata.reconciler.wake()
 
 
 def _start_mqtt_worker(workers, runtime):
     writer = runtime.begin_worker()
     process = workers.start(
         run_mqtt_client, args=(writer, config, DBPATH),
+        shutdown_grace_seconds=10,
         on_exit=lambda: runtime.stop_worker(writer),
     )
     if process is None:
@@ -171,6 +206,12 @@ def configure_logging():
 
 
 def classify(image):
+    # Legacy MQTT and terminal review work share this one loaded interpreter.
+    with CLASSIFIER_LOCK:
+        return _classify_locked(image)
+
+
+def _classify_locked(image):
     expected_shape = tuple(int(size) for size in classifier_input['shape'][1:])
     image = np.asarray(image, dtype=np.uint8)
     if image.shape != expected_shape:
@@ -201,6 +242,15 @@ def classify(image):
     ][:CLASSIFIER_MAX_RESULTS]
 
 
+def classify_snapshot(snapshot):
+    """Shared crop preprocessing; inference still uses the worker's model."""
+    image = Image.open(BytesIO(snapshot)).convert('RGB')
+    image = image.resize((224, 224))
+    np_arr = np.ascontiguousarray(np.array(image, dtype=np.uint8))
+    logger.debug('Image shape: %s dtype: %s', np_arr.shape, np_arr.dtype)
+    return classify(np_arr)
+
+
 def initialize_classifier(model_path, *, artifact=None, allowed_root=None):
     global classifier
     global classifier_input
@@ -226,6 +276,7 @@ def initialize_classifier(model_path, *, artifact=None, allowed_root=None):
 def on_connect(client, userdata, flags, reason_code, properties):
     if isinstance(userdata, MqttConsumerContext):
         userdata.subscription_mid = None
+        userdata.review_subscription_mid = None
     if reason_code != 0:
         _record_mqtt_runtime(userdata, "connack_rejected", reason_code)
         logger.warning("MQTT connection refused: %s", reason_code)
@@ -247,6 +298,14 @@ def on_connect(client, userdata, flags, reason_code, properties):
             userdata.subscription_mid = mid
         else:
             _record_mqtt_runtime(userdata, "subscription_failed")
+    review_result = client.subscribe(f"{settings.topic_prefix}/reviews")
+    if isinstance(userdata, MqttConsumerContext):
+        rc, mid = review_result
+        if rc == mqtt.MQTT_ERR_SUCCESS:
+            userdata.review_subscription_mid = mid
+        else:
+            _record_mqtt_runtime(userdata, 'reviews_subscription_failed')
+    _wake_reviews(userdata)
 
 
 def on_subscribe(client, userdata, mid, reason_codes, properties):
@@ -255,19 +314,27 @@ def on_subscribe(client, userdata, mid, reason_codes, properties):
         and userdata.subscription_mid is not None
         and mid == userdata.subscription_mid
     )
+    review_ack = (isinstance(userdata, MqttConsumerContext)
+                  and userdata.review_subscription_mid is not None
+                  and mid == userdata.review_subscription_mid)
     if not reason_codes or any(code.is_failure for code in reason_codes):
         if expected_ack:
             _record_mqtt_runtime(userdata, "subscription_failed")
-        logger.warning("MQTT event subscription refused")
+        if review_ack:
+            _record_mqtt_runtime(userdata, 'reviews_subscription_failed')
+        logger.warning('MQTT %s subscription refused', 'review' if review_ack else 'event')
         return
     if expected_ack:
         _record_mqtt_runtime(userdata, "subscribed")
-    logger.info("MQTT event subscription ready")
+    if review_ack:
+        _record_mqtt_runtime(userdata, 'reviews_subscribed')
+    logger.info('MQTT %s subscription ready', 'review' if review_ack else 'event')
 
 
 def on_disconnect(client, userdata, flags, reason_code, properties):
     if isinstance(userdata, MqttConsumerContext):
         userdata.subscription_mid = None
+        userdata.review_subscription_mid = None
     _record_mqtt_runtime(userdata, "disconnect", reason_code)
     if reason_code != 0:
         logger.warning("Unexpected MQTT disconnection, trying to reconnect")
@@ -346,6 +413,25 @@ def set_sublabel(client, frigate_event, sublabel):
         return
 
     logger.info("Sublabel set successfully to: %s", sublabel[:20])
+
+
+def publish_grouped_observation(client, row):
+    """Postcommit publication once per species occurrence, never per support."""
+    name = row['common_name'] or row['scientific_name']
+    client.publish('whosatmyfeeder/detections', name, qos=0, retain=False)
+    post_observation_event(config.get('bridge', {}), common_name=name,
+                           scientific_name=row['scientific_name'], confidence=row['score'],
+                           camera=row['camera_name'], frigate_event=row['event_id'])
+    set_sublabel(frigate_client, row['event_id'], name)
+    conn = connect_db(DBPATH, row_factory=False)
+    try:
+        first = conn.execute('SELECT COUNT(*) FROM detections WHERE display_name=?',
+                             (row['scientific_name'],)).fetchone()[0] == 1
+    finally:
+        conn.close()
+    if first:
+        publish_new_species(client, name, row['scientific_name'], row['score'],
+                            row['camera_name'], row['event_id'])
 
 
 def commit_detection(conn, pending_observation=None):
@@ -544,14 +630,31 @@ def on_message(client, userdata, message):
         sqlite3.Error,
         OSError,
         AttributeError,
-    ) as e:
+    ):
 
-        logger.exception("ERROR in on_message: %s", e)
+        logger.exception("ERROR in on_message")
 
 
 def _on_message_inner(client, userdata, message):
 
     settings = _mqtt_runtime_settings(userdata)
+    cameras = (config or {}).get('frigate', {}).get('camera', [])
+    if message.topic == f'{settings.topic_prefix}/reviews':
+        if message.retain:
+            return
+        try:
+            observed, issue = ingest_review(DBPATH, message.payload, cameras, now=time.time())
+            if observed:
+                _record_mqtt_runtime(userdata, 'review_received')
+                _wake_reviews(userdata)
+            if issue:
+                _review_issue(userdata, issue)
+        except ReviewInputError:
+            _review_issue(userdata, 'malformed_review')
+        except (sqlite3.Error, OSError, RuntimeError):
+            _review_issue(userdata, 'database_write_failed')
+            _wake_reviews(userdata)
+        return
     expected_topic = f"{settings.topic_prefix}/events"
     if message.topic != expected_topic:
         return
@@ -559,6 +662,27 @@ def _on_message_inner(client, userdata, message):
     if message.retain:
         return
 
+    try:
+        decode_payload(message.payload)
+        if ingest_event(DBPATH, message.payload, cameras):
+            _wake_reviews(userdata)
+    except ReviewInputError:
+        _review_issue(userdata, 'malformed_event')
+        return
+    except ValueError:
+        _review_issue(userdata, 'membership_conflict')
+    except (sqlite3.Error, OSError, RuntimeError):
+        # Preparatory metadata must not disable the existing classification path.
+        _review_issue(userdata, 'database_write_failed')
+        _wake_reviews(userdata)
+
+    if isinstance(userdata, MqttConsumerContext) and userdata.reconciler is not None:
+        # Unknown/degraded capability waits for durable review recovery. SUBACK
+        # and MQTT silence never opt activity into permanent event detections.
+        with closing(connect_db(DBPATH)) as conn:
+            known_reviews = conn.execute('SELECT 1 FROM frigate_reviews LIMIT 1').fetchone()
+        if known_reviews or userdata.reconciler.status.api_state != 'unsupported':
+            return
     return _process_live_message(client, message)
 
 
@@ -608,28 +732,9 @@ def _process_live_message(client, message):
             logger.info("Snapshot HTTP 200")
 
             if snapshot is not None:
-
-                image = Image.open(
-                    BytesIO(snapshot)
-                ).convert("RGB")
-
-                image = image.resize((224, 224))
-
-                # Convert to numpy
-                np_arr = np.array(
-                    image,
-                    dtype=np.uint8
-                )
-
-                # Ensure contiguous memory
-                np_arr = np.ascontiguousarray(
-                    np_arr
-                )
-
-                logger.debug("Image shape: %s dtype: %s", np_arr.shape, np_arr.dtype)
+                frigate_client.remember_event_snapshot(frigate_event, snapshot, after_data)
                 logger.info("Classifying snapshot")
-
-                categories = classify(np_arr)
+                categories = classify_snapshot(snapshot)
 
                 if not categories:
                     logger.info("No usable classification result for event %s", frigate_event)
@@ -946,12 +1051,13 @@ def initialize_worker_classifier(runtime_writer=None):
         if runtime_writer is not None:
             runtime_writer.record_classifier(ClassifierRuntimeSnapshot(state="failed"))
         raise
+    try:
+        observation = loaded_classifier(selection)
+    except OSError:
+        observation = ClassifierRuntimeSnapshot(state="unknown")
     if runtime_writer is not None:
-        try:
-            observation = loaded_classifier(selection)
-        except OSError:
-            observation = ClassifierRuntimeSnapshot(state="unknown")
         runtime_writer.record_classifier(observation)
+    return observation
 
 
 def run_mqtt_client(runtime_writer=None, runtime_config=None, database_path=None):
@@ -964,7 +1070,7 @@ def run_mqtt_client(runtime_writer=None, runtime_config=None, database_path=None
 
     settings = _mqtt_runtime_settings()
 
-    initialize_worker_classifier(runtime_writer)
+    loaded_model = initialize_worker_classifier(runtime_writer)
 
     logger.info("Classifier initialized in MQTT subprocess")
     logger.info(
@@ -982,10 +1088,8 @@ def run_mqtt_client(runtime_writer=None, runtime_config=None, database_path=None
         callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
         client_id="birdspeciesid" + current_time
     )
-    client.user_data_set(
-        MqttConsumerContext(settings, runtime_writer)
-        if runtime_writer is not None else settings
-    )
+    context = MqttConsumerContext(settings, runtime_writer)
+    client.user_data_set(context)
 
     client.on_message = on_message
     client.on_subscribe = on_subscribe
@@ -994,12 +1098,32 @@ def run_mqtt_client(runtime_writer=None, runtime_config=None, database_path=None
 
     configure_mqtt_client(client, settings)
 
-    client.connect(
-        settings.host,
-        settings.port
-    )
+    # Thread ownership belongs to this supervised child, after native model
+    # initialization/fork. TERM unwinds the context before process exit.
+    def terminate(signum, frame):
+        raise SystemExit(0)
 
-    client.loop_forever()
+    previous_term = signal.signal(signal.SIGTERM, terminate)
+    try:
+        cameras = (config or {}).get('frigate', {}).get('camera', [])
+        terminal = TerminalClassifier(
+            frigate_client, classify_snapshot, model_id=terminal_model_identity(loaded_model),
+            threshold=config.get('classification', {}).get('threshold', .7),
+            background_index=classifier_background_index, common_name=get_common_name,
+        )
+        review_worker = (ReviewReconciler(DBPATH, cameras, frigate_client, runtime_writer,
+                                         terminal_classifier=terminal, aggregator=ReviewAggregator(
+                                             archive=lambda identity: archive_representative(
+                                                 frigate_client, identity, review_worker.stop),
+                                             publish=lambda row: publish_grouped_observation(client, row),
+                                             cleanup=cleanup_unreferenced_archive))
+                         if DBPATH is not None and cameras and frigate_client is not None else nullcontext())
+        with review_worker as reconciler:
+            context.reconciler = reconciler
+            client.connect(settings.host, settings.port)
+            client.loop_forever()
+    finally:
+        signal.signal(signal.SIGTERM, previous_term)
 
 
 def main():
@@ -1050,7 +1174,6 @@ def _main(lifecycle):
         db_path=DBPATH,
     )
 
-    ...
 
     logger.info("Time: %s", current_time)
     logger.info("Python version: %s", sys.version)

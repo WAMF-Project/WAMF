@@ -17,11 +17,12 @@ from paho.mqtt.reasoncodes import ReasonCode
 # Explicit configuration loading in these tests uses the example by default.
 os.environ.setdefault("WHOSATMYFEEDER_CONFIG", "config/config.yml.example")
 
-import speciesid  # noqa: E402
+import speciesid
+
 
 @pytest.fixture(autouse=True)
 def preserve_health_worker_state(monkeypatch):
-    import app.health as health
+    from app import health
     monkeypatch.setattr(health, '_detection_worker_enabled', None)
     monkeypatch.setattr(speciesid, 'configure_worker_signals', lambda: None)
 
@@ -511,13 +512,14 @@ def test_runtime_ignores_legacy_aliases_beside_canonical_mqtt(monkeypatch):
         "speciesid.mqtt.Client"
     ) as factory, patch("speciesid.log_system_event"):
         client = factory.return_value
+        client.subscribe.return_value = (0, 17)
         speciesid.run_mqtt_client()
         settings = client.user_data_set.call_args.args[0]
         speciesid.on_connect(client, settings, speciesid.mqtt.ConnectFlags(False),
                              ReasonCode(PacketTypes.CONNACK, "Success"), Properties(PacketTypes.CONNACK))
 
     client.connect.assert_called_once_with("canonical-broker", 2883)
-    client.subscribe.assert_called_once_with("kingfisher/events")
+    assert [item.args for item in client.subscribe.call_args_list] == [('kingfisher/events',), ('kingfisher/reviews',)]
     client.username_pw_set.assert_not_called()
     client.tls_set.assert_not_called()
     client.tls_insecure_set.assert_not_called()
@@ -611,7 +613,7 @@ def test_successful_mqtt_connection_subscribes_to_configured_topic(monkeypatch):
     with patch('speciesid.log_system_event'):
         speciesid.on_connect(client, None, speciesid.mqtt.ConnectFlags(False),
                              ReasonCode(PacketTypes.CONNACK, "Success"), Properties(PacketTypes.CONNACK))
-    client.subscribe.assert_called_once_with('custom/events')
+    assert [item.args for item in client.subscribe.call_args_list] == [('custom/events',), ('custom/reviews',)]
 
 
 def test_parent_initializes_config_and_schema_before_spawning_workers(monkeypatch):
@@ -674,7 +676,7 @@ def test_production_receives_real_paho_connack_dispatch(monkeypatch, wire_code, 
     with patch.object(client, 'subscribe') as subscribe, patch('speciesid.log_system_event') as event:
         client._handle_connack()
     if connected:
-        subscribe.assert_called_once_with('custom/events')
+        assert [item.args for item in subscribe.call_args_list] == [('custom/events',), ('custom/reviews',)]
         event.assert_called_once()
     else:
         subscribe.assert_not_called()
