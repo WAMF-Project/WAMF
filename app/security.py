@@ -3,17 +3,37 @@
 import hmac
 import os
 import secrets
+import threading
 import time
+from dataclasses import dataclass
+from ipaddress import ip_address, ip_network
 from urllib.parse import urlsplit
 
-from flask import request, session, url_for
-from werkzeug.security import check_password_hash
+from flask import current_app, request, session, url_for
 
+from app.credentials import verify_credential
 
 LOGIN_ATTEMPTS = {}
 LOGIN_ATTEMPT_LIMIT = 5
 LOGIN_WINDOW_SECONDS = 300
 LOGIN_FAILURE_DELAY_SECONDS = 0.35
+LOGIN_CLIENT_LIMIT = 1024
+_login_attempts_lock = threading.Lock()
+_login_overflow_attempts = []
+
+
+@dataclass(eq=False, slots=True)
+class _LoginAttempt:
+    timestamp: float
+    pending: bool = False
+
+
+@dataclass(eq=False, frozen=True, slots=True)
+class _LoginReservation:
+    client_ip: str
+    bucket: list
+    attempt: _LoginAttempt
+    resettable: tuple
 
 
 def get_admin_config(config):
@@ -54,7 +74,7 @@ def is_valid_api_token(config):
     return bool(
         token
         and token_hash
-        and check_password_hash(token_hash, token)
+        and verify_credential(token_hash, token, for_api=True)
     )
 
 
@@ -84,38 +104,130 @@ def configure_session_secret(flask_app, config):
 
 
 def get_client_ip():
-    forwarded_for = request.headers.get('X-Forwarded-For', '')
+    """Trust forwarding only from explicitly configured proxy networks.
 
-    if forwarded_for:
-        return forwarded_for.split(',')[0].strip()
+    WAMF_TRUSTED_PROXY_CIDRS is an application deployment setting (default: no
+    trusted proxies), not inferred from private addresses or public_base_url.
+    Each trusted proxy must append its actual peer to X-Forwarded-For. Walk
+    right-to-left and stop at the first untrusted hop; never trust the leftmost
+    value supplied by an arbitrary client. Do not combine with ProxyFix.
+    """
+    peer = request.remote_addr or 'unknown'
+    configured = current_app.config.get('WAMF_TRUSTED_PROXY_CIDRS', ())
+    if not isinstance(configured, (tuple, list)) or not configured:
+        return peer
+    try:
+        networks = tuple(ip_network(value) for value in configured)
+        address = ip_address(peer)
+        if not any(address in network for network in networks):
+            return peer
+        forwarded = request.headers.get('X-Forwarded-For', '')
+        if not forwarded or len(forwarded) > 4096:
+            return peer
+        hops = forwarded.split(',')
+        if len(hops) > 32:
+            return peer
+        chain = [ip_address(hop.strip()) for hop in hops]
+        for hop in reversed(chain):
+            if not any(address in network for network in networks):
+                break
+            address = hop
+        return str(address)
+    except (ValueError, TypeError):
+        # Invalid trust settings or forwarded syntax must never bypass the peer
+        # bucket. No header, address, or configuration value is logged.
+        return peer
 
-    return request.remote_addr or 'unknown'
+
+def _prune_login_attempts(now):
+    """Caller holds the lock; never retain empty or expired client buckets."""
+    for client_ip, attempts in list(LOGIN_ATTEMPTS.items()):
+        recent = [attempt for attempt in attempts
+                  if attempt.pending or now - attempt.timestamp < LOGIN_WINDOW_SECONDS]
+        if recent:
+            attempts[:] = recent[-LOGIN_ATTEMPT_LIMIT:]
+        else:
+            LOGIN_ATTEMPTS.pop(client_ip, None)
+    _login_overflow_attempts[:] = [
+        attempt for attempt in _login_overflow_attempts
+        if attempt.pending or now - attempt.timestamp < LOGIN_WINDOW_SECONDS
+    ][-LOGIN_ATTEMPT_LIMIT:]
+
+
+def _login_bucket(client_ip, create=False):
+    """Caller holds the lock and has pruned expired attempts."""
+    attempts = LOGIN_ATTEMPTS.get(client_ip)
+    if attempts is not None:
+        return attempts
+    # Overflow membership cannot be tracked with an unbounded peer map. Keep
+    # all untracked peers in the shared bucket until its active state drains.
+    if _login_overflow_attempts or len(LOGIN_ATTEMPTS) >= LOGIN_CLIENT_LIMIT:
+        return _login_overflow_attempts
+    if create:
+        return LOGIN_ATTEMPTS.setdefault(client_ip, [])
+    return []
+
+
+def reserve_login_attempt(client_ip):
+    """Atomically admit an attempt; pending reservations never expire early."""
+    with _login_attempts_lock:
+        now = time.monotonic()
+        _prune_login_attempts(now)
+        bucket = _login_bucket(client_ip, create=True)
+        if len(bucket) >= LOGIN_ATTEMPT_LIMIT:
+            return None
+        resettable = (
+            tuple(attempt for attempt in bucket if not attempt.pending)
+            if bucket is not _login_overflow_attempts else ()
+        )
+        attempt = _LoginAttempt(now, pending=True)
+        bucket.append(attempt)
+        return _LoginReservation(client_ip, bucket, attempt, resettable)
+
+
+def settle_login_attempt(reservation, success=False):
+    """Settle once; a success must not erase concurrently reserved attempts."""
+    with _login_attempts_lock:
+        attempt = reservation.attempt
+        if not attempt.pending:
+            return
+        now = time.monotonic()
+        _prune_login_attempts(now)
+        attempt.pending = False
+        if success:
+            reservation.bucket[:] = [entry for entry in reservation.bucket
+                                     if entry is not attempt and entry not in reservation.resettable]
+            if not reservation.bucket and LOGIN_ATTEMPTS.get(reservation.client_ip) is reservation.bucket:
+                LOGIN_ATTEMPTS.pop(reservation.client_ip, None)
+        else:
+            # Failures count for a full window from verification completion.
+            attempt.timestamp = now
 
 
 def is_login_rate_limited(client_ip):
-    now = time.monotonic()
-    attempts = [
-        timestamp
-        for timestamp in LOGIN_ATTEMPTS.get(client_ip, [])
-        if now - timestamp < LOGIN_WINDOW_SECONDS
-    ]
-    LOGIN_ATTEMPTS[client_ip] = attempts
-    return len(attempts) >= LOGIN_ATTEMPT_LIMIT
+    with _login_attempts_lock:
+        _prune_login_attempts(time.monotonic())
+        return len(_login_bucket(client_ip)) >= LOGIN_ATTEMPT_LIMIT
 
 
 def record_login_failure(client_ip):
-    now = time.monotonic()
-    attempts = [
-        timestamp
-        for timestamp in LOGIN_ATTEMPTS.get(client_ip, [])
-        if now - timestamp < LOGIN_WINDOW_SECONDS
-    ]
-    attempts.append(now)
-    LOGIN_ATTEMPTS[client_ip] = attempts
+    with _login_attempts_lock:
+        now = time.monotonic()
+        _prune_login_attempts(now)
+        attempts = _login_bucket(client_ip, create=True)
+        if len(attempts) < LOGIN_ATTEMPT_LIMIT:
+            attempts.append(_LoginAttempt(now))
 
 
 def clear_login_failures(client_ip):
-    LOGIN_ATTEMPTS.pop(client_ip, None)
+    with _login_attempts_lock:
+        attempts = LOGIN_ATTEMPTS.get(client_ip)
+        if attempts is not None:
+            attempts[:] = [attempt for attempt in attempts if attempt.pending]
+            if not attempts:
+                LOGIN_ATTEMPTS.pop(client_ip, None)
+        # A successful login must not clear failures shared by other clients
+        # in the overflow bucket.
 
 
 def delay_login_failure():

@@ -35,7 +35,10 @@ def embedded_config(secret="MIGRATION-SECRET"):
             "session_secret": "stable-session",
             "password_hash": generate_password_hash("existing-password"),
         },
-        "api": {"token_auth_enabled": True, "token_hash": "api-token-hash"},
+        "api": {
+            "token_auth_enabled": True,
+            "token_hash": generate_password_hash("existing-api-token", method="pbkdf2:sha256:600000"),
+        },
         "retention": {"config_backups_max_files": 2},
     }
 

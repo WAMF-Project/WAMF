@@ -33,7 +33,7 @@ def write_admin(path, **admin):
     path.write_text(yaml.safe_dump({
         'config_version': CURRENT_CONFIG_VERSION,
         'admin': {'auth_enabled': True, **admin},
-        'api': {'token_hash': 'keep'},
+        'api': {'token_hash': 'plain$$keep'},
     }))
 
 
@@ -67,8 +67,8 @@ def test_missing_override_fails_without_creation(config_path):
 
 
 @pytest.mark.parametrize('secret', [None, '', '  ', '<long random session secret>'])
-@pytest.mark.parametrize('password_hash', [None, '', '<generated werkzeug password hash>', 'broken', 'invalid$salt$deadbeef', 'pbkdf2:sha256:1$salt$bad'])
-def test_invalid_credentials_bootstrap_once(config_path, capsys, secret, password_hash):
+@pytest.mark.parametrize('password_hash', [None, '', '<generated werkzeug password hash>'])
+def test_missing_credentials_bootstrap_once(config_path, capsys, secret, password_hash):
     write_admin(config_path, session_secret=secret, password_hash=password_hash)
     config = bootstrap.bootstrap_config()
     output = capsys.readouterr().out
@@ -78,7 +78,7 @@ def test_invalid_credentials_bootstrap_once(config_path, capsys, secret, passwor
     assert check_password_hash(admin['password_hash'], password)
     assert admin['password_hash'].startswith('pbkdf2:sha256:600000$')
     assert password not in config_path.read_text()
-    assert config['api'] == {'token_hash': 'keep'}
+    assert config['api'] == {'token_hash': 'plain$$keep'}
     persisted_config = yaml.safe_load(config_path.read_text())
     persisted_secrets = yaml.safe_load(get_secrets_path(config_path).read_text())
     assert 'session_secret' not in persisted_config['admin']
@@ -88,7 +88,7 @@ def test_invalid_credentials_bootstrap_once(config_path, capsys, secret, passwor
         'session_secret': admin['session_secret'],
         'password_hash': admin['password_hash'],
     }
-    assert persisted_secrets['api'] == {'token_hash': 'keep'}
+    assert persisted_secrets['api'] == {'token_hash': 'plain$$keep'}
     persisted = config_path.read_bytes()
     assert bootstrap.bootstrap_config() == config
     assert config_path.read_bytes() == persisted
@@ -108,7 +108,7 @@ def test_valid_credentials_are_extracted_then_preserved_byte_for_byte(config_pat
         'session_secret': 'existing-secret',
         'password_hash': password_hash,
     }
-    assert secrets['api'] == {'token_hash': 'keep'}
+    assert secrets['api'] == {'token_hash': 'plain$$keep'}
     first_config = config_path.read_bytes()
     first_secrets = get_secrets_path(config_path).read_bytes()
     assert bootstrap.bootstrap_config() == runtime
@@ -149,15 +149,15 @@ def test_environment_secret_is_preserved(config_path, monkeypatch):
 
 
 @pytest.mark.parametrize('content', [
-    'admin:\n  auth_enabled: true\napi:\n  token_hash: keep\n',
-    'admin: {auth_enabled: true}\napi: {token_hash: keep}\n',
+    'admin:\n  auth_enabled: true\napi:\n  token_hash: plain$$keep\n',
+    'admin: {auth_enabled: true}\napi: {token_hash: plain$$keep}\n',
 ])
 def test_missing_admin_keys_are_inserted(config_path, content):
     config_path.write_text(content)
     config = bootstrap.bootstrap_config()
     assert config['admin']['auth_enabled'] is True
     assert bootstrap.valid_password_hash(config['admin']['password_hash'])
-    assert config['api']['token_hash'] == 'keep'
+    assert config['api']['token_hash'] == 'plain$$keep'
 
 
 def test_example_comments_and_unrelated_values_preserved(config_path):
@@ -418,7 +418,7 @@ def test_generated_password_can_login_and_be_changed(config_path, capsys, flask_
     import webui
     monkeypatch.setenv('WHOSATMYFEEDER_CONFIG', str(config_path))
     monkeypatch.setitem(webui.app.config, 'SECRET_KEY', webui.app.secret_key)
-    write_admin(config_path, session_secret='<placeholder>', password_hash='<placeholder>')
+    write_admin(config_path, session_secret='<placeholder>', password_hash='<generated werkzeug password hash>')
     bootstrap.bootstrap_config()
     password = temporary_password(capsys.readouterr().out)
     monkeypatch.setattr(webui, 'config', webui.config)
@@ -447,7 +447,7 @@ def test_generated_password_can_login_and_be_changed(config_path, capsys, flask_
 def test_no_password_disclosed_if_persistence_fails(config_path, monkeypatch, capsys):
     from app.config_persistence import ConfigWriteError
 
-    write_admin(config_path, session_secret='<placeholder>', password_hash='<placeholder>')
+    write_admin(config_path, session_secret='<placeholder>', password_hash='<generated werkzeug password hash>')
     original = config_path.read_bytes()
 
     def fail_write(self, config, **kwargs):

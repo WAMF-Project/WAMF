@@ -1,8 +1,9 @@
 """Authentication routes for the single-admin session flow."""
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
-from werkzeug.security import check_password_hash
 
+from app import security
+from app.credentials import verify_credential
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -31,20 +32,24 @@ def login():
     if request.method == 'POST':
         client_ip = webui.get_client_ip()
 
-        if webui.is_login_rate_limited(client_ip):
+        reservation = security.reserve_login_attempt(client_ip)
+        if reservation is None:
             webui.delay_login_failure()
             error = 'Login temporarily locked. Try again later.'
         else:
-            password = request.form.get('password', '')
+            authenticated = False
+            try:
+                password = request.form.get('password', '')
+                authenticated = verify_credential(webui.get_admin_password_hash(), password)
+            finally:
+                security.settle_login_attempt(reservation, success=authenticated)
 
-            if check_password_hash(webui.get_admin_password_hash(), password):
+            if authenticated:
                 session.clear()
                 session['admin_authenticated'] = True
                 webui.get_csrf_token()
-                webui.clear_login_failures(client_ip)
                 return redirect(webui.get_safe_next_url())
 
-            webui.record_login_failure(client_ip)
             webui.delay_login_failure()
             error = 'Login failed.'
 

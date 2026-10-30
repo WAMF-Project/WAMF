@@ -8,8 +8,16 @@ from datetime import UTC, datetime, timezone
 from zoneinfo import available_timezones
 
 import yaml
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
-from werkzeug.security import check_password_hash, generate_password_hash
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
+from werkzeug.security import generate_password_hash
 
 from app.config_editor import (
     get_config_path,
@@ -35,18 +43,27 @@ from app.config_secrets import (
     secret_updates,
 )
 from app.config_validation import (
-    validate_config, validate_mqtt_connection_config, validate_frigate_connection_config,
+    validate_config,
+    validate_frigate_connection_config,
+    validate_mqtt_connection_config,
+)
+from app.credentials import verify_credential
+from app.frigate_connection import (
+    DISCOVERY_MESSAGES,
+    FrigateDiscoveryResult,
+    FrigateProbeResult,
+    discover_frigate_cameras,
+    probe_frigate_connection,
 )
 from app.frigate_connection import (
-    MESSAGES as FRIGATE_MESSAGES, FrigateProbeResult, probe_frigate_connection,
-    DISCOVERY_MESSAGES, FrigateDiscoveryResult, discover_frigate_cameras,
+    MESSAGES as FRIGATE_MESSAGES,
 )
 from app.frigate_presentation import build_camera_presentation
+from app.model_install import get_install_status, install_model
+from app.model_manager import ModelSelectionError, build_model_manager, select_model
 from app.mqtt_connection import MESSAGES, MqttProbeResult, probe_mqtt_connection
-from app.mqtt_settings import mqtt_settings_from_config
 from app.mqtt_presentation import build_mqtt_presentation
-from app.model_install import install_model, get_install_status
-from app.model_manager import build_model_manager, select_model, ModelSelectionError
+from app.mqtt_settings import mqtt_settings_from_config
 from app.process_control import INSTANCE_ID, schedule_restart
 from app.retention_presentation import (
     build_retention_presentation,
@@ -851,7 +868,7 @@ def change_password():
         new_password = request.form.get('new_password', '')
         confirm_password = request.form.get('confirm_password', '')
 
-        if not check_password_hash(webui.get_admin_password_hash() or '', current_password):
+        if not verify_credential(webui.get_admin_password_hash(), current_password):
             error = 'Password change failed.'
         elif len(new_password) < 8:
             error = 'New password must be at least 8 characters.'

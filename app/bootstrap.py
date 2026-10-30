@@ -1,13 +1,11 @@
 """Native first-run configuration and credentials, before worker creation."""
-import hashlib
 import os
-from pathlib import Path
-import re
 import secrets
 import string
+from pathlib import Path
 
 import yaml
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
 
 from app.config_editor import get_config_backups_max_files, get_config_path
 from app.config_migration import (
@@ -29,26 +27,22 @@ from app.config_secrets import (
     validate_secrets,
 )
 from app.config_validation import is_placeholder, validate_config
+from app.credentials import valid_credential_hash
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PORT = 7767
 
 
 def valid_password_hash(value):
-    if is_placeholder(value):
-        return False
-    try:
-        method, salt, digest = value.split('$', 2)
-        if not (method.startswith(('pbkdf2:', 'scrypt:')) or method == 'scrypt' or method in hashlib.algorithms_available):
-            return False
-        if not salt or not re.fullmatch(r'[0-9a-f]+', digest):
-            return False
-        # Exercise the installed Werkzeug implementation, including method parameters.
-        check_password_hash(value, secrets.token_urlsafe(16))
-        sample = generate_password_hash('validation', method=method, salt_length=len(salt))
-        return len(digest) == len(sample.rsplit('$', 1)[1])
-    except (ValueError, TypeError, OverflowError):
-        return False
+    return valid_credential_hash(value)
+
+
+def _unconfigured(value, example):
+    # Only missing/blank values and documented examples permit provisioning.
+    # Arbitrary invalid credentials are never a request to reset a password.
+    return value is None or isinstance(value, str) and (
+        not value.strip() or value.strip() == example
+    )
 
 
 def bootstrap_config():
@@ -84,9 +78,6 @@ def _bootstrap_locked(path, transaction):
         fields = ", ".join(issue.field for issue in validation.errors)
         raise ValueError(f"Configuration is structurally invalid: {fields}")
 
-    ensure_private_file(path)
-    ensure_private_file(transaction.lock_path)
-
     secrets_path = get_secrets_path(path)
     password = None
     with ConfigPersistenceTransaction(secrets_path) as secrets_transaction:
@@ -95,7 +86,6 @@ def _bootstrap_locked(path, transaction):
             existing_secrets = parse_secrets_content(
                 secrets_transaction.read_text()
             )
-            ensure_private_file(secrets_path)
         else:
             existing_secrets = empty_secrets()
 
@@ -113,6 +103,19 @@ def _bootstrap_locked(path, transaction):
             for field in ('session_secret', 'password_hash'):
                 if field in stored_admin:
                     runtime_admin[field] = stored_admin[field]
+        password_missing = _unconfigured(
+            runtime_admin.get('password_hash'), '<generated werkzeug password hash>',
+        )
+        api = secrets_candidate.get('api') or {}
+        token_missing = _unconfigured(api.get('token_hash'), '<generated werkzeug token hash>')
+        if not password_missing and not valid_password_hash(runtime_admin.get('password_hash')):
+            raise ValueError('admin.password_hash has a malformed or unsupported credential format')
+        if not token_missing and not valid_credential_hash(api.get('token_hash'), for_api=True):
+            raise ValueError('api.token_hash has a malformed or unsupported credential format')
+        ensure_private_file(path)
+        ensure_private_file(transaction.lock_path)
+        if secrets_existed:
+            ensure_private_file(secrets_path)
         if admin.get('auth_enabled', False):
             env_secret = os.environ.get('WAMF_SECRET_KEY')
             if env_secret and is_placeholder(env_secret):
@@ -120,7 +123,7 @@ def _bootstrap_locked(path, transaction):
             secret_admin = secrets_candidate.setdefault('admin', {})
             if not env_secret and is_placeholder(runtime_admin.get('session_secret')):
                 secret_admin['session_secret'] = secrets.token_hex(32)
-            if not valid_password_hash(runtime_admin.get('password_hash')):
+            if password_missing:
                 alphabet = string.ascii_letters + string.digits
                 password = '-'.join(
                     ''.join(secrets.choice(alphabet) for _ in range(6))
